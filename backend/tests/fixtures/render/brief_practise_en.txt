@@ -1,0 +1,5 @@
+Section “2. Exercises” (practice), 2/3.
+Goal: Apply it.
+Typical exercises: 6.1.1; 6.1.2.
+To do: 2 exercise(s), one at a time.
+Finished when: Two exercises solved.

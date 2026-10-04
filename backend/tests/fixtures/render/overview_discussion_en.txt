@@ -1,0 +1,7 @@
+## Chapter path “Mini chapter”
+
+Sections in order. This is the chapter's path: it is followed in path mode, not here. You can tell your student where a notion is worked and offer to go there; you can neither open nor finish a section.
+
+1. `intro` (lesson) — Introduction. Understand what we are talking about.
+2. `exos` (practice) — Exercises. Apply it.
+3. `bilan` (summary) — Summary. Mix it up.

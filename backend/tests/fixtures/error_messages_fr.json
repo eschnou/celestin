@@ -1,0 +1,773 @@
+[
+  {
+    "key": "internal",
+    "params": {},
+    "fr": "Une erreur est survenue. Réessaie dans un instant.",
+    "make": [
+      "TutorError",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "prompt_unavailable",
+    "params": {},
+    "fr": "La configuration du tuteur est incomplète. Préviens l'adulte qui gère l'application.",
+    "make": [
+      "PromptUnavailable",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "provider_unavailable",
+    "params": {},
+    "fr": "Célestin est injoignable pour le moment. Réessaie dans un instant.",
+    "make": [
+      "ProviderUnavailable",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "provider_unavailable",
+    "params": {},
+    "fr": "Célestin est injoignable pour le moment. Réessaie dans un instant.",
+    "make": [
+      "ProviderAuthRejected",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "provider_unavailable",
+    "params": {},
+    "fr": "Célestin est injoignable pour le moment. Réessaie dans un instant.",
+    "make": [
+      "ProviderModelNotFound",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "provider_unavailable",
+    "params": {},
+    "fr": "Célestin est injoignable pour le moment. Réessaie dans un instant.",
+    "make": [
+      "ProviderRejectedRequest",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "provider_rate_limited",
+    "params": {},
+    "fr": "Trop de demandes d'un coup. Attends quelques secondes et réessaie.",
+    "make": [
+      "ProviderRateLimited",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "provider_timeout",
+    "params": {},
+    "fr": "Célestin a mis trop de temps à répondre. Réessaie.",
+    "make": [
+      "ProviderTimeout",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "voice_disabled",
+    "params": {},
+    "fr": "La voix n'est pas activée sur cette installation.",
+    "make": [
+      "VoiceDisabled",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "not_authenticated",
+    "params": {},
+    "fr": "Connecte-toi pour continuer.",
+    "make": [
+      "NotAuthenticated",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "forbidden",
+    "params": {},
+    "fr": "Cet espace n'est pas encore disponible pour ton rôle.",
+    "make": [
+      "Forbidden",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "invalid_credentials",
+    "params": {},
+    "fr": "Email ou mot de passe incorrect.",
+    "make": [
+      "InvalidCredentials",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "email_taken",
+    "params": {},
+    "fr": "Cette adresse ne peut pas être utilisée.",
+    "make": [
+      "EmailTaken",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "not_found",
+    "params": {},
+    "fr": "Cette page n'existe pas.",
+    "make": [
+      "NotFound",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "rate_limited",
+    "params": {},
+    "fr": "Trop de tentatives d'un coup. Attends quelques minutes et réessaie.",
+    "make": [
+      "RateLimited",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "voice_rate_limited",
+    "params": {},
+    "fr": "Trop de séances vocales d'un coup. Réessaie dans un moment, ou écris à Célestin.",
+    "make": [
+      "VoiceRateLimited",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "dictation_disabled",
+    "params": {},
+    "fr": "La dictée n'est pas disponible sur cette installation. Écris ton message.",
+    "make": [
+      "DictationDisabled",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "dictation_rate_limited",
+    "params": {},
+    "fr": "Trop de dictées d'un coup. Attends un moment, ou écris ton message.",
+    "make": [
+      "DictationRateLimited",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "work_rate_limited",
+    "params": {},
+    "fr": "Trop de photos d'un coup. Attends un moment, ou écris ton travail.",
+    "make": [
+      "WorkRateLimited",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "invalid_audio",
+    "params": {},
+    "fr": "Je n'ai pas pu lire cet enregistrement. Réessaie, ou écris ton message.",
+    "make": [
+      "InvalidAudio",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "cross_origin",
+    "params": {},
+    "fr": "Requête refusée.",
+    "make": [
+      "CrossOrigin",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "invalid_subject",
+    "params": {},
+    "fr": "Choisis une matière dans la liste.",
+    "make": [
+      "InvalidSubject",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "invalid_language",
+    "params": {},
+    "fr": "Choisis une langue dans la liste.",
+    "make": [
+      "InvalidLanguage",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "course_limit",
+    "params": {},
+    "fr": "Tu as atteint le nombre maximum de cours. Supprime un cours pour en créer un nouveau.",
+    "make": [
+      "CourseLimit",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "chapter_limit",
+    "params": {},
+    "fr": "Ce cours a atteint le nombre maximum de chapitres.",
+    "make": [
+      "ChapterLimit",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "stale_version",
+    "params": {},
+    "fr": "Le chapitre a changé entre-temps. Recharge-le avant d'enregistrer.",
+    "make": [
+      "StaleVersion",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "chapter_not_ready",
+    "params": {},
+    "fr": "Ce chapitre n'est pas encore prêt.",
+    "make": [
+      "ChapterNotReady",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "chapter_unavailable",
+    "params": {},
+    "fr": "Ce chapitre ne peut pas être chargé. Ouvre son contenu pour le corriger.",
+    "make": [
+      "ChapterUnavailable",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "authoring_running",
+    "params": {},
+    "fr": "Ce chapitre est déjà en préparation.",
+    "make": [
+      "AuthoringRunning",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "nothing_to_retry",
+    "params": {},
+    "fr": "Il n'y a rien à relancer pour ce chapitre.",
+    "make": [
+      "NothingToRetry",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "document_needed",
+    "params": {},
+    "fr": "Dépose à nouveau le document : il n'est pas conservé.",
+    "make": [
+      "DocumentNeeded",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "payload_too_large",
+    "params": {},
+    "fr": "Ton message est trop long. Raccourcis-le et renvoie-le.",
+    "make": [
+      "PayloadTooLarge",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "conversation_full",
+    "params": {},
+    "fr": "Cette discussion est devenue très longue. Ouvre une nouvelle discussion pour continuer.",
+    "make": [
+      "ConversationFull",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "conversation_busy",
+    "params": {},
+    "fr": "Célestin est déjà en train de te répondre dans cette discussion.",
+    "make": [
+      "ConversationBusy",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "empty_conversation_expected",
+    "params": {},
+    "fr": "Cette discussion a déjà commencé.",
+    "make": [
+      "EmptyTurnExpected",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "content_invalid",
+    "params": {},
+    "fr": "Le contenu n'est pas valide. Corrige les points indiqués.",
+    "make": [
+      "ContentInvalid",
+      [
+        []
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "source_length",
+    "params": {
+      "minimum": 300,
+      "maximum": 100000
+    },
+    "fr": "Le texte doit faire entre 300 et 100000 caractères.",
+    "make": [
+      "SourceLength",
+      [
+        300,
+        100000
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "authoring_busy",
+    "params": {
+      "limit": 1,
+      "count": 1
+    },
+    "fr": "Un chapitre est déjà en préparation. Attends qu'il soit prêt.",
+    "make": [
+      "AuthoringBusy",
+      [
+        1
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "authoring_busy",
+    "params": {
+      "limit": 3,
+      "count": 3
+    },
+    "fr": "3 chapitres sont déjà en préparation. Attends qu'ils soient prêts.",
+    "make": [
+      "AuthoringBusy",
+      [
+        3
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "authoring_quota",
+    "params": {
+      "retry_at": "14:30"
+    },
+    "fr": "Tu as lancé beaucoup de préparations aujourd'hui. Réessaie après 14:30.",
+    "make": [
+      "AuthoringQuota",
+      [
+        "14:30"
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "document_too_large",
+    "params": {
+      "size_mb": 25
+    },
+    "fr": "Le document dépasse 25 Mo.",
+    "make": [
+      "DocumentTooLarge",
+      [
+        26214400
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "too_many_pages",
+    "params": {
+      "maximum": 5
+    },
+    "fr": "5 pages au plus par chapitre. Découpe le document.",
+    "make": [
+      "TooManyPages",
+      [
+        5
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "discussion_quota",
+    "params": {
+      "maximum": 2
+    },
+    "fr": "Tu as ouvert 2 discussions aujourd'hui. Reprends celle qui est en cours, ou réessaie demain.",
+    "make": [
+      "DiscussionQuota",
+      [
+        2
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "conversation_closed.replaced",
+    "params": {},
+    "fr": "Cette discussion a été remplacée par une nouvelle. Ouvre une nouvelle discussion pour continuer.",
+    "make": [
+      "ConversationClosed",
+      [
+        "replaced"
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "conversation_closed.capped",
+    "params": {},
+    "fr": "Cette discussion est arrivée au bout. Ouvre une nouvelle discussion pour continuer.",
+    "make": [
+      "ConversationClosed",
+      [
+        "capped"
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "conversation_closed.content_changed",
+    "params": {},
+    "fr": "Le chapitre a changé depuis cette discussion. Ouvre une nouvelle discussion pour continuer.",
+    "make": [
+      "ConversationClosed",
+      [
+        "content_changed"
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "conversation_closed.replaced",
+    "params": {},
+    "fr": "Cette discussion a été remplacée par une nouvelle. Ouvre une nouvelle discussion pour continuer.",
+    "make": [
+      "ConversationClosed",
+      [
+        "something-else"
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "weak_password.too_short",
+    "params": {
+      "min_length": 6
+    },
+    "fr": "Le mot de passe doit faire au moins 6 caractères.",
+    "make": [
+      "WeakPassword",
+      [
+        "too_short"
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "weak_password.personal",
+    "params": {},
+    "fr": "Le mot de passe ne doit pas contenir ton prénom ni ton adresse email.",
+    "make": [
+      "WeakPassword",
+      [
+        "personal"
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "document.empty",
+    "params": {},
+    "fr": "Le document est vide.",
+    "make": [
+      "DocumentInvalid",
+      [
+        "empty"
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "document.type_unknown",
+    "params": {},
+    "fr": "Dépose un PDF ou des photos (JPEG, PNG ou WebP).",
+    "make": [
+      "DocumentInvalid",
+      [
+        "type"
+      ],
+      {
+        "key": "type_unknown"
+      }
+    ]
+  },
+  {
+    "key": "document.type_mixed",
+    "params": {},
+    "fr": "Dépose un seul PDF, ou seulement des photos.",
+    "make": [
+      "DocumentInvalid",
+      [
+        "type"
+      ],
+      {
+        "key": "type_mixed"
+      }
+    ]
+  },
+  {
+    "key": "document.encrypted",
+    "params": {},
+    "fr": "Ce PDF est protégé par un mot de passe.",
+    "make": [
+      "DocumentInvalid",
+      [
+        "encrypted"
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "document.pdf_unreadable",
+    "params": {},
+    "fr": "Ce PDF est illisible.",
+    "make": [
+      "DocumentInvalid",
+      [
+        "unreadable"
+      ],
+      {
+        "key": "pdf_unreadable"
+      }
+    ]
+  },
+  {
+    "key": "document.photo_unreadable",
+    "params": {
+      "number": 1
+    },
+    "fr": "La photo 1 est illisible.",
+    "make": [
+      "DocumentInvalid",
+      [
+        "unreadable"
+      ],
+      {
+        "key": "photo_unreadable",
+        "number": 1
+      }
+    ]
+  },
+  {
+    "key": "document.too_small",
+    "params": {
+      "number": 1,
+      "min_pixels": 800
+    },
+    "fr": "La photo 1 est trop petite : il faut au moins 800 pixels de côté.",
+    "make": [
+      "DocumentInvalid",
+      [
+        "too_small"
+      ],
+      {
+        "number": 1,
+        "min_pixels": 800
+      }
+    ]
+  },
+  {
+    "key": "document.render_failed",
+    "params": {},
+    "fr": "Ce document n'a pas pu être lu.",
+    "make": [
+      "DocumentInvalid",
+      [
+        "render_failed"
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "account_disabled",
+    "params": {},
+    "fr": "Ton compte n'est pas activé. Un administrateur doit l'activer avant que tu puisses te connecter.",
+    "make": [
+      "AccountDisabled",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "registration_closed",
+    "params": {},
+    "fr": "Les inscriptions sont fermées.",
+    "make": [
+      "RegistrationClosed",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "setup_done",
+    "params": {},
+    "fr": "L'installation est déjà terminée. Connecte-toi.",
+    "make": [
+      "SetupDone",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "setup_required",
+    "params": {},
+    "fr": "Cette installation n'a pas encore d'administrateur. Termine d'abord l'installation.",
+    "make": [
+      "SetupRequired",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "ai_not_configured",
+    "params": {},
+    "fr": "Célestin n'est pas encore configuré. Demande à la personne qui gère cette installation de choisir le fournisseur d'IA.",
+    "make": [
+      "AiNotConfigured",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "invalid_ai_settings",
+    "params": {},
+    "fr": "Un des réglages du fournisseur d'IA n'est pas valide. Vérifie l'adresse, le modèle et les options.",
+    "make": [
+      "InvalidAiSettings",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "ai_key_rejected",
+    "params": {},
+    "fr": "Le fournisseur a refusé cette clé. Vérifie qu'elle est complète et active.",
+    "make": [
+      "AiKeyRejected",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "setting_from_environment",
+    "params": {},
+    "fr": "Ce réglage est défini par l'environnement du serveur : on ne peut pas le changer ici.",
+    "make": [
+      "SettingFromEnvironment",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "storage_unavailable",
+    "params": {},
+    "fr": "Ce serveur ne peut pas stocker de clé (aucun dossier de secrets). Définis la clé dans l'environnement du serveur à la place.",
+    "make": [
+      "StorageUnavailable",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "own_account",
+    "params": {},
+    "fr": "Tu ne peux pas faire cela sur ton propre compte.",
+    "make": [
+      "OwnAccount",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "wrong_password",
+    "params": {},
+    "fr": "Le mot de passe actuel est incorrect.",
+    "make": [
+      "WrongPassword",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "last_admin",
+    "params": {},
+    "fr": "C'est le dernier administrateur activé : on ne peut pas le désactiver.",
+    "make": [
+      "LastAdmin",
+      [],
+      {}
+    ]
+  }
+]

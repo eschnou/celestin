@@ -1,0 +1,11 @@
+{"type": "input_audio_buffer.speech_started", "item_id": "u1"}
+{"type": "input_audio_buffer.speech_stopped", "item_id": "u1"}
+{"type": "conversation.item.input_audio_transcription.completed", "item_id": "u1", "transcript": "Bonjour Célestin"}
+{"type": "response.created", "response": {"id": "resp_1", "status": "in_progress"}}
+{"type": "response.output_item.added", "response_id": "resp_1", "item": {"id": "m1", "type": "message", "role": "assistant", "status": "in_progress"}}
+{"type": "output_audio_buffer.started", "response_id": "resp_1"}
+{"type": "response.output_audio_transcript.delta", "response_id": "resp_1", "item_id": "m1", "delta": "Salut "}
+{"type": "response.output_audio_transcript.delta", "response_id": "resp_1", "item_id": "m1", "delta": "à toi."}
+{"type": "response.output_item.done", "response_id": "resp_1", "item": {"id": "m1", "type": "message", "role": "assistant", "status": "completed"}}
+{"type": "response.done", "response": {"id": "resp_1", "status": "completed", "usage": {"input_tokens": 120, "output_tokens": 40, "input_token_details": {"text_tokens": 100, "audio_tokens": 20, "cached_tokens": 80, "cached_tokens_details": {"text_tokens": 80, "audio_tokens": 0}}, "output_token_details": {"text_tokens": 10, "audio_tokens": 30}}}}
+{"type": "output_audio_buffer.stopped", "response_id": "resp_1"}

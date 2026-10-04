@@ -1,0 +1,29 @@
+# Secrets and local state: none of it may reach the image or its build cache.
+.env
+**/.env
+**/.env.*
+!**/.env.example
+backend/data
+backend/.eval
+backend/.venv
+backend/.pytest_cache
+backend/.ruff_cache
+backend/probe-transcript*.md
+**/__pycache__
+
+# Not needed to build or run
+.git
+.idea
+.claude
+.playwright-mcp
+specs
+documentation
+courses
+backend/tests
+frontend/node_modules
+frontend/.output
+frontend/.amplify-hosting
+frontend/.nitro
+frontend/.tanstack
+frontend/src/paraglide
+frontend/*.png

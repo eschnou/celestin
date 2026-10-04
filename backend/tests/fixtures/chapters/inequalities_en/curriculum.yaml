@@ -1,0 +1,49 @@
+# Path for the chapter on intervals and inequalities: an English fixture (spec 011) for the
+# figure probes, written by hand, every answer checked. References such as "§4.2" or
+# "6.1.3" point into the neighbouring pack.
+
+id: inequalities
+title: Intervals and linear inequalities
+
+sections:
+  - id: intervals
+    kind: teach
+    title: Intervals
+    goal: Write a set of real numbers as an interval and show it on a number line.
+    pack: ["§4.1"]
+    beats:
+      - The definition of the interval [a, b], then the course table of intervals.
+      - The example [-1, 3) and its number line, filled and open dots.
+      - Check question on the interval that goes with an inequality.
+    done_when: Has answered the check question.
+
+  - id: sets
+    kind: teach
+    title: Union and intersection
+    goal: Find the union and the intersection of two sets or of two intervals.
+    pack: ["§4.2"]
+    beats:
+      - The definitions of union and intersection.
+      - The divisors of 8 and of 12 in the course set diagram.
+      - The intersection and the union of [-3, 2] and (0, 5] on a number line.
+      - Check question on the intersection of two intervals.
+    done_when: Has answered the check question.
+
+  - id: inequalities
+    kind: teach
+    title: Linear inequalities
+    goal: Solve a linear inequality and write the solution set.
+    pack: ["§4.3"]
+    beats:
+      - The rule on reversing the direction, on the two course examples.
+      - The solution set as an interval, and on a number line.
+      - Check question on the direction of the inequality after dividing by a negative number.
+    done_when: Has answered the check question.
+
+  - id: practice
+    kind: practise
+    title: Intervals, sets and inequalities
+    goal: Write and show intervals, find unions and intersections, solve inequalities.
+    exercises: ["6.1.1", "6.1.2", "6.1.3", "6.2.1", "6.2.2", "6.3.1", "6.3.2", "6.3.3"]
+    count: 3
+    done_when: Three exercises solved, including an inequality that reverses direction.

@@ -1,0 +1,59 @@
+Chapitre 3 : Les équations du second degré
+
+1. Définition
+Une équation du second degré à une inconnue est une équation qui peut s'écrire sous la forme
+ax² + bx + c = 0 avec a, b, c ∈ ℝ et a ≠ 0.
+Les nombres a, b et c sont les coefficients de l'équation.
+
+Exemples : 2x² − 3x + 1 = 0 (a = 2 ; b = −3 ; c = 1)
+x² − 9 = 0 (a = 1 ; b = 0 ; c = −9)
+
+2. Le réalisant (discriminant)
+On appelle réalisant de l'équation ax² + bx + c = 0 le nombre
+Δ = b² − 4ac
+
+Propriété (à connaître par cœur) :
+• Si Δ > 0, l'équation admet deux solutions distinctes : x₁ = (−b − √Δ) / 2a et x₂ = (−b + √Δ) / 2a
+• Si Δ = 0, l'équation admet une solution (double) : x = −b / 2a
+• Si Δ < 0, l'équation n'admet pas de solution dans ℝ : S = ∅
+
+On note toujours l'ensemble des solutions S = { … }.
+
+Page 2
+
+3. Cas particuliers (sans Δ)
+• Si b = 0 : ax² + c = 0 ⇔ x² = −c/a. Exemple : x² − 9 = 0 ⇔ x² = 9 ⇔ x = −3 ou x = 3. S = {−3 ; 3}
+• Si c = 0 : on met x en évidence. Exemple : 3x² − 6x = 0 ⇔ 3x(x − 2) = 0 ⇔ x = 0 ou x = 2. S = {0 ; 2}
+
+Attention : ne jamais diviser les deux membres par x, on perdrait la solution x = 0 !
+
+4. Somme et produit des solutions
+Si Δ ≥ 0 : S = x₁ + x₂ = −b/a et P = x₁ · x₂ = c/a
+
+EXERCICES
+
+Ex 1. Résoudre dans ℝ :
+a) x² − 5x + 6 = 0
+b) 4x² + 4x + 1 = 0
+c) x² + x + 1 = 0
+
+Corrigé Ex 1 (fait en classe)
+a) Δ = 25 − 24 = 1 ; x₁ = (5 − 1)/2 = 2 ; x₂ = (5 + 1)/2 = 3 ; S = {2 ; 3}
+b) Δ = 16 − 16 = 0 ; x = −4/8 = −1/2 ; S = {−1/2}
+c) Δ = 1 − 4 = −3 < 0 ; S = ∅
+
+Ex 2. Résoudre sans calculer Δ :
+a) 2x² − 50 = 0
+b) 5x² + 15x = 0
+
+Corrigé Ex 2
+a) x² = 25 donc S = {−5 ; 5}
+b) 5x(x + 3) = 0 donc S = {0 ; 3}
+
+Ex 3. Problème. Le produit de deux nombres entiers consécutifs vaut 156. Quels sont ces nombres ?
+Corrigé : on pose n(n + 1) = 156, soit n² + n − 156 = 0. Δ = 1 + 624 = 625, √Δ = 25.
+n = (−1 − 25)/2 = −13 ou n = (−1 + 25)/2 = 12.
+Réponse : 12 et 13, ou −13 et −12.
+
+Ex 4. Sans résoudre, donner la somme et le produit des solutions de 2x² − 7x + 3 = 0.
+(pas de corrigé)

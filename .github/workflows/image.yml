@@ -1,0 +1,115 @@
+# Test the code, build the Docker image, check it with docker/smoke.sh, and publish it to the GitHub
+# Container Registry (ghcr.io/<owner>/<repo>) on a push to main or a version tag. Nothing to configure:
+# the registry login is the workflow's own GITHUB_TOKEN. See documentation/docker.md.
+name: image
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# A newer push to a pull request replaces the older run; a push to main or a tag always finishes.
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The image runs Python 3.12 (Dockerfile): test on that one.
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Backend
+        working-directory: backend
+        run: |
+          uv sync --frozen
+          uv run pytest -q
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run typecheck
+          npm run lint
+          npm test
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # push to ghcr.io with GITHUB_TOKEN
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3 # the arm64 half of the published image
+      - uses: docker/setup-buildx-action@v3
+
+      # What gets published is checked first: the amd64 image is built, loaded and run through the smoke
+      # test (setup, restart, read-only mount, upgrade from an older database, unprivileged user, host
+      # name). No OpenAI call.
+      - name: Build the image for the smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: celestin:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test
+        run: docker/smoke.sh celestin:ci
+
+      - name: Log in to the GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # main: `latest` and `sha-<commit>`. A tag v1.2.3: `1.2.3`, `1.2`, and `latest` too. A pull request is
+      # built but not pushed. The OCI labels (source, revision, …) are added here; `source` is what links
+      # the package to this repository in GitHub.
+      - name: Tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
+            type=sha,format=short
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+          labels: |
+            org.opencontainers.image.title=Célestin
+            org.opencontainers.image.description=A self-service AI tutor for secondary-school students, built on the course material they bring.
+
+      - name: Build and publish (amd64 and arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: false # one manifest per platform, no extra "unknown/unknown" entry in the package page
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

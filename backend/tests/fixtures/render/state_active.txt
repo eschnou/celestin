@@ -1,0 +1,3 @@
+État du parcours : 1 section(s) faite(s) sur 3.
+Section en cours : « 2. Exercices » (exercices).
+Si tu n'as pas encore son plan dans cette conversation, appelle start_section("exos").

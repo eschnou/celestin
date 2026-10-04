@@ -1,0 +1,4 @@
+{"type": "response.created", "response": {"id": "resp_1"}}
+{"type": "response.output_item.done", "item": {"id": "f1", "type": "function_call", "name": "start_section", "call_id": "call_1", "arguments": "{\"section_id\":\"suites\"}", "status": "completed"}}
+{"type": "response.output_item.done", "item": {"id": "f2", "type": "function_call", "name": "display_board", "call_id": "call_2", "arguments": "{\"card\":{}}", "status": "completed"}}
+{"type": "response.done", "response": {"id": "resp_1", "status": "completed"}}

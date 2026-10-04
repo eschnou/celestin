@@ -1,0 +1,53 @@
+PHYSICS Year 10 — Unit 5: Uniform Rectilinear Motion
+
+1) Frame of reference and path
+A motion is always described relative to a frame of reference, that is, a reference object
+that is taken to be at rest.
+Example: a person sitting on a bus is at rest relative to the bus, but moving relative to the
+pavement.
+
+The path is the set of all the successive positions of a point on the moving object.
+If the path is a straight line, the motion is rectilinear.
+
+2) Average speed
+Definition: the average speed of a moving object is the distance travelled divided by the time
+taken.
+v = Δx / Δt
+v: speed (m/s)
+Δx: distance travelled (m)
+Δt: time taken (s)
+
+Conversion: 1 m/s = 3.6 km/h. To change km/h into m/s, divide by 3.6.
+Example: 72 km/h = 72 / 3.6 = 20 m/s
+
+3) Uniform rectilinear motion
+Definition: an object moves with uniform rectilinear motion if its path is a straight line and
+its speed is constant.
+
+Equation of motion: x = x₀ + v·t
+x₀: starting position (m); x: position at time t (m)
+
+Graphs for uniform motion:
+- the x(t) graph is a straight line whose slope is the speed v;
+- the v(t) graph is a horizontal straight line.
+
+Lab experiment: a trolley runs along a horizontal track; its position is recorded every 2 s.
+The distances covered in equal time intervals are equal: the motion is uniform.
+t (s): 0 ; 2 ; 4 ; 6 ; 8
+x (m): 1.0 ; 2.5 ; 4.0 ; 5.5 ; 7.0
+[x(t) graph pasted here in the notebook]
+
+EXERCISES
+1. A car travels 180 km in 2 h 30 min. Work out its average speed in km/h and in m/s.
+Answer: v = 180 / 2.5 = 72 km/h = 20 m/s
+
+2. A runner moves at a constant 12 km/h. What distance does she cover in 30 min?
+Given: v = 12 km/h ; Δt = 30 min
+Answer: Δx = v·Δt = 12 · 30 = 360 km
+
+3. A cyclist starts at x₀ = 500 m and rides at 5 m/s. Write the equation of her motion and
+work out her position after 2 min.
+Answer: x = 500 + 5·t (x in m, t in s) ; after 120 s: x = 1100 m
+
+4. Read the speed of the trolley from the graph of the experiment.
+Answer: v = 0.75 m/s

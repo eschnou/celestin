@@ -1,0 +1,20 @@
+{
+  "_comment": "Shared by backend tests/unit/test_path.py and frontend lib/tutor/__tests__/path.test.ts. Sections are in chapter order.",
+  "sections": ["sa", "sb", "sc", "sd"],
+  "cases": [
+    {"name": "empty", "progress": {"done": [], "active": null},
+     "states": {"sa": "available", "sb": "locked", "sc": "locked", "sd": "locked"}},
+    {"name": "first active", "progress": {"done": [], "active": "sa"},
+     "states": {"sa": "active", "sb": "locked", "sc": "locked", "sd": "locked"}},
+    {"name": "mid-chapter with active", "progress": {"done": ["sa"], "active": "sb"},
+     "states": {"sa": "done", "sb": "active", "sc": "locked", "sd": "locked"}},
+    {"name": "mid-chapter without active", "progress": {"done": ["sa", "sb"], "active": null},
+     "states": {"sa": "done", "sb": "done", "sc": "available", "sd": "locked"}},
+    {"name": "gap is the available one", "progress": {"done": ["sa", "sc"], "active": null},
+     "states": {"sa": "done", "sb": "available", "sc": "done", "sd": "locked"}},
+    {"name": "last active", "progress": {"done": ["sa", "sb", "sc"], "active": "sd"},
+     "states": {"sa": "done", "sb": "done", "sc": "done", "sd": "active"}},
+    {"name": "complete", "progress": {"done": ["sa", "sb", "sc", "sd"], "active": null},
+     "states": {"sa": "done", "sb": "done", "sc": "done", "sd": "done"}}
+  ]
+}

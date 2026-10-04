@@ -1,0 +1,2 @@
+Path status: 0 section(s) done out of 3.
+Current section in the path: “2. Exercises” (practice), to be resumed there.

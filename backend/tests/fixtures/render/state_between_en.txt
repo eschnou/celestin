@@ -1,0 +1,3 @@
+Path status: 1 section(s) done out of 3.
+No section in progress. Next: “2. Exercises” (practice).
+Start it with start_section("exos").

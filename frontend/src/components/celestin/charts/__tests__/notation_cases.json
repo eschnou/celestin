@@ -1,0 +1,218 @@
+[
+  {
+    "language": "fr",
+    "kind": "interval",
+    "args": [2, 5, true, false],
+    "text": "[2 ; 5["
+  },
+  {
+    "language": "en",
+    "kind": "interval",
+    "args": [2, 5, true, false],
+    "text": "[2, 5)"
+  },
+  {
+    "language": "fr",
+    "kind": "interval",
+    "args": [2, 5, false, true],
+    "text": "]2 ; 5]"
+  },
+  {
+    "language": "en",
+    "kind": "interval",
+    "args": [2, 5, false, true],
+    "text": "(2, 5]"
+  },
+  {
+    "language": "fr",
+    "kind": "interval",
+    "args": [2, 5, true, true],
+    "text": "[2 ; 5]"
+  },
+  {
+    "language": "en",
+    "kind": "interval",
+    "args": [2, 5, true, true],
+    "text": "[2, 5]"
+  },
+  {
+    "language": "fr",
+    "kind": "interval",
+    "args": [2, 5, false, false],
+    "text": "]2 ; 5["
+  },
+  {
+    "language": "en",
+    "kind": "interval",
+    "args": [2, 5, false, false],
+    "text": "(2, 5)"
+  },
+  {
+    "language": "fr",
+    "kind": "interval",
+    "args": [null, 2, false, true],
+    "text": "]−∞ ; 2]"
+  },
+  {
+    "language": "en",
+    "kind": "interval",
+    "args": [null, 2, false, true],
+    "text": "(−∞, 2]"
+  },
+  {
+    "language": "fr",
+    "kind": "interval",
+    "args": [5, null, true, false],
+    "text": "[5 ; +∞["
+  },
+  {
+    "language": "en",
+    "kind": "interval",
+    "args": [5, null, true, false],
+    "text": "[5, ∞)"
+  },
+  {
+    "language": "fr",
+    "kind": "interval",
+    "args": [null, null, false, false],
+    "text": "]−∞ ; +∞["
+  },
+  {
+    "language": "en",
+    "kind": "interval",
+    "args": [null, null, false, false],
+    "text": "(−∞, ∞)"
+  },
+  {
+    "language": "fr",
+    "kind": "interval",
+    "args": [-1.5, 0.25, true, false],
+    "text": "[−1,5 ; 0,25["
+  },
+  {
+    "language": "en",
+    "kind": "interval",
+    "args": [-1.5, 0.25, true, false],
+    "text": "[−1.5, 0.25)"
+  },
+  {
+    "language": "fr",
+    "kind": "pair",
+    "args": [2, -1.5],
+    "text": "(2 ; −1,5)"
+  },
+  {
+    "language": "en",
+    "kind": "pair",
+    "args": [2, -1.5],
+    "text": "(2, −1.5)"
+  },
+  {
+    "language": "fr",
+    "kind": "pair",
+    "args": [0, 0],
+    "text": "(0 ; 0)"
+  },
+  {
+    "language": "en",
+    "kind": "pair",
+    "args": [0, 0],
+    "text": "(0, 0)"
+  },
+  {
+    "language": "fr",
+    "kind": "pair",
+    "args": [-3, 4],
+    "text": "(−3 ; 4)"
+  },
+  {
+    "language": "en",
+    "kind": "pair",
+    "args": [-3, 4],
+    "text": "(−3, 4)"
+  },
+  {
+    "language": "fr",
+    "kind": "pair",
+    "args": [0.25, 0.5],
+    "text": "(0,25 ; 0,5)"
+  },
+  {
+    "language": "en",
+    "kind": "pair",
+    "args": [0.25, 0.5],
+    "text": "(0.25, 0.5)"
+  },
+  {
+    "language": "fr",
+    "kind": "number",
+    "args": [0.45],
+    "text": "0,45"
+  },
+  {
+    "language": "en",
+    "kind": "number",
+    "args": [0.45],
+    "text": "0.45"
+  },
+  {
+    "language": "fr",
+    "kind": "number",
+    "args": [12.5],
+    "text": "12,5"
+  },
+  {
+    "language": "en",
+    "kind": "number",
+    "args": [12.5],
+    "text": "12.5"
+  },
+  {
+    "language": "fr",
+    "kind": "number",
+    "args": [2018],
+    "text": "2018"
+  },
+  {
+    "language": "en",
+    "kind": "number",
+    "args": [2018],
+    "text": "2018"
+  },
+  {
+    "language": "fr",
+    "kind": "number",
+    "args": [1500],
+    "text": "1500"
+  },
+  {
+    "language": "en",
+    "kind": "number",
+    "args": [1500],
+    "text": "1500"
+  },
+  {
+    "language": "fr",
+    "kind": "number",
+    "args": [12345],
+    "text": "12 345"
+  },
+  {
+    "language": "en",
+    "kind": "number",
+    "args": [12345],
+    "text": "12,345"
+  },
+  {
+    "language": "fr",
+    "kind": "number",
+    "args": [1234567],
+    "text": "1 234 567"
+  },
+  {
+    "language": "en",
+    "kind": "number",
+    "args": [1234567],
+    "text": "1,234,567"
+  }
+]

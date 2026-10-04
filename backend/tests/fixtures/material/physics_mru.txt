@@ -1,0 +1,54 @@
+PHYSIQUE 4e — UAA 5 : Le mouvement rectiligne uniforme (MRU)
+
+1) Référentiel et trajectoire
+Un mouvement se décrit toujours par rapport à un référentiel, c'est-à-dire un objet de référence
+considéré comme immobile.
+Exemple : un passager assis dans un train est immobile par rapport au train, mais en mouvement
+par rapport au quai.
+
+La trajectoire est l'ensemble des positions successives occupées par un point du mobile.
+Si la trajectoire est une droite, le mouvement est rectiligne.
+
+2) La vitesse moyenne
+Définition : la vitesse moyenne d'un mobile est le quotient de la distance parcourue par la durée
+du parcours.
+v = Δx / Δt
+v : vitesse (m/s)
+Δx : distance parcourue (m)
+Δt : durée (s)
+
+Conversion : 1 m/s = 3,6 km/h. Pour passer de km/h en m/s, on divise par 3,6.
+Exemple : 90 km/h = 90 / 3,6 = 25 m/s
+
+3) Le MRU
+Définition : un mobile est animé d'un mouvement rectiligne uniforme (MRU) si sa trajectoire est une
+droite et si sa vitesse est constante.
+
+Équation du mouvement : x = x₀ + v·t
+x₀ : position initiale (m) ; x : position à l'instant t (m)
+
+Graphiques du MRU :
+- le graphique x(t) est une droite dont la pente est la vitesse v ;
+- le graphique v(t) est une droite horizontale.
+
+Expérience du labo : une bille roule sur un rail horizontal ; on relève sa position toutes les
+0,5 s. Les distances parcourues pendant des intervalles de temps égaux sont égales : le mouvement est
+uniforme.
+t (s) : 0 ; 0,5 ; 1,0 ; 1,5 ; 2,0
+x (cm) : 0 ; 12 ; 24 ; 36 ; 48
+[graphique x(t) collé ici dans le cahier]
+
+EXERCICES
+1. Une voiture parcourt 150 km en 1 h 30 min. Calcule sa vitesse moyenne en km/h et en m/s.
+Réponse : v = 150 / 1,5 = 100 km/h ≈ 27,8 m/s
+
+2. Un cycliste roule en MRU à 18 km/h. Quelle distance parcourt-il en 40 min ?
+Données : v = 18 km/h ; Δt = 40 min
+Réponse : Δx = v·Δt = 18 · 40 = 720 km
+
+3. Un train part de la position x₀ = 2 km et roule à 120 km/h. Écris l'équation de son mouvement et
+calcule sa position après 15 min.
+Réponse : x = 2 + 120·t (x en km, t en h) ; après 0,25 h : x = 32 km
+
+4. Lis la vitesse de la bille sur le graphique de l'expérience.
+Réponse : v = 24 cm/s

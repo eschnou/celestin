@@ -1,0 +1,92 @@
+{
+  "_comment": "Shared by backend tests/unit/test_flowchart_layers.py and frontend components/celestin/flowchart/__tests__/layout.test.ts, byte for byte. Exits are node indices, so no JSON object is ever keyed by a node id.",
+  "cases": [
+    {
+      "name": "chain",
+      "ids": ["a", "b", "c"],
+      "exits": [[1], [2], []],
+      "rows": [0, 1, 2],
+      "loops": []
+    },
+    {
+      "name": "method",
+      "ids": ["diff", "d1", "sa", "quot", "d2", "sg"],
+      "exits": [[1], [2, 3], [], [4], [5], []],
+      "rows": [0, 1, 2, 2, 3, 4],
+      "loops": []
+    },
+    {
+      "name": "while",
+      "ids": ["debut", "lire", "init", "test", "ajout", "incr", "afficher", "fin"],
+      "exits": [[1], [2], [3], [4, 6], [5], [3], [7], []],
+      "rows": [0, 1, 2, 3, 4, 5, 4, 5],
+      "loops": [[5, 3]]
+    },
+    {
+      "name": "repeat",
+      "ids": ["s", "body", "t", "f"],
+      "exits": [[1], [2], [1, 3], []],
+      "rows": [0, 1, 2, 3],
+      "loops": [[2, 1]]
+    },
+    {
+      "name": "nested_loops",
+      "ids": ["a", "b", "c", "d", "e", "f"],
+      "exits": [[1], [2], [3], [4, 2], [5, 1], []],
+      "rows": [0, 1, 2, 3, 4, 5],
+      "loops": [
+        [3, 2],
+        [4, 1]
+      ]
+    },
+    {
+      "name": "merge_long_edge",
+      "ids": ["a", "d", "b", "c", "e"],
+      "exits": [[1], [2, 4], [3], [4], []],
+      "rows": [0, 1, 2, 3, 4],
+      "loops": []
+    },
+    {
+      "name": "numeric_ids",
+      "ids": ["10", "2", "debut"],
+      "exits": [[1], [2], []],
+      "rows": [0, 1, 2],
+      "loops": []
+    },
+    {
+      "name": "leftover",
+      "ids": ["a", "b", "c"],
+      "exits": [[1], [], [1]],
+      "rows": [0, 1, 0],
+      "loops": []
+    },
+    {
+      "name": "nested_decisions",
+      "ids": ["a", "d1", "two", "d2", "one", "zero"],
+      "exits": [[1], [2, 3], [], [4, 5], [], []],
+      "rows": [0, 1, 2, 2, 3, 3],
+      "loops": []
+    },
+    {
+      "name": "loop_to_root",
+      "ids": ["a", "t", "b"],
+      "exits": [[1], [0, 2], []],
+      "rows": [0, 1, 2],
+      "loops": [[1, 0]]
+    },
+    {
+      "name": "diamond_merge",
+      "ids": ["a", "b", "c", "d"],
+      "exits": [[1, 2], [3], [3], []],
+      "rows": [0, 1, 1, 2],
+      "loops": []
+    },
+    {
+      "name": "walk_order",
+      "ids": ["a", "b", "c", "d"],
+      "exits": [[1, 2], [2], [1, 3], []],
+      "rows": [0, 1, 2, 3],
+      "loops": [[2, 1]]
+    }
+  ]
+}

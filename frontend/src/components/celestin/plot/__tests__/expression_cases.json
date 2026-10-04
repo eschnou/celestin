@@ -1,0 +1,538 @@
+{
+  "_comment": "Shared by app/domain/expression.py (tests/unit/test_expression.py) and frontend/src/components/celestin/plot/expression.ts (plot/__tests__/expression.test.ts). A case gives values (null: undefined there) or a refusal code. Change both parsers and this table together; the two copies (backend/tests/fixtures and frontend/src/components/celestin/plot/__tests__) stay byte-identical, which test_expression.py checks.",
+  "cases": [
+    {
+      "src": "2x+1",
+      "vars": ["x", "t"],
+      "at": [
+        [0, 1.0],
+        [1.5, 4.0]
+      ]
+    },
+    {
+      "src": "3 - 2.5t",
+      "vars": ["x", "t"],
+      "at": [[2, -2.0]]
+    },
+    {
+      "src": "-x^2",
+      "vars": ["x", "t"],
+      "at": [[3, -9.0]]
+    },
+    {
+      "src": "-2^2",
+      "vars": ["x", "t"],
+      "at": [[0, -4.0]]
+    },
+    {
+      "src": "2^-1",
+      "vars": ["x", "t"],
+      "at": [[0, 0.5]]
+    },
+    {
+      "src": "2^3^2",
+      "vars": ["x", "t"],
+      "at": [[0, 512.0]]
+    },
+    {
+      "src": "2x^2",
+      "vars": ["x", "t"],
+      "at": [[-3, 18.0]]
+    },
+    {
+      "src": "(x+1)(x-1)",
+      "vars": ["x", "t"],
+      "at": [[2, 3.0]]
+    },
+    {
+      "src": "x(x-2)",
+      "vars": ["x", "t"],
+      "at": [[3, 3.0]]
+    },
+    {
+      "src": "2(x+1)^2",
+      "vars": ["x", "t"],
+      "at": [[1, 8.0]]
+    },
+    {
+      "src": "x/2*3",
+      "vars": ["x", "t"],
+      "at": [[2, 3.0]]
+    },
+    {
+      "src": "2x/3",
+      "vars": ["x", "t"],
+      "at": [[3, 2.0]]
+    },
+    {
+      "src": "10-2.5(t-12)",
+      "vars": ["x", "t"],
+      "at": [[14, 5.0]]
+    },
+    {
+      "src": "0.5*9.81t^2",
+      "vars": ["x", "t"],
+      "at": [[2, 19.62]]
+    },
+    {
+      "src": "1/x",
+      "vars": ["x", "t"],
+      "at": [
+        [0, null],
+        [4, 0.25]
+      ]
+    },
+    {
+      "src": "1/(x-1)^2",
+      "vars": ["x", "t"],
+      "at": [
+        [1, null],
+        [3, 0.25]
+      ]
+    },
+    {
+      "src": "(x^2-1)/(x-1)",
+      "vars": ["x", "t"],
+      "at": [
+        [1, null],
+        [2, 3.0]
+      ]
+    },
+    {
+      "src": "sqrt(x)",
+      "vars": ["x", "t"],
+      "at": [
+        [-1, null],
+        [0, 0.0],
+        [4, 2.0]
+      ]
+    },
+    {
+      "src": "abs(x-3)",
+      "vars": ["x", "t"],
+      "at": [[1, 2.0]]
+    },
+    {
+      "src": "exp(x)",
+      "vars": ["x", "t"],
+      "at": [
+        [0, 1.0],
+        [800, null]
+      ]
+    },
+    {
+      "src": "e^x",
+      "vars": ["x", "t"],
+      "at": [[1, 2.718281828459045]]
+    },
+    {
+      "src": "2e^(-x)",
+      "vars": ["x", "t"],
+      "at": [[0, 2.0]]
+    },
+    {
+      "src": "ln(x)",
+      "vars": ["x", "t"],
+      "at": [
+        [0, null],
+        [1, 0.0]
+      ]
+    },
+    {
+      "src": "log(x)",
+      "vars": ["x", "t"],
+      "at": [
+        [100, 2.0],
+        [-1, null]
+      ]
+    },
+    {
+      "src": "sin(pi/2)",
+      "vars": ["x", "t"],
+      "at": [[0, 1.0]]
+    },
+    {
+      "src": "cos(x)",
+      "vars": ["x", "t"],
+      "at": [[0, 1.0]]
+    },
+    {
+      "src": "tan(x)",
+      "vars": ["x", "t"],
+      "at": [[0, 0.0]]
+    },
+    {
+      "src": "sin(x)cos(x)",
+      "vars": ["x", "t"],
+      "at": [[1, 0.4546487134128409]]
+    },
+    {
+      "src": "2pi",
+      "vars": ["x", "t"],
+      "at": [[0, 6.283185307179586]]
+    },
+    {
+      "src": "π×2",
+      "vars": ["x", "t"],
+      "at": [[0, 6.283185307179586]]
+    },
+    {
+      "src": "3 − 2·t",
+      "vars": ["x", "t"],
+      "at": [[1, 1.0]]
+    },
+    {
+      "src": "x^(1/3)",
+      "vars": ["x", "t"],
+      "at": [
+        [-8, null],
+        [8, 2.0]
+      ]
+    },
+    {
+      "src": "0^x",
+      "vars": ["x", "t"],
+      "at": [
+        [0, 1.0],
+        [-1, null]
+      ]
+    },
+    {
+      "src": "10^x",
+      "vars": ["x", "t"],
+      "at": [[400, null]]
+    },
+    {
+      "src": "1/(1/x)",
+      "vars": ["x", "t"],
+      "at": [[0, null]]
+    },
+    {
+      "src": "exp(-1/x)",
+      "vars": ["x", "t"],
+      "at": [[0, null]]
+    },
+    {
+      "src": "+x",
+      "vars": ["x", "t"],
+      "at": [[2, 2]]
+    },
+    {
+      "src": "--x",
+      "vars": ["x", "t"],
+      "at": [[2, 2]]
+    },
+    {
+      "src": "2n-1",
+      "vars": ["n"],
+      "at": [
+        [1, 1.0],
+        [10, 19.0]
+      ]
+    },
+    {
+      "src": "2n^2-3",
+      "vars": ["n"],
+      "at": [
+        [1, -1.0],
+        [5, 47.0]
+      ]
+    },
+    {
+      "src": "1/n",
+      "vars": ["n"],
+      "at": [[4, 0.25]]
+    },
+    {
+      "src": "3*0.5^(n-1)",
+      "vars": ["n"],
+      "at": [
+        [1, 3.0],
+        [3, 0.75]
+      ]
+    },
+    {
+      "src": "",
+      "vars": ["x", "t"],
+      "error": "syntax"
+    },
+    {
+      "src": "   ",
+      "vars": ["x", "t"],
+      "error": "syntax"
+    },
+    {
+      "src": "2x^",
+      "vars": ["x", "t"],
+      "error": "syntax"
+    },
+    {
+      "src": "(x+1",
+      "vars": ["x", "t"],
+      "error": "syntax"
+    },
+    {
+      "src": "sin x",
+      "vars": ["x", "t"],
+      "error": "syntax"
+    },
+    {
+      "src": "2 3",
+      "vars": ["x", "t"],
+      "error": "syntax"
+    },
+    {
+      "src": "x2",
+      "vars": ["x", "t"],
+      "error": "syntax"
+    },
+    {
+      "src": "5.",
+      "vars": ["x", "t"],
+      "error": "syntax"
+    },
+    {
+      "src": ".5",
+      "vars": ["x", "t"],
+      "error": "syntax"
+    },
+    {
+      "src": "x**2",
+      "vars": ["x", "t"],
+      "error": "syntax"
+    },
+    {
+      "src": "|x|",
+      "vars": ["x", "t"],
+      "error": "syntax"
+    },
+    {
+      "src": "x²",
+      "vars": ["x", "t"],
+      "error": "syntax"
+    },
+    {
+      "src": "1/2x",
+      "vars": ["x", "t"],
+      "error": "ambiguous"
+    },
+    {
+      "src": "1/x(x+1)",
+      "vars": ["x", "t"],
+      "error": "ambiguous"
+    },
+    {
+      "src": "y = 2x+1",
+      "vars": ["x", "t"],
+      "error": "equation"
+    },
+    {
+      "src": "f(x)=x",
+      "vars": ["x", "t"],
+      "error": "equation"
+    },
+    {
+      "src": "2,5x",
+      "vars": ["x", "t"],
+      "error": "comma"
+    },
+    {
+      "src": "\\frac{1}{x}",
+      "vars": ["x", "t"],
+      "error": "latex"
+    },
+    {
+      "src": "sen(x)",
+      "vars": ["x", "t"],
+      "error": "unknown_name"
+    },
+    {
+      "src": "xe^x",
+      "vars": ["x", "t"],
+      "error": "unknown_name"
+    },
+    {
+      "src": "X",
+      "vars": ["x", "t"],
+      "error": "unknown_name"
+    },
+    {
+      "src": "x+t",
+      "vars": ["x", "t"],
+      "error": "variables"
+    },
+    {
+      "src": "2x-1",
+      "vars": ["n"],
+      "error": "unknown_name"
+    },
+    {
+      "src": "n",
+      "vars": ["x", "t"],
+      "error": "unknown_name"
+    },
+    {
+      "src": "(((((((((((((((((((((((((x)))))))))))))))))))))))))",
+      "vars": ["x", "t"],
+      "error": "depth"
+    },
+    {
+      "src": "1e-3",
+      "vars": ["x", "t"],
+      "error": "scientific"
+    },
+    {
+      "src": "1.5e+3",
+      "vars": ["x", "t"],
+      "error": "scientific"
+    },
+    {
+      "src": "6.67e-11*x",
+      "vars": ["x", "t"],
+      "error": "scientific"
+    },
+    {
+      "src": "3e8",
+      "vars": ["x", "t"],
+      "error": "scientific"
+    },
+    {
+      "src": "2E5",
+      "vars": ["x", "t"],
+      "error": "scientific"
+    },
+    {
+      "src": "1e−3",
+      "vars": ["x", "t"],
+      "error": "scientific"
+    },
+    {
+      "src": "2e-3t",
+      "vars": ["x", "t"],
+      "error": "scientific"
+    },
+    {
+      "src": "2e",
+      "vars": ["x", "t"],
+      "at": [[0, 5.43656365691809]]
+    },
+    {
+      "src": "2e - 3",
+      "vars": ["x", "t"],
+      "at": [[0, 2.43656365691809]]
+    },
+    {
+      "src": "2e+x",
+      "vars": ["x", "t"],
+      "at": [[1, 6.43656365691809]]
+    },
+    {
+      "src": "x e^x",
+      "vars": ["x", "t"],
+      "at": [[1, 2.718281828459045]]
+    },
+    {
+      "src": "cbrt(x)",
+      "vars": ["x", "t"],
+      "at": [
+        [-8, -2.0],
+        [27, 3.0],
+        [0, 0.0]
+      ]
+    },
+    {
+      "src": "cbrt(x-1)",
+      "vars": ["x", "t"],
+      "at": [[0, -1.0]]
+    },
+    {
+      "src": "sqrt(-x)",
+      "vars": ["x", "t"],
+      "at": [
+        [-4, 2.0],
+        [1, null]
+      ]
+    },
+    {
+      "src": "2 x",
+      "vars": ["x", "t"],
+      "at": [[3, 6.0]]
+    },
+    {
+      "src": "2 x",
+      "vars": ["x", "t"],
+      "at": [[3, 6.0]]
+    },
+    {
+      "src": "2 x",
+      "vars": ["x", "t"],
+      "error": "syntax"
+    },
+    {
+      "src": "xé",
+      "vars": ["x", "t"],
+      "error": "syntax"
+    },
+    {
+      "src": "２x",
+      "vars": ["x", "t"],
+      "error": "syntax"
+    },
+    {
+      "src": "toString(x)",
+      "vars": ["x", "t"],
+      "error": "unknown_name"
+    },
+    {
+      "src": "constructor",
+      "vars": ["x", "t"],
+      "error": "unknown_name"
+    },
+    {
+      "src": "hasOwnProperty(x)",
+      "vars": ["x", "t"],
+      "error": "unknown_name"
+    },
+    {
+      "src": "valueOf",
+      "vars": ["x", "t"],
+      "error": "unknown_name"
+    },
+    {
+      "src": "2^n",
+      "vars": ["n"],
+      "at": [
+        [1, 2.0],
+        [10, 1024.0]
+      ]
+    },
+    {
+      "src": "(-1)^n/n",
+      "vars": ["n"],
+      "at": [
+        [1, -1.0],
+        [2, 0.5]
+      ]
+    },
+    {
+      "src": "2x+1",
+      "vars": ["n"],
+      "error": "unknown_name"
+    },
+    {
+      "src": "$x^2$",
+      "vars": ["x", "t"],
+      "error": "latex"
+    },
+    {
+      "src": "x^{2}",
+      "vars": ["x", "t"],
+      "error": "latex"
+    },
+    {
+      "src": "\\sqrt{x}",
+      "vars": ["x", "t"],
+      "error": "latex"
+    }
+  ]
+}

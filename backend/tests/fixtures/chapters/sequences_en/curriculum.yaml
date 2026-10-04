@@ -1,0 +1,47 @@
+# Path for the chapter on arithmetic and geometric sequences: an English maths fixture
+# (spec 011), written by hand next to its pack. References such as "§4.2" or "6.1.1"
+# point into the neighbouring pack.
+
+id: sequences
+title: Arithmetic and geometric sequences
+
+sections:
+  - id: sequences
+    kind: teach
+    title: Sequences and arithmetic sequences
+    goal: Read a sequence by its terms and work with an arithmetic sequence, its common difference and its general term.
+    pack: ["§4.1", "§4.2"]
+    beats:
+      - What a sequence is, with u_n = 3n - 2 and its isolated points on a graph.
+      - The definition of an arithmetic sequence and the general term u_n = u_1 + (n - 1) r.
+      - The sum of the first n terms, on the course example u_1 = 5 and r = 3.
+      - Check question on the number of steps between u_1 and u_n.
+    done_when: Has answered the check question.
+
+  - id: geometric
+    kind: teach
+    title: Geometric sequences and which kind it is
+    goal: Work with a geometric sequence and decide whether a list of terms is arithmetic, geometric or neither.
+    pack: ["§4.3", "§4.4"]
+    beats:
+      - The definition of a geometric sequence and the general term u_n = u_1 q^(n-1).
+      - The sum of the first n terms and its condition q is not 1, on u_1 = 2 and q = 3.
+      - The three-step method for deciding the kind, on 3, 6, 12, 24 and 7, 4, 1, -2.
+      - Check question on a list that is neither arithmetic nor geometric.
+    done_when: Has answered the check question.
+
+  - id: practice
+    kind: practise
+    title: Exercises on sequences
+    goal: Find terms, sums and common differences or ratios, and recognise the kind of a sequence.
+    exercises: ["6.1.1", "6.1.2", "6.2.1", "6.2.2", "6.3.1", "6.3.2", "6.3.3"]
+    count: 3
+    done_when: Three exercises solved, including one on deciding the kind.
+
+  - id: summary
+    kind: synthesis
+    title: Summary problems
+    goal: Turn a situation into an arithmetic or a geometric sequence and answer a question about it.
+    exercises: ["6.4.1", "6.4.2"]
+    count: 1
+    done_when: One problem solved.

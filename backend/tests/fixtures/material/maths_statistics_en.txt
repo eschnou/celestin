@@ -1,0 +1,77 @@
+Chapter 2 — Descriptive Statistics with One Variable
+
+1. Vocabulary
+Definition: A population is the set of all the individuals that an investigation is about.
+Definition: An individual is one member of the population.
+Definition: A sample is a part of the population that is actually observed.
+[figure: nested set diagram: a large set "Population" contains a smaller set "Sample"; a cross "individual" inside the sample]
+Definition: The characteristic being studied is called the statistical variable.
+A variable is qualitative if its values are not numbers (colour, favourite sport...).
+A variable is quantitative discrete if it only takes separate values (number of books, shoe size...).
+A variable is quantitative continuous if it can take any value in an interval (height, mass, time...). The values are then grouped in classes [a, b).
+
+2. Frequencies
+The frequency count (or just frequency) of a value is the number of individuals with that value. The total is written N.
+The relative frequency of a value is its frequency divided by the total: f = n / N. It is written as a decimal (0.25) or as a percentage (25%).
+
+3. Showing a qualitative variable
+Example: favourite sport of 40 students in Year 9.
+Football: 14 ; Basketball: 10 ; Swimming: 8 ; Tennis: 8.
+Pie chart: the angle of a sector is proportional to the frequency: angle = (frequency / N) × 360°.
+[figure: pie chart, four sectors: Football 126°, Basketball 90°, Swimming 72°, Tennis 72°]
+
+Page 2
+
+4. Showing a discrete variable
+Example: number of books read last month by 24 students.
+Number of books: 0 ; 1 ; 2 ; 3 ; 4 ; 5
+Frequency: 3 ; 5 ; 7 ; 5 ; 3 ; 1
+A discrete variable is shown with a bar chart: the values on the horizontal axis, the frequencies on the vertical axis. Joining the tops of the bars gives the frequency polygon.
+[figure: bar chart, horizontal axis "Books read", vertical axis "Frequency", bars 0 → 3, 1 → 5, 2 → 7, 3 → 5, 4 → 3, 5 → 1, frequency polygon drawn in red]
+
+5. Showing a continuous variable
+Example: daily travel time to school (in minutes) of 50 students.
+Class: [0, 10) ; [10, 20) ; [20, 30) ; [30, 50) ; [50, 90)
+Frequency: 5 ; 10 ; 15 ; 12 ; 8
+A continuous variable is shown with a histogram: touching rectangles, one per class. The area of each rectangle is proportional to the frequency. When the classes are not all the same width, we choose a reference width (here 10 minutes) and the height of a rectangle is the frequency scaled to that width: height = frequency × 10 / class width.
+[figure: histogram, horizontal axis "Travel time (min)" marked 0, 10, 20, 30, 50, 90, vertical axis "Frequency per 10 minutes", heights 5 ; 10 ; 15 ; 6 ; 2]
+Each class includes its left bound and excludes its right bound.
+
+Page 3
+
+6. Cumulative frequencies
+The cumulative frequency of a class is the sum of the frequencies of that class and of all the classes before it.
+Travel times: 5 ; 15 ; 30 ; 42 ; 50. Cumulative relative frequencies: 10% ; 30% ; 60% ; 84% ; 100%.
+The cumulative frequency polygon joins the points whose x-coordinate is the upper bound of each class and whose y-coordinate is the cumulative frequency; it starts at 0 at the lower bound of the first class.
+[figure: cumulative frequency polygon, points (0, 0), (10, 10), (20, 30), (30, 60), (50, 84), (90, 100), vertical axis in %]
+
+7. Measures of centre
+The mode is the value with the greatest frequency; for a continuous variable we speak of the modal class.
+The mean is x̄ = (n₁x₁ + n₂x₂ + ... + nₖxₖ) / N. For a continuous variable, xᵢ is the midpoint of each class.
+The median M splits the ordered data into two groups of equal size. If N is odd it is the value in position (N + 1)/2; if N is even it is the mean of the values in positions N/2 and N/2 + 1.
+Example (books): mode 2; x̄ = 51 / 24 = 2.125; M = 2.
+
+8. Quartiles and box plot
+The first quartile Q₁ is the smallest value in the data such that at least 25% of the values are less than or equal to it. The third quartile Q₃ is the smallest value such that at least 75% of the values are less than or equal to it.
+Example (books): Q₁ = 1; Q₃ = 3.
+A box plot is drawn on a scale: a box from Q₁ to Q₃ split at the median, and two whiskers out to the minimum and the maximum.
+[figure: horizontal box plot, minimum 0, Q₁ 1, median 2, Q₃ 3, maximum 5]
+
+Page 4 — Exercises
+
+Exercise 1. The ages of the 20 members of a chess club are: 14: 3 ; 15: 5 ; 16: 6 ; 17: 4 ; 18: 2.
+a) Draw the bar chart. b) Give the mode. c) Work out the mean. d) Find the median.
+Answers: b) 16 ; c) x̄ = 317 / 20 = 15.85 ; d) M = 16.
+
+Exercise 2. For the ages in Exercise 1, find Q₁ and Q₃ and draw the box plot.
+Answers: Q₁ = 15 ; Q₃ = 17.
+
+Exercise 3. Waiting time (in minutes) of 40 patients at a clinic: [0, 5): 4 ; [5, 10): 8 ; [10, 20): 16 ; [20, 40): 12.
+a) Draw the histogram with a reference width of 5 minutes. b) Which class has the greatest frequency?
+Answers: a) heights 4 ; 8 ; 8 ; 3 ; b) [10, 20).
+
+Exercise 4. For the waiting times of Exercise 3, work out the cumulative relative frequencies and draw their polygon.
+Answers: 10% ; 30% ; 70% ; 100%.
+
+Exercise 5. 48 students chose their lunch: pasta 20, salad 12, sandwich 16. Work out the angle of each sector of the pie chart.
+Answers: 150° ; 90° ; 120°.

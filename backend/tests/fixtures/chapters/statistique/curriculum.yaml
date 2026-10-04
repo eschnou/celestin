@@ -1,0 +1,51 @@
+# Parcours du chapitre de statistique descriptive : fixture de la spec 008, pour les
+# scripts `smoke` et `probe` (--chapter-dir tests/fixtures/chapters/statistique).
+# Les références « §4.5 » ou « 6.1.1 » renvoient au pack voisin.
+
+id: statistique
+title: Statistique descriptive à une variable
+
+sections:
+  - id: vocabulaire
+    kind: teach
+    title: Population, individu, variable
+    goal: Connaître les définitions du cours et reconnaître la sorte d'une variable.
+    pack: ["§4.1", "§4.2", "§4.3"]
+    beats:
+      - Citer les trois définitions de §4.1 ensemble, puis celle de la variable statistique.
+      - Les trois sortes de variables, un exemple du cours pour chacune.
+      - La fréquence, en décimal et en pourcentage.
+      - Question de contrôle sur la sorte d'une variable.
+    done_when: A répondu à la question de contrôle.
+
+  - id: graphiques
+    kind: teach
+    title: Représenter une série
+    goal: Choisir et lire le graphique qui convient à chaque sorte de variable.
+    pack: ["§4.4", "§4.5", "§4.6", "§4.7"]
+    beats:
+      - Le diagramme circulaire du cours (moyens de transport), l'angle d'un secteur.
+      - Le diagramme en bâtons des notes et son polygone des effectifs.
+      - L'histogramme des tailles, classes inégales et amplitude de référence.
+      - Le polygone des fréquences cumulées croissantes des tailles.
+      - Question de contrôle sur le graphique qui convient à une variable continue.
+    done_when: A répondu à la question de contrôle.
+
+  - id: parametres
+    kind: teach
+    title: Mode, moyenne, médiane, quartiles
+    goal: Calculer les paramètres de position et tracer la boîte à moustaches.
+    pack: ["§4.8", "§4.9"]
+    beats:
+      - Mode, moyenne et médiane sur l'exemple des notes.
+      - La définition des quartiles, Q₁ et Q₃ des notes, puis la boîte à moustaches.
+      - Question de contrôle sur la médiane d'une série d'effectif pair.
+    done_when: A répondu à la question de contrôle.
+
+  - id: pratique
+    kind: practise
+    title: Graphiques et paramètres
+    goal: Représenter une série et calculer ses paramètres.
+    exercises: ["6.1.1", "6.1.2", "6.2.1", "6.2.2", "6.3.1"]
+    count: 3
+    done_when: Trois exercices résolus, dont un histogramme à classes inégales.

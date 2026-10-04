@@ -1,0 +1,4 @@
+id: mini
+title: Mini
+sections:
+  - {id: exos, kind: practise, title: A, goal: g, exercises: ["1"], done_when: d}

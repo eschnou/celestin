@@ -1,0 +1,3 @@
+Path status: 0 section(s) done out of 3.
+No section in progress. Next: “1. Introduction” (lesson).
+Start it with start_section("intro").

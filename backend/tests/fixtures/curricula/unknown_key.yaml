@@ -1,0 +1,4 @@
+id: mini
+title: Mini
+sections:
+  - {id: intro, kind: teach, title: A, goal: g, beats: [b], done_when: d, colour: red}

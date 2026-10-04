@@ -1,0 +1,40 @@
+# Path for the chapter on uniform rectilinear motion: an English physics fixture (spec 011)
+# for the plot probes, written by hand from tests/fixtures/material/physics_uniform_motion_en.txt.
+# References such as "§4.3" or "6.2.2" point into the neighbouring pack. Exercise 6.1.2 is in
+# § 7 (wrong answer key): it is not offered.
+
+id: uniform-motion
+title: Uniform rectilinear motion
+
+sections:
+  - id: motion
+    kind: teach
+    title: Frame of reference, path and average speed
+    goal: Describe a motion relative to a frame of reference and work out an average speed.
+    pack: ["§4.1", "§4.2"]
+    beats:
+      - The person on the bus, at rest relative to the bus and moving relative to the pavement.
+      - The definition of the path, then of rectilinear motion.
+      - Average speed, its formula and the conversion 72 km/h = 20 m/s.
+      - Check question on converting km/h into m/s.
+    done_when: Has answered the check question.
+
+  - id: uniform
+    kind: teach
+    title: Uniform motion, its equation and its graphs
+    goal: Recognise a uniform motion, write its equation and read the speed on the x(t) graph.
+    pack: ["§4.3"]
+    beats:
+      - The definition of uniform rectilinear motion.
+      - The trolley experiment, its table of measurements and its x(t) graph.
+      - The equation of motion, then the x(t) and v(t) graphs of a uniform motion.
+      - Check question on what the slope of the x(t) graph represents.
+    done_when: Has answered the check question.
+
+  - id: practice
+    kind: practise
+    title: Exercises on uniform motion
+    goal: Work out a speed and a position, and read a speed on a graph.
+    exercises: ["6.1.1", "6.2.1", "6.2.2"]
+    count: 2
+    done_when: Two exercises solved, including a speed read on a graph.

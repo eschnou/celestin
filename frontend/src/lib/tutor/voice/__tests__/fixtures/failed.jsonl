@@ -1,0 +1,2 @@
+{"type": "response.created", "response": {"id": "resp_1"}}
+{"type": "response.done", "response": {"id": "resp_1", "status": "failed", "status_details": {"type": "failed", "error": {"message": "server_error"}}}}

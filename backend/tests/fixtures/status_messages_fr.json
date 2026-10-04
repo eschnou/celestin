@@ -1,0 +1,46 @@
+{
+  "authoring": {
+    "unstructured": "Je n'ai pas réussi à organiser ce texte en chapitre. Vérifie qu'il contient bien le cours, puis réessaie.",
+    "truncated": "Ce texte est trop long pour être préparé en une fois. Découpe-le en deux chapitres.",
+    "transcription_failed": "Je n'ai pas pu lire certaines pages. Essaie des photos plus nettes, une page par photo, ou moins de pages.",
+    "too_long": "Ce document est trop long pour un chapitre. Découpe-le en deux.",
+    "provider": "Le service de préparation est indisponible pour le moment. Réessaie dans quelques minutes.",
+    "timeout": "La préparation a pris trop de temps. Réessaie.",
+    "interrupted": "La préparation a été interrompue. Réessaie.",
+    "internal": "Une erreur est survenue pendant la préparation. Réessaie."
+  },
+  "transcription": {
+    "provider": "Le service de lecture est indisponible pour le moment. Dépose à nouveau le document dans quelques minutes.",
+    "timeout": "La lecture des pages a pris trop de temps. Dépose à nouveau le document, ou moins de pages.",
+    "interrupted": "La lecture des pages a été interrompue. Dépose à nouveau le document.",
+    "internal": "Une erreur est survenue pendant la lecture des pages. Dépose à nouveau le document."
+  },
+  "display_title": [
+    {
+      "position": 1,
+      "title": "Les suites numériques",
+      "fr": "Chapitre 1 — Les suites numériques"
+    },
+    {
+      "position": 12,
+      "title": "Stat",
+      "fr": "Chapitre 12 — Stat"
+    },
+    {
+      "position": 2,
+      "title": null,
+      "fr": "Nouveau chapitre 2"
+    },
+    {
+      "position": 3,
+      "title": "",
+      "fr": "Nouveau chapitre 3"
+    }
+  ],
+  "subjects": {
+    "mathematics": "Mathématiques",
+    "sciences": "Sciences",
+    "languages": "Langues",
+    "general": "Cours généraux"
+  }
+}

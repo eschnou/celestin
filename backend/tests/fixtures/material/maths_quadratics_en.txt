@@ -1,0 +1,59 @@
+Chapter 3: Quadratic Equations
+
+1. Definition
+A quadratic equation in one unknown is an equation that can be written in the form
+ax² + bx + c = 0 where a, b, c are real numbers and a ≠ 0.
+The numbers a, b and c are called the coefficients of the equation.
+
+Examples: 3x² − 5x + 2 = 0 (a = 3, b = −5, c = 2)
+x² − 16 = 0 (a = 1, b = 0, c = −16)
+
+2. The discriminant
+The discriminant of the equation ax² + bx + c = 0 is the number
+D = b² − 4ac
+
+Rule (learn this by heart):
+• If D > 0, the equation has two different solutions: x₁ = (−b − √D) / 2a and x₂ = (−b + √D) / 2a
+• If D = 0, the equation has exactly one (repeated) solution: x = −b / 2a
+• If D < 0, the equation has no real solution: S = { }
+
+Always write the solution set as S = { … }.
+
+Page 2
+
+3. Special cases (no discriminant needed)
+• If b = 0: ax² + c = 0 ⇔ x² = −c/a. Example: x² − 16 = 0 ⇔ x² = 16 ⇔ x = −4 or x = 4. S = {−4, 4}
+• If c = 0: factorise out x. Example: 2x² − 8x = 0 ⇔ 2x(x − 4) = 0 ⇔ x = 0 or x = 4. S = {0, 4}
+
+Warning: never divide both sides by x, you would lose the solution x = 0!
+
+4. Sum and product of the solutions
+If D ≥ 0: x₁ + x₂ = −b/a and x₁ · x₂ = c/a
+
+EXERCISES
+
+Ex 1. Solve over the real numbers:
+a) x² − 7x + 10 = 0
+b) 9x² − 12x + 4 = 0
+c) 2x² + x + 3 = 0
+
+Ex 1 answers (done in class)
+a) D = 49 − 40 = 9; x₁ = (7 − 3)/2 = 2; x₂ = (7 + 3)/2 = 5; S = {2, 5}
+b) D = 144 − 144 = 0; x = 12/18 = 2/3; S = {2/3}
+c) D = 1 − 24 = −23 < 0; S = { }
+
+Ex 2. Solve without using D:
+a) 3x² − 48 = 0
+b) 4x² + 10x = 0
+
+Ex 2 answers
+a) x² = 16 so S = {−4, 4}
+b) 2x(2x + 5) = 0 so S = {0, −5/2}
+
+Ex 3. Word problem. A rectangle is 3 cm longer than it is wide, and its area is 70 cm². What are its dimensions?
+Answer: let w be the width, so w(w + 3) = 70, that is w² + 3w − 70 = 0. D = 9 + 280 = 289, √D = 17.
+w = (−3 − 17)/2 = −10 or w = (−3 + 17)/2 = 7. A width cannot be negative.
+Dimensions: 7 cm by 10 cm.
+
+Ex 4. Without solving, give the sum and the product of the solutions of 3x² + 5x − 2 = 0.
+(no answer given)

@@ -1,0 +1,2 @@
+Path status: 0 section(s) done out of 3.
+No section in progress. The next would be “1. Introduction” (lesson), to do in the path.

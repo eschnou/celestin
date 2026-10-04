@@ -1,0 +1,6 @@
+{"type": "response.created", "response": {"id": "resp_1"}}
+{"type": "output_audio_buffer.started"}
+{"type": "response.output_audio_transcript.delta", "item_id": "m1", "delta": "La somme d'une suite arithm"}
+{"type": "input_audio_buffer.speech_started", "item_id": "u2"}
+{"type": "output_audio_buffer.cleared"}
+{"type": "response.done", "response": {"id": "resp_1", "status": "cancelled", "status_details": {"type": "cancelled", "reason": "turn_detected"}}}

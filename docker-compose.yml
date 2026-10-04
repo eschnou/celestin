@@ -1,0 +1,15 @@
+# A starting point for self-hosting. Nothing is required: open http://localhost:8080, create the administrator,
+# choose the AI provider and paste its key in the settings (OpenAI, Groq, a local model server: see
+# documentation/ai-providers.md). Any variable of documentation/running-locally.md can go under
+# `environment` as an override (OPENAI_API_KEY there wins over the key entered in the browser).
+services:
+  celestin:
+    image: ghcr.io/eschnou/celestin:latest # the published image (pin a version tag); or `build: .` to build it here
+    ports:
+      - "8080:8080"
+    volumes:
+      - celestin-data:/data # or ./data:/data to keep everything in a folder
+    restart: unless-stopped
+
+volumes:
+  celestin-data:

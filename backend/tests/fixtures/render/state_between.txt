@@ -1,0 +1,3 @@
+État du parcours : 1 section(s) faite(s) sur 3.
+Aucune section en cours. Prochaine : « 2. Exercices » (exercices).
+Commence-la avec start_section("exos").

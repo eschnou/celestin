@@ -1,0 +1,3 @@
+État du parcours : 0 section(s) faite(s) sur 3.
+Aucune section en cours. Prochaine : « 1. Introduction » (cours).
+Commence-la avec start_section("intro").

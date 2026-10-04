@@ -1,0 +1,51 @@
+# Path for the descriptive statistics chapter: an English fixture (spec 011) for the chart
+# probes, written by hand next to its pack. References such as "§4.5" or "6.1.1" point
+# into the neighbouring pack.
+
+id: statistics
+title: Descriptive statistics with one variable
+
+sections:
+  - id: vocabulary
+    kind: teach
+    title: Population, individual, variable
+    goal: Know the course definitions and recognise the kind of a variable.
+    pack: ["§4.1", "§4.2", "§4.3"]
+    beats:
+      - Quote the three definitions of §4.1 together, then the one for the statistical variable.
+      - The three kinds of variable, one course example for each.
+      - Relative frequency, as a decimal and as a percentage.
+      - Check question on the kind of a variable.
+    done_when: Has answered the check question.
+
+  - id: charts
+    kind: teach
+    title: Showing a series
+    goal: Choose and read the chart that suits each kind of variable.
+    pack: ["§4.4", "§4.5", "§4.6", "§4.7"]
+    beats:
+      - The course pie chart (favourite sport) and the angle of a sector.
+      - The bar chart of books read and its frequency polygon.
+      - The histogram of travel times, unequal classes and the reference width.
+      - The cumulative frequency polygon of the travel times.
+      - Check question on the chart that suits a continuous variable.
+    done_when: Has answered the check question.
+
+  - id: measures
+    kind: teach
+    title: Mode, mean, median, quartiles
+    goal: Compute the measures of centre and draw the box plot.
+    pack: ["§4.8", "§4.9"]
+    beats:
+      - Mode, mean and median on the books example.
+      - The definition of the quartiles, Q1 and Q3 of the books, then the box plot.
+      - Check question on the median of a series with an even number of values.
+    done_when: Has answered the check question.
+
+  - id: practice
+    kind: practise
+    title: Charts and measures
+    goal: Draw a series and compute its measures.
+    exercises: ["6.1.1", "6.1.2", "6.2.1", "6.2.2", "6.3.1"]
+    count: 3
+    done_when: Three exercises solved, including a histogram with classes of unequal width.

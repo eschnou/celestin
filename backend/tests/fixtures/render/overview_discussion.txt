@@ -1,0 +1,7 @@
+## Parcours du chapitre « Mini chapitre »
+
+Sections dans l'ordre. C'est le parcours du chapitre : il se suit dans le mode parcours, pas ici. Tu peux dire à ton élève où se travaille une notion et lui proposer d'y aller ; tu ne peux ni ouvrir ni terminer une section.
+
+1. `intro` (cours) — Introduction. Comprendre de quoi on parle.
+2. `exos` (exercices) — Exercices. Appliquer.
+3. `bilan` (synthèse) — Synthèse. Mélanger.

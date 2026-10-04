@@ -1,0 +1,7 @@
+Section “1. Introduction” (lesson), 1/3.
+Review: this section is already done. Do not finish it again.
+Goal: Understand what we are talking about.
+Outline:
+1. State the definition.
+2. Check question.
+Finished when: Has answered the check question.

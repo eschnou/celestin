@@ -1,0 +1,25 @@
+id: mini
+title: Mini chapitre
+sections:
+  - id: intro
+    kind: teach
+    title: Introduction
+    goal: Comprendre de quoi on parle.
+    beats:
+      - Citer la définition.
+      - Question de contrôle.
+    done_when: A répondu à la question de contrôle.
+  - id: exos
+    kind: practise
+    title: Exercices
+    goal: Appliquer.
+    exercises: ["6.1.1", "6.1.2"]
+    count: 2
+    done_when: Deux exercices résolus.
+  - id: bilan
+    kind: synthesis
+    title: Synthèse
+    goal: Mélanger.
+    exercises: ["6.1.x"]
+    count: 1
+    done_when: Un exercice résolu.

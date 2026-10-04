@@ -1,0 +1,35 @@
+[project]
+name = "schooled-backend"
+version = "0.1.0"
+description = "Professor Célestin tutor backend"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.34.0",
+    "pydantic-settings>=2.15.0",
+    "openai>=3.12.0",
+    "pyyaml>=6.0",
+    "sqlalchemy>=2.0",
+    "alembic>=1.19.2",
+    "pwdlib[argon2]>=0.3.1",
+    "email-validator>=2.3.0",
+    "pypdfium2>=5.13.0",
+    "pillow>=12.3.0",
+    "python-multipart>=0.0.32",
+    "cryptography>=44",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "httpx>=0.28.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+filterwarnings = ["error::DeprecationWarning:app.*"]
+
+[tool.uv]
+package = false

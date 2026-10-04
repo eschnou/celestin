@@ -1,0 +1,30 @@
+# The container's front door: /api goes to the tutor service, everything else to the web server.
+# SITE_ADDRESS is `:8080` (plain HTTP, for a reverse proxy or localhost) unless set to a host name,
+# in which case Caddy gets a certificate for it and listens on 80 and 443.
+{
+	admin off
+	# An outer proxy on a private network (Traefik, nginx, a cloud load balancer) is believed about
+	# the client's address and protocol; anything else has its X-Forwarded-* overwritten.
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+{$SITE_ADDRESS::8080} {
+	encode zstd gzip
+
+	handle /api/* {
+		# flush_interval -1: the tutor's turns are server-sent events; never buffer them.
+		reverse_proxy 127.0.0.1:8000 {
+			flush_interval -1
+			transport http {
+				# A turn, an upload or a document read can take minutes.
+				response_header_timeout 5m
+			}
+		}
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+}

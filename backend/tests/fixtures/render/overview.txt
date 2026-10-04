@@ -1,0 +1,7 @@
+## Parcours du chapitre « Mini chapitre »
+
+Sections dans l'ordre, verrouillées : une section ne s'ouvre que lorsque la précédente est terminée. `start_section(id)` te donne le plan d'une section, `complete_section(id, résumé)` la termine.
+
+1. `intro` (cours) — Introduction. Comprendre de quoi on parle.
+2. `exos` (exercices) — Exercices. Appliquer.
+3. `bilan` (synthèse) — Synthèse. Mélanger.

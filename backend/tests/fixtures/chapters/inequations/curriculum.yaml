@@ -1,0 +1,49 @@
+# Parcours du chapitre sur les intervalles et les inéquations : fixture des sondes des
+# figures (`scripts/probe.py --figures`), écrite à la main, chaque réponse vérifiée.
+# Les références « §4.2 » ou « 6.1.3 » renvoient au pack voisin.
+
+id: inequations
+title: Intervalles et inéquations du premier degré
+
+sections:
+  - id: intervalles
+    kind: teach
+    title: Intervalles
+    goal: Écrire un ensemble de réels sous forme d'intervalle et le représenter sur une droite graduée.
+    pack: ["§4.1"]
+    beats:
+      - La définition de l'intervalle [a ; b], puis le tableau des intervalles du cours.
+      - L'exemple [−1 ; 3[ et sa droite graduée, le sens des crochets.
+      - Question de contrôle sur un intervalle à écrire à partir d'une inégalité.
+    done_when: A répondu à la question de contrôle.
+
+  - id: ensembles
+    kind: teach
+    title: Réunion et intersection
+    goal: Déterminer la réunion et l'intersection de deux ensembles ou de deux intervalles.
+    pack: ["§4.2"]
+    beats:
+      - Les définitions de la réunion et de l'intersection.
+      - Les diviseurs de 12 et de 18 dans le diagramme d'ensembles du cours.
+      - L'intersection et la réunion de [−2 ; 3] et ]1 ; 5] sur une droite graduée.
+      - Question de contrôle sur l'intersection de deux intervalles.
+    done_when: A répondu à la question de contrôle.
+
+  - id: inequations
+    kind: teach
+    title: Inéquations du premier degré
+    goal: Résoudre une inéquation du premier degré et écrire l'ensemble des solutions.
+    pack: ["§4.3"]
+    beats:
+      - La règle du changement de sens, sur les deux exemples du cours.
+      - L'ensemble des solutions en intervalle et sur une droite graduée.
+      - Question de contrôle sur le sens de l'inégalité après une division par un nombre négatif.
+    done_when: A répondu à la question de contrôle.
+
+  - id: pratique
+    kind: practise
+    title: Intervalles, ensembles et inéquations
+    goal: Écrire et représenter des intervalles, déterminer réunions et intersections, résoudre des inéquations.
+    exercises: ["6.1.1", "6.1.2", "6.1.3", "6.1.4", "6.2.1", "6.2.2", "6.2.3"]
+    count: 3
+    done_when: Trois exercices résolus, dont une inéquation qui change de sens.

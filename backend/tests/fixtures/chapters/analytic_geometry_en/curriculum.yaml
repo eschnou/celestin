@@ -1,0 +1,38 @@
+# Path for the analytic geometry chapter: an English fixture (spec 011) for the figure
+# probes, written by hand, every answer checked. References such as "§4.4" or "6.2.2"
+# point into the neighbouring pack.
+
+id: analytic-geometry
+title: Analytic geometry in the plane
+
+sections:
+  - id: coordinates
+    kind: teach
+    title: Coordinate system, midpoint and distance
+    goal: Locate points in an orthonormal coordinate system, find a midpoint and a distance.
+    pack: ["§4.1", "§4.2"]
+    beats:
+      - The course's orthonormal coordinate system and the points A, B and C.
+      - The midpoint and distance formulas, on the course example.
+      - Check question on the midpoint of a segment.
+    done_when: Has answered the check question.
+
+  - id: lines
+    kind: teach
+    title: Lines
+    goal: Write the equation of a line, recognise parallel or perpendicular lines and find an intersection point.
+    pack: ["§4.3", "§4.4", "§4.5"]
+    beats:
+      - The equation of the line AB from the course, slope first, then y-intercept.
+      - Parallel and perpendicular lines; the triangle ABC with its right angle at B and its marks.
+      - The intersection point of the course lines d1 and d2.
+      - Check question on two perpendicular lines.
+    done_when: Has answered the check question.
+
+  - id: practice
+    kind: practise
+    title: Midpoints, distances and lines
+    goal: Find midpoints, distances, equations of lines and intersection points.
+    exercises: ["6.1.1", "6.1.2", "6.2.1", "6.2.2", "6.2.3"]
+    count: 3
+    done_when: Three exercises solved, including an intersection point.

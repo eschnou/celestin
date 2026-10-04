@@ -1,0 +1,38 @@
+# Parcours du chapitre de géométrie analytique : fixture des sondes des figures
+# (`scripts/probe.py --figures`), écrite à la main, chaque réponse vérifiée. Les
+# références « §4.4 » ou « 6.2.2 » renvoient au pack voisin.
+
+id: geometrie-analytique
+title: Géométrie analytique plane
+
+sections:
+  - id: repere
+    kind: teach
+    title: Repère, milieu et distance
+    goal: Repérer des points dans un repère orthonormé, calculer un milieu et une distance.
+    pack: ["§4.1", "§4.2"]
+    beats:
+      - Le repère orthonormé du cours et les points A, B et C.
+      - Les formules du milieu et de la distance, sur l'exemple du cours.
+      - Question de contrôle sur le milieu d'un segment.
+    done_when: A répondu à la question de contrôle.
+
+  - id: droites
+    kind: teach
+    title: Droites
+    goal: Écrire l'équation d'une droite, reconnaître des droites parallèles ou perpendiculaires et calculer un point d'intersection.
+    pack: ["§4.3", "§4.4", "§4.5"]
+    beats:
+      - L'équation de la droite AB du cours, coefficient angulaire puis ordonnée à l'origine.
+      - Droites parallèles et perpendiculaires ; le triangle ABC rectangle en B et son codage.
+      - Le point d'intersection des droites d₁ et d₂ du cours.
+      - Question de contrôle sur deux droites perpendiculaires.
+    done_when: A répondu à la question de contrôle.
+
+  - id: pratique
+    kind: practise
+    title: Milieux, distances et droites
+    goal: Calculer milieux, distances, équations de droites et points d'intersection.
+    exercises: ["6.1.1", "6.1.2", "6.2.1", "6.2.2", "6.2.3"]
+    count: 3
+    done_when: Trois exercices résolus, dont un point d'intersection.

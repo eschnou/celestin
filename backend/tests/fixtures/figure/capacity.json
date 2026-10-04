@@ -1,0 +1,1050 @@
+{
+  "about": "The capacity contract between app/services/tools/figures.py (crowded) and frontend/src/components/celestin/figure/venn.ts (fits). Copied verbatim to frontend/src/components/celestin/figure/__tests__/capacity.json; a backend test keeps the two identical.",
+  "constants": {
+    "BOARD_PX": 294,
+    "MARGIN_PX": 14,
+    "ROW_PX": 18,
+    "GAP_PX": 6,
+    "CHAR_PX": 7,
+    "GLYPH_PX": 9,
+    "MAX_PER_ZONE": 6
+  },
+  "nested": {
+    "label_row": 20,
+    "gap": 6,
+    "band_min": 20,
+    "band_pad": 12,
+    "inner_min": 40,
+    "label_pad": 16
+  },
+  "slots": {
+    "overlap2": {
+      "0": [70, 4],
+      "1": [70, 4],
+      "01": [70, 4]
+    },
+    "overlap3": {
+      "0": [77, 2],
+      "1": [77, 2],
+      "2": [141, 2],
+      "01": [53, 2],
+      "02": [46, 2],
+      "12": [46, 2],
+      "012": [70, 2]
+    },
+    "separate2": {
+      "0": [84, 5],
+      "1": [84, 5]
+    },
+    "separate3": {
+      "0": [54, 3],
+      "1": [54, 3],
+      "2": [54, 3]
+    },
+    "outside": {
+      "": [260, 2]
+    }
+  },
+  "text_px": [
+    ["Diviseurs de 12", 105],
+    ["$\\mathbb{N}$", 18],
+    ["$\\frac{1}{3}$", 27],
+    ["1 ; 2 ; 3 ; 6", 91],
+    ["−3", 14],
+    ["$\\sqrt{2}$ ; $\\pi$", 48],
+    ["Population", 70],
+    ["$x^{2}$", 18],
+    ["30$ et", 42],
+    ["$\ufeffx$", 28],
+    ["$x\u0085$", 18],
+    ["$x\u001c$", 18],
+    ["$x$\u00a0et", 30],
+    ["", 0]
+  ],
+  "rows": [
+    {
+      "widths": [70, 70, 70, 70],
+      "slot": 70,
+      "rows": 4
+    },
+    {
+      "widths": [32, 32],
+      "slot": 70,
+      "rows": 1
+    },
+    {
+      "widths": [33, 32],
+      "slot": 70,
+      "rows": 2
+    },
+    {
+      "widths": [],
+      "slot": 70,
+      "rows": 0
+    },
+    {
+      "widths": [71],
+      "slot": 70,
+      "rows": null
+    },
+    {
+      "widths": [14, 21, 14, 21, 7],
+      "slot": 46,
+      "rows": 3
+    }
+  ],
+  "cases": [
+    {
+      "name": "overlap-2, the divisors of 12 and 18",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "Diviseurs de 12"
+          },
+          {
+            "id": "B",
+            "label": "Diviseurs de 18"
+          }
+        ],
+        "elements": [
+          {
+            "text": "4",
+            "within": ["A"]
+          },
+          {
+            "text": "12",
+            "within": ["A"]
+          },
+          {
+            "text": "1",
+            "within": ["A", "B"]
+          },
+          {
+            "text": "2",
+            "within": ["A", "B"]
+          },
+          {
+            "text": "3",
+            "within": ["A", "B"]
+          },
+          {
+            "text": "6",
+            "within": ["A", "B"]
+          },
+          {
+            "text": "9",
+            "within": ["B"]
+          },
+          {
+            "text": "18",
+            "within": ["B"]
+          }
+        ]
+      },
+      "fits": true
+    },
+    {
+      "name": "overlap-2, one element exactly as wide as A∩B",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          }
+        ],
+        "elements": [
+          {
+            "text": "1234567890",
+            "within": ["A", "B"]
+          }
+        ]
+      },
+      "fits": true
+    },
+    {
+      "name": "overlap-2, one character wider than A∩B",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          }
+        ],
+        "elements": [
+          {
+            "text": "xxxxxxxxxxx",
+            "within": ["A", "B"]
+          }
+        ]
+      },
+      "fits": false
+    },
+    {
+      "name": "overlap-2, four full rows in A∩B",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          }
+        ],
+        "elements": [
+          {
+            "text": "1234567890",
+            "within": ["A", "B"]
+          },
+          {
+            "text": "1234567890",
+            "within": ["A", "B"]
+          },
+          {
+            "text": "1234567890",
+            "within": ["A", "B"]
+          },
+          {
+            "text": "1234567890",
+            "within": ["A", "B"]
+          }
+        ]
+      },
+      "fits": true
+    },
+    {
+      "name": "overlap-2, a fifth row in A∩B",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          }
+        ],
+        "elements": [
+          {
+            "text": "1234567890",
+            "within": ["A", "B"]
+          },
+          {
+            "text": "1234567890",
+            "within": ["A", "B"]
+          },
+          {
+            "text": "1234567890",
+            "within": ["A", "B"]
+          },
+          {
+            "text": "1234567890",
+            "within": ["A", "B"]
+          },
+          {
+            "text": "1234567890",
+            "within": ["A", "B"]
+          }
+        ]
+      },
+      "fits": false
+    },
+    {
+      "name": "overlap-2, six elements in A",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          }
+        ],
+        "elements": [
+          {
+            "text": "1",
+            "within": ["A"]
+          },
+          {
+            "text": "2",
+            "within": ["A"]
+          },
+          {
+            "text": "3",
+            "within": ["A"]
+          },
+          {
+            "text": "4",
+            "within": ["A"]
+          },
+          {
+            "text": "5",
+            "within": ["A"]
+          },
+          {
+            "text": "6",
+            "within": ["A"]
+          }
+        ]
+      },
+      "fits": true
+    },
+    {
+      "name": "overlap-2, seven elements in A",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          }
+        ],
+        "elements": [
+          {
+            "text": "1",
+            "within": ["A"]
+          },
+          {
+            "text": "2",
+            "within": ["A"]
+          },
+          {
+            "text": "3",
+            "within": ["A"]
+          },
+          {
+            "text": "4",
+            "within": ["A"]
+          },
+          {
+            "text": "5",
+            "within": ["A"]
+          },
+          {
+            "text": "6",
+            "within": ["A"]
+          },
+          {
+            "text": "7",
+            "within": ["A"]
+          }
+        ]
+      },
+      "fits": false
+    },
+    {
+      "name": "overlap-2, the one row of seven divisors in A∩B",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          }
+        ],
+        "elements": [
+          {
+            "text": "1 ; 2 ; 3 ; 6 ; 9 ; 18 ; 24",
+            "within": ["A", "B"]
+          }
+        ]
+      },
+      "fits": false
+    },
+    {
+      "name": "overlap-2, labels filling the row",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "xxxxxxxxxxxxxxxxxx"
+          },
+          {
+            "id": "B",
+            "label": "yyyyyyyyyyyyyyyyyy"
+          }
+        ],
+        "elements": []
+      },
+      "fits": true
+    },
+    {
+      "name": "overlap-2, labels one character over the row",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "xxxxxxxxxxxxxxxxxxx"
+          },
+          {
+            "id": "B",
+            "label": "yyyyyyyyyyyyyyyyyy"
+          }
+        ],
+        "elements": []
+      },
+      "fits": false
+    },
+    {
+      "name": "overlap-3, two rows in A∩C",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "label": "C"
+          }
+        ],
+        "elements": [
+          {
+            "text": "12",
+            "within": ["A", "C"]
+          },
+          {
+            "text": "123",
+            "within": ["A", "C"]
+          },
+          {
+            "text": "12",
+            "within": ["A", "C"]
+          },
+          {
+            "text": "123",
+            "within": ["A", "C"]
+          }
+        ]
+      },
+      "fits": true
+    },
+    {
+      "name": "overlap-3, a third row in A∩C",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "label": "C"
+          }
+        ],
+        "elements": [
+          {
+            "text": "12",
+            "within": ["A", "C"]
+          },
+          {
+            "text": "123",
+            "within": ["A", "C"]
+          },
+          {
+            "text": "12",
+            "within": ["A", "C"]
+          },
+          {
+            "text": "123",
+            "within": ["A", "C"]
+          },
+          {
+            "text": "1",
+            "within": ["A", "C"]
+          }
+        ]
+      },
+      "fits": false
+    },
+    {
+      "name": "overlap-3, two rows in A∩B∩C",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "label": "C"
+          }
+        ],
+        "elements": [
+          {
+            "text": "1234567890",
+            "within": ["A", "B", "C"]
+          },
+          {
+            "text": "1234567890",
+            "within": ["A", "B", "C"]
+          }
+        ]
+      },
+      "fits": true
+    },
+    {
+      "name": "overlap-3, C's label below the diagram may be long",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "label": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+          }
+        ],
+        "elements": []
+      },
+      "fits": true
+    },
+    {
+      "name": "overlap-3, a 40-character label",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "label": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+          }
+        ],
+        "elements": []
+      },
+      "fits": false
+    },
+    {
+      "name": "separate-2, five rows",
+      "figure": {
+        "kind": "sets",
+        "layout": "separate",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          }
+        ],
+        "elements": [
+          {
+            "text": "xxxxxxxxxxxx",
+            "within": ["A"]
+          },
+          {
+            "text": "xxxxxxxxxxxx",
+            "within": ["A"]
+          },
+          {
+            "text": "xxxxxxxxxxxx",
+            "within": ["A"]
+          },
+          {
+            "text": "xxxxxxxxxxxx",
+            "within": ["A"]
+          },
+          {
+            "text": "xxxxxxxxxxxx",
+            "within": ["A"]
+          }
+        ]
+      },
+      "fits": true
+    },
+    {
+      "name": "separate-3, three rows of seven characters",
+      "figure": {
+        "kind": "sets",
+        "layout": "separate",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "label": "C"
+          }
+        ],
+        "elements": [
+          {
+            "text": "1234567",
+            "within": ["B"]
+          },
+          {
+            "text": "1234567",
+            "within": ["B"]
+          },
+          {
+            "text": "1234567",
+            "within": ["B"]
+          }
+        ]
+      },
+      "fits": true
+    },
+    {
+      "name": "separate-3, a fourth row",
+      "figure": {
+        "kind": "sets",
+        "layout": "separate",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          },
+          {
+            "id": "C",
+            "label": "C"
+          }
+        ],
+        "elements": [
+          {
+            "text": "1234567",
+            "within": ["B"]
+          },
+          {
+            "text": "1234567",
+            "within": ["B"]
+          },
+          {
+            "text": "1234567",
+            "within": ["B"]
+          },
+          {
+            "text": "1234567",
+            "within": ["B"]
+          }
+        ]
+      },
+      "fits": false
+    },
+    {
+      "name": "outside, two rows of two",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          }
+        ],
+        "elements": [
+          {
+            "text": "xxxxxxxxxxxxxxxxxx",
+            "within": []
+          },
+          {
+            "text": "xxxxxxxxxxxxxxxxxx",
+            "within": []
+          },
+          {
+            "text": "xxxxxxxxxxxxxxxxxx",
+            "within": []
+          },
+          {
+            "text": "xxxxxxxxxxxxxxxxxx",
+            "within": []
+          }
+        ],
+        "universe": "Élèves"
+      },
+      "fits": true
+    },
+    {
+      "name": "outside, a third row",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          }
+        ],
+        "elements": [
+          {
+            "text": "xxxxxxxxxxxxxxxxxx",
+            "within": []
+          },
+          {
+            "text": "xxxxxxxxxxxxxxxxxx",
+            "within": []
+          },
+          {
+            "text": "xxxxxxxxxxxxxxxxxx",
+            "within": []
+          },
+          {
+            "text": "xxxxxxxxxxxxxxxxxx",
+            "within": []
+          },
+          {
+            "text": "xxxxxxxxxxxxxxxxxx",
+            "within": []
+          }
+        ],
+        "universe": "Élèves"
+      },
+      "fits": false
+    },
+    {
+      "name": "universe as wide as the drawing",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          }
+        ],
+        "elements": [],
+        "universe": "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu"
+      },
+      "fits": true
+    },
+    {
+      "name": "universe one character wider",
+      "figure": {
+        "kind": "sets",
+        "layout": "overlap",
+        "sets": [
+          {
+            "id": "A",
+            "label": "A"
+          },
+          {
+            "id": "B",
+            "label": "B"
+          }
+        ],
+        "elements": [],
+        "universe": "uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu"
+      },
+      "fits": false
+    },
+    {
+      "name": "nested, ℕ ⊂ ℤ ⊂ 𝔻 ⊂ ℚ ⊂ ℝ",
+      "figure": {
+        "kind": "sets",
+        "layout": "nested",
+        "sets": [
+          {
+            "id": "R",
+            "label": "$\\mathbb{R}$"
+          },
+          {
+            "id": "Q",
+            "label": "$\\mathbb{Q}$"
+          },
+          {
+            "id": "D",
+            "label": "$\\mathbb{D}$"
+          },
+          {
+            "id": "Z",
+            "label": "$\\mathbb{Z}$"
+          },
+          {
+            "id": "N",
+            "label": "$\\mathbb{N}$"
+          }
+        ],
+        "elements": [
+          {
+            "text": "$\\sqrt{2}$",
+            "within": ["R"]
+          },
+          {
+            "text": "$\\pi$",
+            "within": ["R"]
+          },
+          {
+            "text": "$\\frac{1}{3}$",
+            "within": ["Q"]
+          },
+          {
+            "text": "0,5",
+            "within": ["D"]
+          },
+          {
+            "text": "−3",
+            "within": ["Z"]
+          },
+          {
+            "text": "0",
+            "within": ["N"]
+          },
+          {
+            "text": "7",
+            "within": ["N", "Z", "D", "Q", "R"]
+          }
+        ]
+      },
+      "fits": true
+    },
+    {
+      "name": "nested, population ⊃ échantillon ⊃ individu",
+      "figure": {
+        "kind": "sets",
+        "layout": "nested",
+        "sets": [
+          {
+            "id": "P",
+            "label": "Population"
+          },
+          {
+            "id": "E",
+            "label": "Échantillon"
+          }
+        ],
+        "elements": [
+          {
+            "text": "individu",
+            "within": ["E"]
+          }
+        ]
+      },
+      "fits": true
+    },
+    {
+      "name": "nested, four long ring lists",
+      "figure": {
+        "kind": "sets",
+        "layout": "nested",
+        "sets": [
+          {
+            "id": "R",
+            "label": "$\\mathbb{R}$"
+          },
+          {
+            "id": "Q",
+            "label": "$\\mathbb{Q}$"
+          },
+          {
+            "id": "D",
+            "label": "$\\mathbb{D}$"
+          },
+          {
+            "id": "Z",
+            "label": "$\\mathbb{Z}$"
+          },
+          {
+            "id": "N",
+            "label": "$\\mathbb{N}$"
+          }
+        ],
+        "elements": [
+          {
+            "text": "−3 ; −2 ; −1",
+            "within": ["Z"]
+          },
+          {
+            "text": "$\\sqrt{2}$ ; $\\pi$ ; $e$",
+            "within": ["R"]
+          },
+          {
+            "text": "0,5 ; 0,25",
+            "within": ["D"]
+          },
+          {
+            "text": "$\\frac{1}{3}$ ; $\\frac{2}{7}$",
+            "within": ["Q"]
+          }
+        ]
+      },
+      "fits": false
+    },
+    {
+      "name": "nested, ring and core exactly on budget",
+      "figure": {
+        "kind": "sets",
+        "layout": "nested",
+        "sets": [
+          {
+            "id": "A",
+            "label": "P"
+          },
+          {
+            "id": "B",
+            "label": "E"
+          }
+        ],
+        "elements": [
+          {
+            "text": "xxxxxxxxxxxxxxxxxxxx",
+            "within": ["A"]
+          },
+          {
+            "text": "yyyyyyyyyyyyy",
+            "within": ["B"]
+          }
+        ]
+      },
+      "fits": true
+    },
+    {
+      "name": "nested, one character over the budget",
+      "figure": {
+        "kind": "sets",
+        "layout": "nested",
+        "sets": [
+          {
+            "id": "A",
+            "label": "P"
+          },
+          {
+            "id": "B",
+            "label": "E"
+          }
+        ],
+        "elements": [
+          {
+            "text": "xxxxxxxxxxxxxxxxxxxx",
+            "within": ["A"]
+          },
+          {
+            "text": "yyyyyyyyyyyyyy",
+            "within": ["B"]
+          }
+        ]
+      },
+      "fits": false
+    },
+    {
+      "name": "nested, the outer label fits its band",
+      "figure": {
+        "kind": "sets",
+        "layout": "nested",
+        "sets": [
+          {
+            "id": "A",
+            "label": "ppppppppppppppppppppppppppppppppppp"
+          },
+          {
+            "id": "B",
+            "label": "E"
+          }
+        ],
+        "elements": []
+      },
+      "fits": true
+    },
+    {
+      "name": "nested, the outer label one character too long",
+      "figure": {
+        "kind": "sets",
+        "layout": "nested",
+        "sets": [
+          {
+            "id": "A",
+            "label": "pppppppppppppppppppppppppppppppppppp"
+          },
+          {
+            "id": "B",
+            "label": "E"
+          }
+        ],
+        "elements": []
+      },
+      "fits": false
+    }
+  ]
+}

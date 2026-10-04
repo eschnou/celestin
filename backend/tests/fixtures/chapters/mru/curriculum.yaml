@@ -1,0 +1,41 @@
+# Parcours du chapitre sur le mouvement rectiligne uniforme : fixture des sondes des
+# graphiques (`scripts/probe.py --plots`), écrite à la main d'après
+# tests/fixtures/material/physics_mru.txt. Les références « §4.3 » ou « 6.2.2 »
+# renvoient au pack voisin. L'exercice 6.1.2 est au § 7 (corrigé faux) : il n'est pas
+# proposé.
+
+id: mru
+title: Le mouvement rectiligne uniforme (MRU)
+
+sections:
+  - id: mouvement
+    kind: teach
+    title: Référentiel, trajectoire et vitesse moyenne
+    goal: Décrire un mouvement par rapport à un référentiel et calculer une vitesse moyenne.
+    pack: ["§4.1", "§4.2"]
+    beats:
+      - Le passager du train, immobile par rapport au train et en mouvement par rapport au quai.
+      - La définition de la trajectoire, puis du mouvement rectiligne.
+      - La vitesse moyenne, sa formule et la conversion 90 km/h = 25 m/s.
+      - Question de contrôle sur la conversion de km/h en m/s.
+    done_when: A répondu à la question de contrôle.
+
+  - id: mru
+    kind: teach
+    title: Le MRU, son équation et ses graphiques
+    goal: Reconnaître un MRU, écrire son équation et lire la vitesse sur le graphique x(t).
+    pack: ["§4.3"]
+    beats:
+      - La définition du MRU.
+      - L'expérience de la bille, son tableau de mesures et son graphique x(t).
+      - L'équation du mouvement, puis les graphiques x(t) et v(t) d'un MRU.
+      - Question de contrôle sur ce que représente la pente du graphique x(t).
+    done_when: A répondu à la question de contrôle.
+
+  - id: pratique
+    kind: practise
+    title: Exercices sur le MRU
+    goal: Calculer une vitesse, une position, et lire une vitesse sur un graphique.
+    exercises: ["6.1.1", "6.2.1", "6.2.2"]
+    count: 2
+    done_when: Deux exercices résolus, dont une lecture de la vitesse sur un graphique.

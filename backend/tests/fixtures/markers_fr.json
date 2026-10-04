@@ -1,0 +1,63 @@
+[
+  {
+    "key": "marker.title",
+    "params": {},
+    "fr": "séance ouverte"
+  },
+  {
+    "key": "marker.explanation",
+    "params": {},
+    "fr": "explication affichée"
+  },
+  {
+    "key": "marker.worked_example",
+    "params": {},
+    "fr": "exemple guidé affiché"
+  },
+  {
+    "key": "marker.exercise",
+    "params": {},
+    "fr": "exercice posé"
+  },
+  {
+    "key": "marker.check_question",
+    "params": {},
+    "fr": "question posée"
+  },
+  {
+    "key": "marker.recap",
+    "params": {},
+    "fr": "bilan affiché"
+  },
+  {
+    "key": "marker.cleared",
+    "params": {},
+    "fr": "tableau effacé"
+  },
+  {
+    "key": "marker.section_started",
+    "params": {
+      "label": "1. Introduction"
+    },
+    "fr": "section commencée · 1. Introduction"
+  },
+  {
+    "key": "marker.section_review",
+    "params": {
+      "label": "1. Introduction"
+    },
+    "fr": "révision · 1. Introduction"
+  },
+  {
+    "key": "marker.section_done",
+    "params": {
+      "label": "1. Introduction"
+    },
+    "fr": "section terminée · 1. Introduction"
+  },
+  {
+    "key": "marker.step_ready",
+    "params": {},
+    "fr": "étape suivante proposée"
+  }
+]
