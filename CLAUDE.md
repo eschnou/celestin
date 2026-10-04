@@ -37,7 +37,6 @@ Non-negotiable invariants from the brief, in case a change looks like it violate
 | `README.md`, `LICENSE` | The public face of the project (pitch, Docker quick start, run from source) and its MIT license. Keep the README's quick start in step with `documentation/docker.md`. |
 | `specs/product.md` | Product requirements document (v2.0). The brief. |
 | `specs/NNN-*/` | Per-feature requirements, design and implementation plan. |
-| `courses/` | Chapter 1 (scan, pack, curriculum): seed input for a local test student (`scripts/seed.py`). |
 | `documentation/` | How the built system works. Start at `documentation/index.md`. |
 | `frontend/` | TanStack Start app — the lesson view. See `frontend/CLAUDE.md`. |
 | `backend/` | Python/FastAPI tutor service. See `backend/CLAUDE.md`. |

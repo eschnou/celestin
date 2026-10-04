@@ -154,10 +154,10 @@ async def test_invalid_pack_edit_lists_issues_and_saves_nothing(client: AsyncCli
 
 async def test_pack_edit_that_breaks_a_reference_is_refused(client: AsyncClient) -> None:
     content = await _content(client)
-    broken = content["pack"].replace("#### 6.1.4", "#### 6.1.40")
+    broken = content["pack"].replace("#### 6.1.2", "#### 6.1.20")
     r = await client.put(f"{CH}/pack", json={"version": content["version"], "pack": broken})
     assert r.status_code == 422
-    assert any("6.1.4" in issue["message"] for issue in r.json()["issues"])
+    assert any("6.1.2" in issue["message"] for issue in r.json()["issues"])
 
 
 async def test_stale_pack_edit_is_409(client: AsyncClient) -> None:

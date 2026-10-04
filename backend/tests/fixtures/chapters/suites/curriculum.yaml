@@ -1,0 +1,78 @@
+# Parcours du chapitre sur les suites arithmétiques et géométriques : la fixture française de
+# mathématiques, écrite à la main à côté de son pack (pendant de `sequences_en`). Elle tient la
+# place du cours d'un élève, qui n'est pas dans le dépôt. Les identifiants de sections sont ceux
+# que les sondes de `scripts/probe.py` ouvrent sur le chapitre 1. Les références « §4.2 » ou
+# « 6.1.1 » renvoient au pack voisin.
+
+id: suites
+title: Les suites numériques
+
+sections:
+  - id: suites
+    kind: teach
+    title: Suites numériques
+    goal: Lire une suite par ses termes et par son terme général.
+    pack: ["§4.1"]
+    beats:
+      - Ce qu'est une suite, avec u_n = 3n - 2 et ses points isolés sur un graphique.
+      - Le terme de rang n, le premier terme étant u_1.
+      - Question de contrôle sur un terme calculé à partir de la formule.
+    done_when: A répondu à la question de contrôle.
+
+  - id: sa-definition
+    kind: teach
+    title: Les suites arithmétiques
+    goal: Reconnaître une suite arithmétique et écrire son terme général.
+    pack: ["§4.2"]
+    beats:
+      - La définition d'une suite arithmétique et sa raison r.
+      - Le terme général u_n = u_1 + (n - 1) r, sur l'exemple du cours u_1 = 5 et r = 3.
+      - Question de contrôle sur le nombre de pas entre u_1 et u_n.
+    done_when: A répondu à la question de contrôle.
+
+  - id: sa-proprietes
+    kind: teach
+    title: Somme des termes d'une suite arithmétique
+    goal: Calculer la somme des n premiers termes d'une suite arithmétique.
+    pack: ["§4.2"]
+    beats:
+      - La somme des n premiers termes, sur l'exemple du cours u_1 = 5 et r = 3.
+      - Le graphique d'une suite arithmétique, des points isolés qui ne sont jamais reliés.
+      - Question de contrôle sur la somme de u_1 = 4 et r = 5, jusqu'à u_12.
+    done_when: A répondu à la question de contrôle.
+
+  - id: sa-applications
+    kind: practise
+    title: Exercices sur les suites arithmétiques
+    goal: Trouver des termes, des sommes et des raisons d'une suite arithmétique.
+    exercises: ["6.1.1", "6.1.2"]
+    count: 2
+    done_when: Deux exercices résolus.
+
+  - id: sg-definition
+    kind: teach
+    title: Les suites géométriques et leur sorte
+    goal: Travailler avec une suite géométrique et décider si une liste de termes est arithmétique, géométrique ou ni l'une ni l'autre.
+    pack: ["§4.3", "§4.4"]
+    beats:
+      - La définition d'une suite géométrique et le terme général u_n = u_1 q^(n-1).
+      - La somme des n premiers termes et sa condition q différent de 1, sur u_1 = 2 et q = 3.
+      - La méthode en trois étapes pour décider de la sorte, sur 3, 6, 12, 24 et 7, 4, 1, -2.
+      - Question de contrôle sur une liste qui n'est ni arithmétique ni géométrique.
+    done_when: A répondu à la question de contrôle.
+
+  - id: sg-applications
+    kind: practise
+    title: Exercices sur les suites géométriques et leur sorte
+    goal: Trouver des termes et des sommes d'une suite géométrique, et reconnaître la sorte d'une suite.
+    exercises: ["6.2.1", "6.2.2", "6.3.1", "6.3.2", "6.3.3"]
+    count: 3
+    done_when: Trois exercices résolus, dont un qui décide de la sorte d'une suite.
+
+  - id: synthese
+    kind: synthesis
+    title: Problèmes de synthèse
+    goal: Traduire une situation en suite arithmétique ou géométrique et répondre à une question.
+    exercises: ["6.4.1", "6.4.2"]
+    count: 1
+    done_when: Un problème résolu.

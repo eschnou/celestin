@@ -26,7 +26,7 @@ uv run python -m scripts.seed --email eleve@example.be --password 'mot-de-passe-
 ```
 
 It creates or updates the account, a « Mathématiques 5e » course and a ready chapter from
-`courses/chapitre_1/` (no model call), prints the lesson URL, and can be run again: the chapter's
+`backend/tests/fixtures/chapters/suites/` (no model call), prints the lesson URL, and can be run again: the chapter's
 content is refreshed and its progress reset. It refuses a non-SQLite `DATABASE_URL` without
 `--force`. With `--language en` it seeds an English « Mathematics Year 5 » course from the English
 sequences fixture (`backend/tests/fixtures/chapters/sequences_en/`). Otherwise, register in the app, create a course and add a chapter from a PDF or photos.
@@ -112,11 +112,11 @@ uv run python -m scripts.probe --figures      # figure probes, on the geometrie_
 uv run python -m scripts.probe --plots        # plot probes, on chapter 1 and the mru fixture (sciences); probe-transcript-plots.md
 uv run python -m scripts.voice_smoke      # mints one Realtime client secret; proves the voice session config is accepted
 uv run python -m scripts.authoring_eval   # authors the sample material; outputs in backend/.eval/ (~0,60 USD)
-uv run python -m scripts.document_eval --pdf ../courses/chapitre_1.pdf   # reads and authors a document (~1 USD); --render-only is free
+uv run python -m scripts.document_eval --pdf path/to/course.pdf   # reads and authors a document (~1 USD); --render-only is free
 ```
 
 `smoke`, `probe` and the voice scripts run on files, not the database: `--chapter-dir` (default
-`courses/chapitre_1`) and `--subject` (default `mathematics`) pick the chapter. The drawing probe
+`tests/fixtures/chapters/suites`) and `--subject` (default `mathematics`) pick the chapter. The drawing probe
 sets pick their own chapters instead: `--charts` the statistique fixture, `--flowcharts` chapter 1,
 `--figures` the geometrie_analytique, inequations and statistique fixtures, `--plots` chapter 1 and
 the mru fixture (all under `backend/tests/fixtures/chapters/` except chapter 1); `--chapter-dir`
@@ -131,8 +131,8 @@ whether it accepts them.
 
 Sign in as the seeded student and open « Mes cours ». « Reprendre » or « Ouvrir » leads to chapter 1;
 « Commencer » opens the lesson, where Célestin greets you in French, opens section 1 (« Leçon ») and puts
-a card on the board. To check authoring, create a course, add a chapter from `courses/chapitre_1.pdf`
-(16 scanned pages) or a few phone photos, and watch the row go from « Lecture des pages… (n/N) » to
+a card on the board. To check authoring, create a course, add a chapter from a PDF of your own
+(a scanned course of a dozen pages is a good test) or a few phone photos, and watch the row go from « Lecture des pages… (n/N) » to
 « En préparation… » to « pas commencé » (about four minutes for the 16 pages).
 
 Page rendering uses `pypdfium2` and Pillow (wheels, no system library) in worker processes. If an

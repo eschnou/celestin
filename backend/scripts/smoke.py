@@ -40,7 +40,7 @@ def language_of(argv: list[str]) -> str:
 
 
 def load_lesson(settings, argv: list[str]):
-    """`--chapter-dir <path>` (default `courses/chapitre_1`, or the English fixture for
+    """`--chapter-dir <path>` (default `tests/fixtures/chapters/suites`, or the English fixture for
     `--language en`), `--subject <id>` (default `mathematics`) and `--language fr|en`: the
     chapter as a lesson, validated like the seed."""
     from pathlib import Path

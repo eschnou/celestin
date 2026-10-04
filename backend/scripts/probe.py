@@ -42,7 +42,7 @@ methods outside the pack (a drawing the pack lacks, a function it never names, a
 pattern) and the French leakage (English only). It is printed at the end of the run too.
 
 Each drawing set runs every probe in both modes, on the probe's own chapter (chapter 1
-in `courses/`, the others in `tests/fixtures/chapters/`), with the sections before the
+and the others are in `tests/fixtures/chapters/`), with the sections before the
 probe's section done;
 `--chapter-dir` (and `--subject`) runs the whole set on one chapter instead. The
 flag functions judge the cards Célestin displayed (and, for flowcharts, what he said);

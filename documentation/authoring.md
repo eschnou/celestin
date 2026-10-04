@@ -211,7 +211,7 @@ chapter and a physics chapter, each with a deliberately wrong correction, a text
 instruction, and a statistics chapter whose charts are described as the transcription writes them), prints outcome, attempts, time, tokens and cost, and writes each pack and curriculum to
 `backend/.eval/` for reading. It costs money and is never part of `pytest`.
 
-`scripts/document_eval.py --pdf ../courses/chapitre_1.pdf` (or `--images dir/`, `--verify on|off`,
+`scripts/document_eval.py --pdf path/to/course.pdf` (or `--images dir/`, `--verify on|off`,
 `--render-only`) runs the real transcription and authoring on a document, prints pages, marks,
 per-stage time and cost, writes `transcription.md`, `pack.md` and `curriculum.json` to
 `backend/.eval/document/`, and checks the chapter 1 acceptance (all 16 pages; the boxed 330 on

@@ -1,7 +1,7 @@
 """A local test student with chapter 1, without the authoring agent (005 R11).
 
     uv run python -m scripts.seed --email eleve@example.be --password 'mot-de-passe-solide'
-        [--name Léa] [--chapter-dir ../courses/chapitre_1] [--language en] [--force]
+        [--name Léa] [--chapter-dir tests/fixtures/chapters/suites] [--language en] [--force]
 
 Idempotent: one user, one « Mathématiques 5e » course, one chapter whose content
 is refreshed from the files (and whose progress is therefore reset). Refuses a

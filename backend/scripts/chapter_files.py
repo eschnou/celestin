@@ -18,9 +18,9 @@ from app.domain.subject import Subject
 from app.services.prompts import PromptLibrary
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_CHAPTER_DIR = BACKEND_DIR.parent / "courses" / "chapitre_1"
-# The English counterpart of chapter 1 (spec 011 R9.1): a fixture written for the tests, so the
-# English scripts run without the private course.
+# Chapter 1 on sequences, in French and in English (spec 011 R9.1): fixtures written for the tests,
+# so the scripts and the suite run without a real course (a student's material is not in the repository).
+DEFAULT_CHAPTER_DIR = BACKEND_DIR / "tests" / "fixtures" / "chapters" / "suites"
 DEFAULT_ENGLISH_CHAPTER_DIR = BACKEND_DIR / "tests" / "fixtures" / "chapters" / "sequences_en"
 
 

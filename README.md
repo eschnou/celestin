@@ -240,8 +240,8 @@ npm run dev
 Open <http://localhost:8080>, create the administrator on `/setup`, and choose the AI provider and add its key in the settings. Over
 plain `http://localhost`, set `COOKIE_SECURE=false` (or `auto`) in a `.env` file.
 
-To try a lesson without spending anything on authoring, seed a student with the sample chapter in
-[`courses/`](courses/):
+To try a lesson without spending anything on authoring, seed a student with the sample chapter
+([`backend/tests/fixtures/chapters/suites/`](backend/tests/fixtures/chapters/suites/)):
 
 ```sh
 cd backend

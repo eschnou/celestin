@@ -280,7 +280,7 @@ async def test_golden_step_ready(make_client) -> None:
 
 
 async def test_refused_section_start_emits_no_event(make_client) -> None:
-    llm = FakeLLM([[call("start_section", {"section_id": "test-blanc"}), Completed()], [Completed()]])
+    llm = FakeLLM([[call("start_section", {"section_id": "synthese"}), Completed()], [Completed()]])
     _, body, _ = await post(make_client, llm)
     assert [name for name, _ in frames(body)] == ["turn.start", "turn.end"]
     outputs = [i for i in llm.calls[1]["input"] if i.get("type") == "function_call_output"]

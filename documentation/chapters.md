@@ -40,8 +40,8 @@ prompt turns uncertain and illegible passages into « Points à vérifier » rat
 `page_count`, `run_id`). Today a document replaces the source, so a chapter has one row; the row is
 there for a later « ajouter des pages » that transcribes only new pages and appends them.
 
-The chapter 1 files of specs 002–004 (`courses/chapitre_1/pack.md` and `curriculum.yaml`) remain as
-seed input only: `scripts/seed.py` stores them for a local test student
+The chapter 1 files of specs 002–004 (`backend/tests/fixtures/chapters/suites/`, a sequences chapter written
+for the tests: a student's own material is never in the repository) remain as seed input only: `scripts/seed.py` stores them for a local test student
 ([running-locally.md](./running-locally.md)).
 
 ## How a chapter is numbered

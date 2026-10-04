@@ -1,7 +1,7 @@
 """Documents through the real pipeline. Opt-in; the full run costs money.
 
-    uv run python -m scripts.document_eval --render-only --pdf ../courses/chapitre_1.pdf
-    uv run python -m scripts.document_eval --pdf ../courses/chapitre_1.pdf [--verify on|off]
+    uv run python -m scripts.document_eval --render-only --pdf path/to/course.pdf
+    uv run python -m scripts.document_eval --pdf path/to/course.pdf [--verify on|off]
     uv run python -m scripts.document_eval --images photos/ [--subject sciences] [--language en]
 
 `--render-only` stops after rendering (free). Otherwise the document is transcribed

@@ -23,7 +23,7 @@ from app.domain.board import BoardCard
 from app.domain.language import COURSE_LANGUAGES
 from app.services.prompts import PromptLibrary
 from scripts import probe
-from scripts.chapter_files import DEFAULT_CHAPTER_DIR, default_chapter_dir, load_chapter_dir
+from scripts.chapter_files import default_chapter_dir, load_chapter_dir
 from scripts.probe import (
     CHART_PROBES,
     CHART_PROBES_EN,
@@ -917,7 +917,6 @@ def test_the_english_guardrail_set_mirrors_the_french_one() -> None:
 # ----------------------------------------------------------------- --dry-run
 
 SETS = [None, "--charts", "--flowcharts", "--figures", "--plots"]
-NEEDS_PRIVATE_CHAPTER = {None, "--flowcharts", "--plots"}
 
 
 def dry_run(chosen: str | None, language: str) -> tuple[Path, list[tuple[str, list[probe.Run]]], list[str]]:
@@ -935,8 +934,6 @@ def dry_run(chosen: str | None, language: str) -> tuple[Path, list[tuple[str, li
 @pytest.mark.parametrize("chosen", SETS, ids=lambda c: c or "guardrails")
 @pytest.mark.parametrize("language", COURSE_LANGUAGES)
 def test_a_dry_run_loads_every_chapter_and_checks_every_section(chosen: str | None, language: str) -> None:
-    if language == "fr" and chosen in NEEDS_PRIVATE_CHAPTER and not DEFAULT_CHAPTER_DIR.exists():
-        pytest.skip("courses/chapitre_1 is the private course and is absent")
     target, sets, lines = dry_run(chosen, language)
     runs = [run for _, batch in sets for run in batch]
     assert [mode for mode, _ in sets] == ["parcours", "discussion"] and runs
@@ -1005,8 +1002,6 @@ def test_a_run_writes_the_report_at_the_top_of_the_transcript(
     language: str, settings: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """With the model replaced by a scripted reply: the report header counts what the replies wrote."""
-    if language == "fr" and not DEFAULT_CHAPTER_DIR.exists():
-        pytest.skip("courses/chapitre_1 is the private course and is absent")
     replies = {
         "en": "So u_{20} = 62, the mean is 2,5 and voilà: le résultat est là.",
         "fr": "Donc u₂₀ = 62, voilà.",

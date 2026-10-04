@@ -14,7 +14,7 @@ def test_chapter_one_loads_as_a_lesson_chapter():
     assert chapter.subject == "mathematics"
     assert chapter.title == "Les suites numériques"
     assert chapter.curriculum.id == "suites"
-    assert len(chapter.curriculum.sections) > 5
+    assert len(chapter.curriculum.sections) > 4
 
 
 def test_chapter_id_override():
@@ -35,7 +35,7 @@ def test_dangling_reference_is_refused(tmp_path: Path):
     copy = tmp_path / "ch"
     shutil.copytree(DEFAULT_CHAPTER_DIR, copy)
     cur = copy / "curriculum.yaml"
-    cur.write_text(cur.read_text(encoding="utf-8").replace('"6.1.4"', '"6.1.99"'), encoding="utf-8")
+    cur.write_text(cur.read_text(encoding="utf-8").replace('"6.1.2"', '"6.1.99"'), encoding="utf-8")
     with pytest.raises(ChapterFilesInvalid, match="6.1.99"):
         load_chapter_dir(copy, "mathematics", PROMPTS)
 

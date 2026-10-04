@@ -24,7 +24,7 @@ ADAPTER: TypeAdapter[PlotBlock] = TypeAdapter(PlotBlock)
 CARD: TypeAdapter[Any] = TypeAdapter(BoardCard)
 CTX = ctx_for()
 # Chapter 1 (sequences): names no exponential, logarithm, trigonometric function or cube root.
-PACK_1 = (Path(__file__).resolve().parents[3] / "courses" / "chapitre_1" / "pack.md").read_text(encoding="utf-8")
+PACK_1 = (Path(__file__).resolve().parents[1] / "fixtures" / "chapters" / "suites" / "pack.md").read_text(encoding="utf-8")
 
 
 def P(**changes: Any) -> PlotBlock:

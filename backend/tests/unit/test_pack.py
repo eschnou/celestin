@@ -140,11 +140,11 @@ def test_chapter_one_follows_the_maths_template_and_its_curriculum_references_re
     from app.domain.curriculum import parse_curriculum
     from app.domain.references import reference_issues
 
-    directory = REPO / "courses" / "chapitre_1"
+    directory = Path(__file__).parents[1] / "fixtures" / "chapters" / "suites"
     index, issues = index_pack((directory / "pack.md").read_text(encoding="utf-8"), template("mathematics"))
     assert issues == []
     assert index is not None and index.title == "Les suites numériques"
-    assert "6.3.5" in index.exercises
+    assert "6.3.3" in index.exercises
     curriculum = parse_curriculum((directory / "curriculum.yaml").read_text(encoding="utf-8"))
     assert reference_issues(curriculum, index) == []
 

@@ -15,13 +15,13 @@ def load(name: str):
     return parse_curriculum((CURRICULA / name).read_text(encoding="utf-8"), name)
 
 
-def test_real_curriculum_loads_with_thirteen_sections() -> None:
-    real = REPO_ROOT / "courses" / "chapitre_1" / "curriculum.yaml"
+def test_chapter_one_curriculum_loads() -> None:
+    real = CURRICULA.parent / "chapters" / "suites" / "curriculum.yaml"
     cur = parse_curriculum(real.read_text(encoding="utf-8"), real)
     assert cur.id == "suites"
-    assert len(cur.sections) == 13
+    assert len(cur.sections) == 7
     assert cur.sections[0].kind == "teach"
-    assert cur.sections[-1].id == "test-blanc"
+    assert cur.sections[-1].id == "synthese"
 
 
 def test_fixture_loads() -> None:
