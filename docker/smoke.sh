@@ -25,9 +25,14 @@ check() { # check "description" command...
 json() { python3 -c "import sys, json; d = json.load(sys.stdin); print(d$1)"; }
 as_root() { docker run --rm --entrypoint "$1" -v "$work/data:/data" "$image" "${@:2}"; }
 
+# The container writes /data as root (or as the user it runs as): on a Linux host the files are not
+# ours to delete until they are handed back. (Docker Desktop maps ownership and never needs this.)
+reclaim() { docker run --rm --entrypoint chown -v "$work:/work" "$image" -R "$(id -u):$(id -g)" /work >/dev/null 2>&1 || true; }
+fresh_data() { reclaim; rm -rf "$work/data" && mkdir "$work/data"; }
+
 cleanup() {
   docker rm -f "$name" >/dev/null 2>&1 || true
-  docker run --rm --entrypoint chown -v "$work:/work" "$image" -R "$(id -u):$(id -g)" /work >/dev/null 2>&1 || true
+  reclaim
   rm -rf "$work"
 }
 trap cleanup EXIT
@@ -73,7 +78,7 @@ out=$(docker run --rm -v "$work/data:/data:ro" "$image" 2>&1 || true)
 check "a read-only mount stops the container with the reason" grep -q "is not writable" <<<"$out"
 
 say "2. a database at the previous revision"
-rm -rf "$work/data" && mkdir "$work/data"
+fresh_data
 as_root chown -R 10001:10001 /data
 docker run --rm --user 10001:10001 -v "$work/data:/data" --entrypoint python -w /app/backend "$image" -c "
 from alembic import command
@@ -93,7 +98,7 @@ check "the instance has an account, so no setup" test "$(curl -s "http://localho
 docker rm -f "$name" >/dev/null
 
 say "3. an unprivileged user, and a host name"
-rm -rf "$work/data" && mkdir "$work/data"
+fresh_data
 as_root chown -R 12345:12345 /data
 docker run -d --name "$name" --user 12345:12345 -p "$port:8080" -v "$work/data:/data" "$image" >/dev/null
 check "started with --user it runs as that user" wait_healthy
