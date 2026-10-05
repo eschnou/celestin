@@ -41,6 +41,7 @@ Non-negotiable invariants from the brief, in case a change looks like it violate
 | `documentation/` | How the built system works. Start at `documentation/index.md`. |
 | `frontend/` | TanStack Start app — the lesson view. See `frontend/CLAUDE.md`. |
 | `backend/` | Python/FastAPI tutor service. See `backend/CLAUDE.md`. |
+| `evals/` | Model comparison harness, outside the application: reads `backend/`, never changes it, nothing imports it. See `evals/README.md` and `documentation/model-evals.md`. |
 
 Each side has its own `CLAUDE.md` with the commands and conventions that only apply there. Read the one for the directory you are working in.
 

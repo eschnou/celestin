@@ -1,0 +1,8 @@
+# Runs, and the candidate list (it names key variables and local endpoints)
+results/
+models*.toml
+!models.example.toml
+.venv/
+__pycache__/
+.pytest_cache/
+.env

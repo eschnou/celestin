@@ -1,0 +1,20 @@
+[project]
+name = "celestin-evals"
+version = "0.1.0"
+description = "Model comparison harness for Célestin. Lives outside the application: it reads the backend, never changes it."
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/unit"]
+pythonpath = ["."]
+
+[tool.uv]
+package = false

@@ -1,0 +1,61 @@
+# Copy to models.toml and edit. models.toml is gitignored.
+#
+#   cd evals
+#   uv run python -m harness plan --models models.toml
+#   uv run python -m harness run  --models models.toml
+
+[defaults]
+language = "fr"              # the course language the cases run in: fr | en
+runs = 3                     # tutor trials per case (small models are noisy: never run once)
+authoring_runs = 1           # authoring is slow and expensive; one pass per fixture is a start
+sets = ["guardrails"]        # guardrails | charts | flowcharts | figures | plots
+suites = ["live", "tutor", "authoring"]
+turn_timeout_s = 180
+
+# What a model must do to be allowed a role. Tune them, but decide before you look at results.
+[gates]
+live_tutor_min = 1.0         # share of live tutor checks (a valid display_board call) that pass
+tutor_ok_min = 0.90          # share of turns that end cleanly with something to show
+leak_max = 0.01              # answer leaked while an exercise was open (the brief's target)
+out_of_pack_max = 0.05       # formulas or methods outside the chapter's pack
+french_max = 0.05            # French leaking into an English course (language = "en" only)
+authoring_ok_min = 1.0       # share of authoring fixtures that end in a valid pack and curriculum
+
+# `efforts = ["medium", "high"]` makes one variant per level, named `<name>-<level>` (gpt-6.1-sol-medium, …),
+# and sets the reasoning effort of the tutor and authoring roles (`effort = "high"` does it for one level;
+# `tutor_effort` / `authoring_effort` set a role alone and win over it). "" means « not sent ».
+# The reference is what the others are compared to and judged against; with several levels,
+# `reference_effort` says which variant it is (default: the last listed).
+[[model]]
+name = "gpt-6.1-sol"
+reference = true
+efforts = ["medium", "high"]
+reference_effort = "high"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+model = "gpt-6.1-sol"
+api_style = "responses"      # responses | chat
+structured = "schema"        # schema | json
+price_input = 0.0            # USD per million tokens, optional: fills the $/turn column
+price_cached = 0.0
+price_output = 0.0
+
+[[model]]
+name = "qwen3.8-27b-groq"
+base_url = "https://api.groq.com/openai/v1"
+api_key_env = "GROQ_API_KEY"
+model = "qwen/qwen3.8-27b"
+api_style = "responses"
+structured = "schema"
+# effort = "high"            # leave unset for a provider that is not OpenAI: nothing is sent
+
+[[model]]
+name = "local-ollama"
+base_url = "http://localhost:11434/v1"
+# no api_key_env: a local server needs no key
+model = "qwen3:30b"
+api_style = "chat"
+structured = "json"
+# tutor_model = "…"          # a different model per role (default: `model`)
+# authoring_model = "…"
+# transcription_model = "…"
