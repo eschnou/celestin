@@ -26,7 +26,8 @@ jobs:
       - uses: actions/checkout@v7
 
       # The image runs Python 3.12 (Dockerfile): test on that one.
-      - uses: astral-sh/setup-uv@v10
+      # astral publishes exact versions only (no floating `v10` tag): bump this one by hand.
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           python-version: "3.12"
           enable-cache: true
