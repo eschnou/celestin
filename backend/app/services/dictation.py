@@ -13,6 +13,7 @@ import time
 from app.config import Settings
 from app.domain.ai_config import priced
 from app.domain.errors import InvalidAudio
+from app.domain.usage import UsageScope, usage_scope
 from app.providers.base import AiConfigSource, TranscriptionClient
 
 log = logging.getLogger(__name__)
@@ -52,15 +53,16 @@ class DictationService:
         if extension is None or not audio:
             raise InvalidAudio()
         started = time.monotonic()
-        transcript = await self._transcriber.transcribe(
-            audio=audio,
-            filename=f"dictation.{extension}",
-            content_type=(content_type or "").split(";", 1)[0].strip().lower(),
-            language=language,
-        )
+        seconds = min(max(duration_ms or 0, 0) / 1000, self._s.dictation_max_s)
+        with usage_scope(UsageScope(user_id, "dictation", audio_seconds=round(seconds, 1))):  # the usage ledger (spec 015)
+            transcript = await self._transcriber.transcribe(
+                audio=audio,
+                filename=f"dictation.{extension}",
+                content_type=(content_type or "").split(";", 1)[0].strip().lower(),
+                language=language,
+            )
         config = self._ai.config
         connection = config.dictation.connection if config and config.dictation else None
-        seconds = min(max(duration_ms or 0, 0) / 1000, self._s.dictation_max_s)
         # OpenAI's prices only mean something for OpenAI (or a price the operator set).
         cost = (
             round(seconds / 60 * self._s.dictation_price_per_min, 5)

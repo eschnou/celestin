@@ -111,3 +111,31 @@ async def test_health_reports_prompts_broken_after_startup(tmp_path: Path) -> No
         broken = (await ac.get("/api/health")).json()
     assert broken["status"] == "degraded"
     assert broken["prompts_unavailable"] == ["templates/sciences.pack.fr.md"]
+
+
+async def test_shutdown_waits_for_the_ledger_writes_in_flight(settings: Settings, db_engine) -> None:
+    """Spec 015: a row handed over just before the process stops is written, not lost."""
+    import threading
+    from datetime import UTC, datetime
+
+    from app.db.repositories import Period
+    from app.domain.usage import UsageEntry
+
+    app = create_app(settings, engine=db_engine)
+    release, written = threading.Event(), threading.Event()
+    repo = app.state.repos.ai_usage
+    real_add = repo.add
+
+    def slow_add(entry: UsageEntry) -> None:
+        release.wait(2)
+        real_add(entry)
+        written.set()
+
+    app.state.usage_recorder._write = slow_add  # noqa: SLF001
+    user = app.state.repos.users.create("a@x.be", "Ana", "h")
+    async with app.router.lifespan_context(app):
+        app.state.usage_recorder.record(UsageEntry(datetime.now(UTC), user.id, "tutor", "tutor_turn", "m", "h", "ok"))
+        assert not written.is_set()
+        release.set()
+    assert written.is_set()
+    assert app.state.repos.ai_usage.summary(Period()).totals.calls == 1

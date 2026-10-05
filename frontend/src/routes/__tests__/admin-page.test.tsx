@@ -9,6 +9,7 @@ import { withLocale } from "@/test/locale";
 import { mockApi, mountRoutes, USER } from "@/test/route-harness";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Route as AdminFile } from "../_auth/admin/index";
+import { Route as UsageFile } from "../_auth/admin/usage";
 
 const ADMIN: User = { ...USER, id: "a1", email: "admin@x.be", name: "Admin", role: "admin" };
 
@@ -242,6 +243,86 @@ describe("who reaches the dashboard", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/courses"));
     expect(await screen.findByText("courses")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Administration" })).toBeNull();
+  });
+});
+
+describe("the usage screen (spec 015 R6.1)", () => {
+  const handler: Parameters<typeof mockApi>[0] = (method, path) => {
+    if (method !== "GET") return undefined;
+    if (users(path)) return { body: LIST };
+    if (path.startsWith("/api/admin/usage/summary")) {
+      return {
+        body: {
+          totals: {
+            calls: 0,
+            input_tokens: 0,
+            cached_tokens: 0,
+            output_tokens: 0,
+            reasoning_tokens: 0,
+            cost_usd: null,
+            costed_calls: 0,
+          },
+          models: [],
+        },
+      };
+    }
+    if (path.startsWith("/api/admin/usage/users?")) return { body: { users: [], total: 0 } };
+    return undefined;
+  };
+
+  it("the dashboard links to it", async () => {
+    mockApi(handler, ADMIN);
+    mountRoutes(
+      [
+        { path: "/admin/", file: AdminFile },
+        { path: "/admin/usage", file: UsageFile },
+      ],
+      "/admin",
+    );
+    const link = await screen.findByRole("link", { name: "Consommation de l'IA" });
+    expect(link.getAttribute("href")).toBe("/admin/usage");
+  });
+
+  it("an administrator reaches it, with its filters read from the address", async () => {
+    mockApi(handler, ADMIN);
+    const { router } = mountRoutes(
+      [
+        { path: "/admin/", file: AdminFile },
+        { path: "/admin/usage", file: UsageFile },
+      ],
+      "/admin/usage?period=7d&view=users",
+    );
+    expect(await screen.findByRole("heading", { name: "Consommation", level: 1 })).toBeTruthy();
+    expect(router.state.location.pathname).toBe("/admin/usage");
+    expect(
+      screen.getByRole("button", { name: "7 derniers jours" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+  });
+
+  it("a click on a period is written in the address", async () => {
+    mockApi(handler, ADMIN);
+    const { router } = mountRoutes(
+      [
+        { path: "/admin/", file: AdminFile },
+        { path: "/admin/usage", file: UsageFile },
+      ],
+      "/admin/usage",
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Tout" }));
+    await waitFor(() => expect(router.state.location.search).toMatchObject({ period: "all" }));
+  });
+
+  it("a student sent to it is sent to their courses", async () => {
+    mockApi(handler, {});
+    const { router } = mountRoutes(
+      [
+        { path: "/admin/usage", file: UsageFile },
+        { path: "/courses/", file: { options: { component: () => <p>courses</p> } } },
+      ],
+      "/admin/usage",
+    );
+    await waitFor(() => expect(router.state.location.pathname).toBe("/courses"));
+    expect(screen.queryByRole("heading", { name: "Consommation" })).toBeNull();
   });
 });
 

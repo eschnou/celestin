@@ -166,3 +166,95 @@ def test_upgrade_from_0008_keeps_every_row_and_adds_app_settings(tmp_path) -> No
     command.downgrade(alembic_config(url), "0008")
     assert "app_settings" not in inspect(make_engine(url)).get_table_names()
     command.upgrade(alembic_config(url), "head")
+
+
+def test_upgrade_from_0009_carries_voice_usage_into_the_ledger(tmp_path) -> None:
+    from sqlalchemy import inspect, text
+
+    url = f"sqlite:///{tmp_path / 'g.db'}"
+    command.upgrade(alembic_config(url), "0009")
+    engine = make_engine(url)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "insert into users (id, email, name, password_hash, role, locale, created_at) "
+                "values ('u1', 'a@x.be', 'Ana', 'h', 'student', 'fr', '2026-01-01 00:00:00')"
+            )
+        )
+        conn.execute(
+            text(
+                "insert into courses (id, user_id, name, subject, language, created_at, updated_at) "
+                "values ('c1', 'u1', 'Maths', 'mathematics', 'fr', '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+            )
+        )
+        for session, reason in (("s1", "learner"), ("s2", "error")):
+            conn.execute(
+                text(
+                    "insert into voice_usage (user_id, session_id, reason, duration_s, responses, input_text, "
+                    "input_audio, cached_text, cached_audio, output_text, output_audio, cost_estimate_usd, "
+                    "created_at) values ('u1', :s, :r, 90, 3, 100, 40, 20, 10, 50, 30, 0.12, "
+                    "'2026-02-01 10:00:00')"
+                ),
+                {"s": session, "r": reason},
+            )
+    command.upgrade(alembic_config(url), "head")
+    with make_engine(url).connect() as conn:
+        assert "voice_usage" not in inspect(conn).get_table_names()
+        rows = conn.execute(
+            text(
+                "select correlation_id, role, feature, status, error_code, model, input_tokens, cached_tokens, "
+                "output_tokens, input_audio_tokens, output_audio_tokens, audio_seconds, cost_usd, created_at "
+                "from ai_usage order by correlation_id"
+            )
+        ).all()
+        assert [tuple(r)[:6] for r in rows] == [
+            ("s1", "voice", "voice_session", "ok", None, ""),
+            ("s2", "voice", "voice_session", "failed", "voice_error", ""),
+        ]
+        assert tuple(rows[0])[6:13] == (140, 30, 80, 40, 30, 90.0, None)
+        assert str(rows[0][13]).startswith("2026-02-01 10:00:00")
+        # The upgrade must not rebuild `users`: with foreign keys on, that deletes the courses.
+        assert conn.execute(text("select count(*) from courses")).scalar_one() == 1
+    command.downgrade(alembic_config(url), "0009")
+    with make_engine(url).connect() as conn:
+        assert "ai_usage" not in inspect(conn).get_table_names()
+        rows = conn.execute(
+            text(
+                "select session_id, reason, duration_s, input_text, input_audio, cached_text, output_text, "
+                "output_audio from voice_usage order by session_id"
+            )
+        ).all()
+        assert [tuple(r) for r in rows] == [("s1", "learner", 90, 100, 40, 30, 50, 30), ("s2", "error", 90, 100, 40, 30, 50, 30)]
+    command.upgrade(alembic_config(url), "head")
+
+
+def test_the_ledger_follows_the_user_and_forgets_a_deleted_course(tmp_path) -> None:
+    from sqlalchemy import text
+
+    url = f"sqlite:///{tmp_path / 'h.db'}"
+    command.upgrade(alembic_config(url), "head")
+    engine = make_engine(url)
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "insert into users (id, email, name, password_hash, role, locale, created_at) "
+                "values ('u1', 'a@x.be', 'Ana', 'h', 'student', 'fr', '2026-01-01 00:00:00')"
+            )
+        )
+        conn.execute(
+            text(
+                "insert into courses (id, user_id, name, subject, language, created_at, updated_at) "
+                "values ('c1', 'u1', 'Maths', 'mathematics', 'fr', '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+            )
+        )
+        conn.execute(
+            text(
+                "insert into ai_usage (created_at, user_id, course_id, role, feature, model, provider, status) "
+                "values ('2026-02-01 10:00:00', 'u1', 'c1', 'tutor', 'tutor_turn', 'm', 'h', 'ok')"
+            )
+        )
+    with engine.begin() as conn:
+        conn.execute(text("delete from courses where id = 'c1'"))
+        assert conn.execute(text("select course_id from ai_usage")).one() == (None,)
+        conn.execute(text("delete from users where id = 'u1'"))
+        assert conn.execute(text("select count(*) from ai_usage")).scalar_one() == 0

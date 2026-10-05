@@ -62,13 +62,19 @@ class VoiceToolResponse(_Model):
     state_text: str | None = None
 
 
+# A session of two hours cannot come near this; it keeps a forged report from storing a negative or an absurd total
+# (the usage ledger sums them), and under what a 32-bit column holds.
+MAX_TOKENS = 100_000_000
+TokenCount = Annotated[int, Field(ge=0, le=MAX_TOKENS)]
+
+
 class VoiceUsageTotals(_Model):
-    input_text: int = 0
-    input_audio: int = 0
-    cached_text: int = 0
-    cached_audio: int = 0
-    output_text: int = 0
-    output_audio: int = 0
+    input_text: TokenCount = 0
+    input_audio: TokenCount = 0
+    cached_text: TokenCount = 0
+    cached_audio: TokenCount = 0
+    output_text: TokenCount = 0
+    output_audio: TokenCount = 0
 
 
 class VoiceUsageReport(_Model):

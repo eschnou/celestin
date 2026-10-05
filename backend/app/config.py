@@ -195,7 +195,7 @@ class Settings(BaseSettings):
     dictation_per_hour: Annotated[int, Field(ge=1)] = 240
     dictation_price_per_min: float = 0.003  # USD, for the dictation log line
     trust_proxy: bool = False
-    # USD per million tokens, for the cost estimate in the voice_usage log.
+    # USD per million tokens, for the cost estimate in the voice usage log line (not the usage ledger: spec 015).
     voice_price_audio_in: float = 32.0
     voice_price_audio_cached: float = 0.40
     voice_price_audio_out: float = 64.0

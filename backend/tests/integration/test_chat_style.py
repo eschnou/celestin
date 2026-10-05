@@ -56,7 +56,7 @@ def chat_app(settings, db_engine, rounds: list[list[Any]], **env: Any):
         requests.append(kwargs)
         return Raw(queue.pop(0))
 
-    app.state.hub.current().tutor._client.chat.completions.create = create
+    app.state.hub.current().tutor._inner._client.chat.completions.create = create  # behind the recording wrapper
     return app, requests
 
 

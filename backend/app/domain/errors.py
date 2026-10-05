@@ -397,12 +397,23 @@ class DocumentNeeded(TutorError):
     status = 409
 
 
-class ProviderOutputTruncated(Exception):
+class _BilledOutput(Exception):
+    """A one-shot call that answered, but not usably: the tokens it was billed for are the provider's own
+    usage block (empty when it sent none), which the usage ledger and the authoring run's count read (spec 015)."""
+
+    def __init__(self, detail: str = "", usage: dict[str, Any] | None = None) -> None:
+        super().__init__(detail)
+        self.usage: dict[str, Any] = usage or {}
+
+
+class ProviderOutputTruncated(_BilledOutput):
     """A one-shot call stopped at its output limit (005 design 3.7)."""
 
 
-class ProviderOutputInvalid(Exception):
+class ProviderOutputInvalid(_BilledOutput):
     """A schema-constrained call returned text that is not JSON."""
+
+    code = "provider_output_invalid"  # what the usage ledger records for it
 
 
 class PromptInvalid(RuntimeError):

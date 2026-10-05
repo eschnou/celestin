@@ -45,8 +45,9 @@ setting (« not sent»), while a blank model name or key is not one.
 Setting `<ROLE>_BASE_URL` takes the whole connection of that role from the environment.
 
 **The built-in reasoning efforts are OpenAI's.** `low` and `medium` are values another provider's models may
-refuse (Qwen's on Groq take only « default » or « none »), so on a connection that is not OpenAI's nothing is
-sent unless the administrator chooses an effort. The settings screen shows the effective default.
+refuse (an earlier test found Qwen's on Groq taking only « default » or « none »; `qwen/qwen3.8-27b` did accept
+`medium` and `high` on 5 October 2026), so on a connection that is not OpenAI's nothing is sent unless the
+administrator chooses an effort. The settings screen shows the effective default.
 
 ## Choosing and configuring in the browser
 
@@ -155,6 +156,11 @@ Token counts are logged for every provider. `cost_estimate_usd` applies the `*_P
 connection is OpenAI's **or** the price was set explicitly in the environment, and is `0.0` otherwise: another
 provider's run never reports OpenAI's prices as its own.
 
+The **usage ledger** (spec 015, [ai-usage.md](./ai-usage.md)) does not use these prices: it stores a call's cost
+only when the provider reports one in its usage block (OpenRouter's `usage.cost`, read on both API styles), and the
+Chat adapter's `usage_dict` leaves out the fields a server did not send (so « not reported » is not zero) and passes
+`cost` through as sent.
+
 ## Running a local server from Docker
 
 The container reaches the host as `host.docker.internal`: for an Ollama on the host, the address is
@@ -170,7 +176,8 @@ an error, and prompt and pack content stay out of the logs unless `DEBUG_LOG_PRO
 
 ## Compatibility
 
-What was run, on 3 and 4 October 2026, through the Responses API unless noted. `tutor` means a lesson turn with a
+What was run, on 3 and 4 October 2026 (and the Qwen 3.8 row on 5 October, from `evals/`), through the Responses API
+unless noted. `tutor` means a lesson turn with a
 `display_board` call (`scripts.smoke`, and the Test button's live check); `authoring` the fixtures of
 `scripts.authoring_eval`.
 
@@ -178,12 +185,25 @@ What was run, on 3 and 4 October 2026, through the Responses API unless noted. `
 |---|---|---|---|---|
 | OpenAI · `gpt-5.6-terra` (the default until 4 October 2026) | works | works | works | the reference; prompt cache hits (26k tokens) |
 | OpenAI · `gpt-6.1-sol` (the default since) | works (live check, a full turn in both modes) | works | works | prompt cache hits in both modes (26.6k and 25.9k tokens); OpenAI's own defaults (`medium` authoring, `low` reading) accepted |
-| Groq · `qwen/qwen3.8-27b` | works (5/5 live checks, a full turn in both modes) | works | works | no prompt cache |
+| OpenAI · `gpt-6-luna` | works (live checks 3/3 at `medium` and `high`; 98–100 % of turns finished) | works (4/4 fixtures, about 1/20 of `gpt-6.1-sol`'s cost per document) | works | judged indistinguishable from `gpt-6.1-sol` at `medium` in a 96-pair comparison (56 %, 95 % CI 46–66 %, [model-evals.md](./model-evals.md)), but slower (median turn 9.5 s vs 6.9 s, p95 22 s vs 11 s), about 4× more output tokens, about 1/8 of the cost per turn; in a discussion it tended to speak of a course path that does not exist (lost 11 of 12 homework comparisons) |
+| Groq · `qwen/qwen3.8-27b` | live checks pass (5/5 and 3/3), but **not reliable**: in the comparison of 5 October ([model-evals.md](./model-evals.md), 48 turns per effort) 85–88 % of turns finished, the rest aborted by Groq on a malformed `display_board` call; one answer written while an exercise was open (`high`); out-of-pack teaching in 4–10 % of turns; judged clearly worse than `gpt-6.1-sol` | works at `medium` (4/4, about 3 attempts) with `AUTHORING_MAX_OUTPUT_TOKENS=16000`; at `high` 1/4 (`truncated`; probably the reasoning shares the output budget) | works | no prompt cache; refused outright without the output cap, see below |
 | Groq · `qwen/qwen3.6-27b` | works (4/5 live checks; both modes over Responses **and** Chat Completions) | not run | works | fewer reliable tool calls than 3.8 |
 | Groq · `openai/gpt-oss-120b` | **does not work**: never produces the nested `{card: …}` the board tool needs, and Groq refuses the call (`tool_use_failed`) | works, both structured modes, over Responses and Chat | no (text only) | prompt cache hits; a good authoring model |
 | Groq · `openai/gpt-oss-20b` | does not work (same) | not run | no | |
 
-The Qwen models on Groq need an unset reasoning effort (the default away from OpenAI). Not verified: Ollama,
+**A provider can cap a model's output below what the application asks for.** The authoring agent asks for up to
+`AUTHORING_MAX_OUTPUT_TOKENS` (32 000) per call; Groq caps `qwen/qwen3.8-27b` at 16 384 and answers
+`400 max_completion_tokens must be less than or equal to 16384` to every authoring request (the live check passes,
+its request is tiny). Set `AUTHORING_MAX_OUTPUT_TOKENS=16000` for such a model; a chapter whose pack does not fit
+then fails as `truncated`.
+
+**Groq checks a tool call's arguments itself.** When a model's `display_board` call does not match the schema
+(`card` written as a string, fields missing), Groq aborts the stream (`400 tool call validation failed`) instead of
+letting the application's own validation send the correction back, so a recoverable mistake ends the turn: the
+student sees « Célestin est injoignable ». It is why a model that passes the live check can still lose one turn in
+eight on Groq.
+
+Not verified: Ollama,
 vLLM, OpenRouter, llama.cpp (the adapters follow their documented APIs and are covered by offline tests),
 voice on anything but OpenAI. A weaker model teaches less well; the invariants (answers withheld, mechanical
 verdicts, content restricted to the pack) are enforced in the tools and do not depend on it. To measure a

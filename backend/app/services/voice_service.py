@@ -8,8 +8,13 @@ executed in a TurnContext built from the posted progress.
 from __future__ import annotations
 
 import logging
+import threading
+import time
 import uuid
-from datetime import datetime
+from collections import OrderedDict
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any
 
 from app.api.schemas.chat import Entry, ProgressDTO
@@ -23,6 +28,7 @@ from app.config import Settings
 from app.domain.ai_config import RoleConfig, calls_url, priced
 from app.domain.chapter import LessonChapter
 from app.domain.errors import ToolValidationError, VoiceDisabled
+from app.domain.usage import UsageEntry
 from app.providers.base import AiConfigSource, RealtimeClient
 from app.services import curriculum_render, history, prompt_service
 from app.services.prompts import PromptLibrary
@@ -34,14 +40,64 @@ from app.services.tools.context import TurnContext
 log = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class VoiceSessionScope:
+    """What a minted session was for: the browser's usage report names only the session (spec 015 §3.4)."""
+
+    user_id: str
+    course_id: str | None
+    chapter_id: str | None
+    model: str
+    host: str
+
+
+class VoiceSessionScopes:
+    """Session id → what it was minted for, so the usage report can be attributed without trusting the browser
+    with a course or chapter id. In process and bounded (a restart forgets, and the row is then written without
+    course and chapter)."""
+
+    def __init__(
+        self, max_entries: int = 1000, ttl_s: float = 3 * 3600, clock: Callable[[], float] = time.monotonic
+    ) -> None:
+        self._max = max_entries
+        self._ttl = ttl_s
+        self._clock = clock
+        self._items: OrderedDict[str, tuple[float, VoiceSessionScope]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def put(self, session_id: str, scope: VoiceSessionScope) -> None:
+        with self._lock:
+            now = self._clock()
+            self._items.pop(session_id, None)
+            self._items[session_id] = (now + self._ttl, scope)
+            while self._items and (len(self._items) > self._max or next(iter(self._items.values()))[0] <= now):
+                self._items.popitem(last=False)
+
+    def get(self, session_id: str) -> VoiceSessionScope | None:
+        with self._lock:
+            found = self._items.get(session_id)
+            if found is None:
+                return None
+            if found[0] <= self._clock():
+                del self._items[session_id]
+                return None
+            return found[1]
+
+
 class VoiceService:
     def __init__(
-        self, realtime: RealtimeClient, prompts: PromptLibrary, settings: Settings, ai: AiConfigSource
+        self,
+        realtime: RealtimeClient,
+        prompts: PromptLibrary,
+        settings: Settings,
+        ai: AiConfigSource,
+        scopes: VoiceSessionScopes | None = None,
     ) -> None:
         self._realtime = realtime
         self._prompts = prompts
         self._settings = settings
         self._ai = ai
+        self._scopes = scopes if scopes is not None else VoiceSessionScopes()
 
     def _voice(self) -> RoleConfig:
         """The voice role in force (spec 014 R10): its model, its connection. Off means no session."""
@@ -127,6 +183,11 @@ class VoiceService:
             session=config, ttl_s=self._settings.voice_secret_ttl_s
         )
         session_id = uuid.uuid4().hex[:12]
+        if ctx.user_id:
+            self._scopes.put(
+                session_id,
+                VoiceSessionScope(ctx.user_id, ctx.course_id, ctx.chapter_id, voice.model, voice.connection.host),
+            )
         log.info(
             "voice_session_created",
             extra={
@@ -185,6 +246,36 @@ class VoiceService:
         )
 
     # ------------------------------------------------------------------- usage
+
+    def usage_entry(self, report: VoiceUsageReport, user_id: str, now: datetime) -> UsageEntry:
+        """The session as a ledger row (spec 015 R4.1). One row per session: the backend sees the session, the
+        browser drives the calls. The figures are the browser's own report. No cost: Realtime reports none."""
+        u = report.usage
+        config = self._ai.config
+        voice = config.voice if config else None
+        # What the session was minted for, if this process minted it and for this user: else what is in force now.
+        scope = self._scopes.get(report.session_id)
+        if scope is not None and scope.user_id != user_id:
+            scope = None
+        return UsageEntry(
+            created_at=now - timedelta(seconds=report.duration_s),
+            user_id=user_id,
+            course_id=scope.course_id if scope else None,
+            chapter_id=scope.chapter_id if scope else None,
+            correlation_id=report.session_id or None,
+            role="voice",
+            feature="voice_session",
+            model=scope.model if scope else (voice.model if voice else ""),
+            provider=scope.host if scope else (voice.connection.host if voice else ""),
+            status="failed" if report.reason == "error" else "ok",
+            error_code="voice_error" if report.reason == "error" else None,
+            input_tokens=u.input_text + u.input_audio,
+            cached_tokens=u.cached_text + u.cached_audio,
+            output_tokens=u.output_text + u.output_audio,
+            input_audio_tokens=u.input_audio,
+            output_audio_tokens=u.output_audio,
+            audio_seconds=float(report.duration_s),
+        )
 
     def log_usage(self, report: VoiceUsageReport, user_id: str) -> float:
         """Logs the session and returns the cost estimate in USD."""

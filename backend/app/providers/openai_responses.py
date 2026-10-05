@@ -205,21 +205,22 @@ def completion_request(
 
 def completion_result(response: Any, *, parse_json: bool, extract: bool = False) -> CompletionResult:
     status = getattr(response, "status", None)
+    raw_usage = getattr(response, "usage", None)
+    usage = raw_usage.model_dump() if raw_usage else {}
     if status == "incomplete":
-        raise ProviderOutputTruncated(str(getattr(response, "incomplete_details", "") or "incomplete"))
+        raise ProviderOutputTruncated(str(getattr(response, "incomplete_details", "") or "incomplete"), usage)
     if status == "failed":
         raise ProviderUnavailable()
-    usage = getattr(response, "usage", None)
     text = getattr(response, "output_text", "") or ""
     data = None
     if parse_json:
         try:
             data = json.loads(extract_json(text) if extract else text)
         except ValueError as exc:
-            raise ProviderOutputInvalid(str(exc)) from exc
+            raise ProviderOutputInvalid(str(exc), usage) from exc
         if not isinstance(data, dict):
-            raise ProviderOutputInvalid("not a JSON object")
-    return CompletionResult(text=text, data=data, usage=usage.model_dump() if usage else {})
+            raise ProviderOutputInvalid("not a JSON object", usage)
+    return CompletionResult(text=text, data=data, usage=usage)
 
 
 async def _map_events(raw: AsyncIterator[Any]) -> AsyncIterator[ProviderEvent]:

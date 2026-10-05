@@ -62,7 +62,7 @@ async def test_text_is_streamed_and_the_stream_completes_with_usage() -> None:
         TextDelta("jour"),
         Completed(usage={
             "input_tokens": 10, "output_tokens": 4,
-            "input_tokens_details": {"cached_tokens": 3}, "output_tokens_details": {"reasoning_tokens": 0},
+            "input_tokens_details": {"cached_tokens": 3},
         }),
     ]
 
@@ -300,6 +300,24 @@ async def test_sdk_errors_are_translated(error: Exception, expected: type) -> No
     with_create(client, [error])
     with pytest.raises(expected):
         await client.complete(role="authoring", instructions=[], input=[], max_output_tokens=7)
+
+
+def test_a_truncated_or_invalid_chat_answer_carries_what_it_was_billed() -> None:
+    usage = SimpleNamespace(prompt_tokens=90, completion_tokens=40, cost=0.01)
+    billed = {"input_tokens": 90, "output_tokens": 40, "cost": 0.01}
+    with pytest.raises(ProviderOutputTruncated) as truncated:
+        chat_result(completion("# Tit", finish="length", usage=usage), parse_json=False)
+    assert truncated.value.usage == billed
+    with pytest.raises(ProviderOutputInvalid) as invalid:
+        chat_result(completion("{not json", usage=usage), parse_json=True)
+    assert invalid.value.usage == billed
+    assert chat_result(completion("ok", usage=usage), parse_json=False).usage == billed
+
+
+async def test_the_streams_final_usage_chunk_carries_the_cost() -> None:
+    usage = SimpleNamespace(prompt_tokens=10, completion_tokens=4, cost=0.002)
+    events = await mapped([chunk("Bon"), chunk(finish="stop"), chunk(usage=usage)])
+    assert events[-1] == Completed(usage={"input_tokens": 10, "output_tokens": 4, "cost": 0.002})
 
 
 def test_chat_results() -> None:

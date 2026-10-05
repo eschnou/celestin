@@ -17,6 +17,7 @@ from app.config import Settings
 from app.domain.ai_config import priced
 from app.domain.chapter import token_counts
 from app.domain.language import CourseLanguage
+from app.domain.usage import UsageScope, usage_scope
 from app.providers.base import AiConfigSource, CompletionClient
 from app.services.documents import DocumentService
 from app.services.prompts import PromptLibrary
@@ -46,26 +47,27 @@ class WorkReader:
         self._s = settings
         self._ai = ai
 
-    async def read(self, photo: bytes, language: CourseLanguage, user_id: str) -> str:
+    async def read(self, photo: bytes, language: CourseLanguage, user_id: str, course_id: str | None = None) -> str:
         """The text of the work in the photo; `DocumentInvalid` when it is not a usable image. Empty when the
         model found nothing to read."""
         started = time.monotonic()
         document = await self._documents.prepare([photo], min_pixels=self._s.work_min_pixels)
         page = document.pages[0]
-        result = await self._llm.complete(
-            role="transcription",
-            instructions=[self._prompts.work(language)],
-            input=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "input_text", "text": _PHOTO_LABEL[language]},
-                        {"type": "input_image", "image_url": page.data_url, "detail": self._s.transcription_detail},
-                    ],
-                }
-            ],
-            max_output_tokens=self._s.work_max_output_tokens,
-        )
+        with usage_scope(UsageScope(user_id, "work_reading", course_id)):  # the usage ledger (spec 015)
+            result = await self._llm.complete(
+                role="transcription",
+                instructions=[self._prompts.work(language)],
+                input=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": _PHOTO_LABEL[language]},
+                            {"type": "input_image", "image_url": page.data_url, "detail": self._s.transcription_detail},
+                        ],
+                    }
+                ],
+                max_output_tokens=self._s.work_max_output_tokens,
+            )
         text = result.text.strip()
         counts = token_counts(result.usage)
         config = self._ai.config

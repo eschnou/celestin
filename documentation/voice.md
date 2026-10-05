@@ -21,7 +21,7 @@ useVoiceSession
   ├─ bridge(): Realtime events → TutorEvent  ──▶ useTutorSession.dispatch (the text-mode reducer)
   ├─ on a function call: POST /api/voice/tool ──▶ registry.execute + event_of ─▶ {output, event, progress}
   │      then function_call_output + response.create over the data channel
-  └─ on stop: POST /api/voice/usage ───────────▶ voice_usage log with a cost estimate
+  └─ on stop: POST /api/voice/usage ───────────▶ a usage ledger row (and a log line with a cost estimate)
 ```
 
 Three facts drive the design:
@@ -45,7 +45,7 @@ Three facts drive the design:
 |---|---|---|
 | `POST /api/voice/session` | `{course_id, chapter_id, history}` (same as chat), plus `mode` and `conversation_id` in discussion mode | `201` `{session_id, secret, expires_at, model, voice, limits, seed, opening}`, `Cache-Control: no-store` |
 | `POST /api/voice/tool` | `{session_id, call_id, name, arguments, course_id, chapter_id, mode}` | `200` `{output, event, progress, state_text}` |
-| `POST /api/voice/usage` | `{session_id, reason, duration_s, responses, usage}` | `204`, always |
+| `POST /api/voice/usage` | `{session_id, reason, duration_s, responses, usage}` | `204`, always (each token total is bounded, a session is stored once, reports are limited per user: see [ai-usage.md](./ai-usage.md)) |
 
 `/tool` is the text loop's tool round as a request: `registry.execute` in a `TurnContext` from the
 posted progress, `tool_events.event_of` for the event, `registry.output_of` for what the model reads.
@@ -115,7 +115,10 @@ The session configuration is built in `VoiceService.session_config()`: `output_m
 ## What a session costs
 
 `voice_usage` is logged at session end (and by `sendBeacon` on page unload) with the six token
-totals by modality and `cost_estimate_usd`, and stored in the `voice_usage` table with the user id. A one-minute check session with two responses and a
+totals by modality and `cost_estimate_usd` (the log line only), and stored as one row of the usage ledger
+(`ai_usage`, spec 015: [ai-usage.md](./ai-usage.md)) with the user id, the course and chapter the session was minted
+for, the model and the folded token totals; the figures are the browser's report, and no cost is stored (Realtime
+reports none). The `voice_usage` table is gone. A one-minute check session with two responses and a
 silent microphone logged 27 738 input text tokens of which 13 824 cached, 156 output text and 193
 output audio tokens: about 0,08 USD, almost all of it the uncached first read of the prompt prefix.
 Audio input is billed per token of speech (roughly 600 per minute); expect a 25-minute lesson in

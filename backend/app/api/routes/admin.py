@@ -30,6 +30,7 @@ from app.api.schemas.ai import (
     settings_view,
 )
 from app.db.repositories import Repositories, UserListing
+from app.domain.usage import UsageScope, usage_scope
 from app.services.ai_resolution import Slot
 from app.domain.errors import NotFound, RateLimited
 
@@ -51,7 +52,7 @@ def _dto(listing: UserListing) -> AdminUserDTO:
     )
 
 
-def _one(repos: Repositories, user_id: str) -> AdminUserDTO:
+def one_user(repos: Repositories, user_id: str) -> AdminUserDTO:
     listing, _ = repos.users.list_users(user_id=user_id, limit=1)
     if not listing:
         raise NotFound()
@@ -88,7 +89,7 @@ async def update_user(
     user_id: str, payload: UpdateUserRequest, admin: AdminDep, repos: ReposDep, auth: AuthServiceDep
 ) -> UserEnvelope:
     await run_in_threadpool(auth.set_enabled, admin, user_id, payload.enabled)
-    return UserEnvelope(user=await run_in_threadpool(_one, repos, user_id))
+    return UserEnvelope(user=await run_in_threadpool(one_user, repos, user_id))
 
 
 @router.post("/users/{user_id}/reset-password", response_model=ResetPasswordResponse)
@@ -96,7 +97,7 @@ async def reset_password(
     user_id: str, admin: AdminDep, repos: ReposDep, auth: AuthServiceDep
 ) -> JSONResponse:
     password = await run_in_threadpool(auth.reset_password, admin, user_id)
-    body = ResetPasswordResponse(user=await run_in_threadpool(_one, repos, user_id), password=password)
+    body = ResetPasswordResponse(user=await run_in_threadpool(one_user, repos, user_id), password=password)
     # A secret: nothing may keep a copy of this answer.
     return JSONResponse(content=body.model_dump(mode="json"), headers={"Cache-Control": "no-store"})
 
@@ -141,4 +142,6 @@ async def test_ai(
     payload: TestRequest, request: Request, admin: AdminDep, ai: AiSettingsDep
 ) -> AiTestDTO:
     _throttle(request, admin.id)
-    return AiTestDTO.model_validate(await ai.test(payload.live), from_attributes=True)
+    with usage_scope(UsageScope(admin.id, "ai_test")):  # the live checks are calls too (spec 015)
+        report = await ai.test(payload.live)
+    return AiTestDTO.model_validate(report, from_attributes=True)

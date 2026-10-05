@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
 
+from app.db.base import utcnow
 from app.api.deps import (
     AiReady,
     CurriculumCacheDep,
@@ -110,9 +111,15 @@ async def report_usage(
     except (ValueError, ValidationError) as exc:
         log.warning("voice_usage_malformed", extra={"detail": str(exc)[:200]})
         return Response(status_code=204)
-    cost = service.log_usage(report, user.id)
+    # A session reports once: more than the minting allows is not a session (spec 015: the ledger is summed).
+    if not request.app.state.voice_usage_limiter.allow(user.id):
+        log.warning("voice_usage_rate_limited", extra={"user_id": user.id})
+        return Response(status_code=204)
+    service.log_usage(report, user.id)
     try:
-        await run_in_threadpool(repos.voice_usage.add, user.id, report, cost)
-    except Exception:  # noqa: BLE001 - a beacon cannot retry; the log line survives
-        log.exception("voice_usage_not_stored")
+        # Once per session id: the stop and the unload beacon can both report the same session.
+        await run_in_threadpool(repos.ai_usage.add_once, service.usage_entry(report, user.id, utcnow()))
+    except Exception as exc:  # noqa: BLE001 - a beacon cannot retry; the log line survives
+        # The class only: a database error's message carries the bound values.
+        log.error("voice_usage_not_stored", extra={"error": type(exc).__name__})
     return Response(status_code=204)

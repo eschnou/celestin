@@ -15,13 +15,14 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api.locale import locale_of
 from app.api.middleware import BodyLimitMiddleware, SameOriginMiddleware
 from app.api.ratelimit import SlidingWindow
-from app.api.routes import admin, auth, chat, courses, dictation, discussion, health, setup, voice, work
+from app.api.routes import admin, auth, chat, courses, dictation, discussion, health, setup, usage, voice, work
 from app.config import Settings, get_settings
 from app.db.base import make_engine, make_session_factory
 from app.db.repositories import Repositories
 from app.db.schema import check_schema
 from app.providers.base import ConnectionProbe
 from app.providers.hub import ClientFactory, ProviderHub, build_clients
+from app.providers.recording import UsageRecorder
 from app.providers.openai_probe import OpenAIConnectionProbe
 from app.services.auth_service import AuthService, PasswordHasher
 from app.services.authoring.agent import AuthoringAgent
@@ -31,6 +32,7 @@ from app.services.chapters import CurriculumCache
 from app.services.cipher import Cipher
 from app.services.ai_settings import AiSettingsService
 from app.services.prompts import PromptLibrary
+from app.services.voice_service import VoiceSessionScopes
 from app.domain.errors import TutorError
 from app.logging_config import configure_logging, request_id_var
 from app.secret_files import load_secrets
@@ -76,6 +78,7 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         await app.state.authoring.shutdown()
+        await app.state.usage_recorder.drain()
         app.state.documents.shutdown()
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
@@ -129,7 +132,9 @@ def create_app(
     app.state.curricula = CurriculumCache()
     # The AI clients live behind the hub, whose configuration can change at runtime (specs 013, 014): the
     # state holds its proxies, so nothing below captures a client that a new configuration would orphan.
-    app.state.hub = hub = ProviderHub(settings, client_factory or build_clients)
+    # Every client the hub builds records its calls into the usage ledger (spec 015).
+    app.state.usage_recorder = UsageRecorder(app.state.repos.ai_usage.add)
+    app.state.hub = hub = ProviderHub(settings, client_factory or build_clients, app.state.usage_recorder)
     # The configuration in force: the environment's, else what an admin stored (keys encrypted).
     app.state.ai_settings = AiSettingsService(
         app.state.repos.app_settings,
@@ -142,6 +147,9 @@ def create_app(
     app.state.llm = hub.llm
     app.state.realtime = hub.realtime
     app.state.voice_limiter = SlidingWindow(settings.voice_sessions_per_hour)
+    # One report per session, and a session needs a minting: twice the mints an hour, to be generous.
+    app.state.voice_usage_limiter = SlidingWindow(settings.voice_sessions_per_hour * 2)
+    app.state.voice_scopes = VoiceSessionScopes()  # what each minted session was for (spec 015)
     app.state.dictation_limiter = SlidingWindow(settings.dictation_per_hour)
     app.state.work_limiter = SlidingWindow(settings.work_per_hour)
     app.state.authoring_llm = hub.authoring_llm
@@ -176,6 +184,7 @@ def create_app(
     app.include_router(auth.router, prefix="/api")
     app.include_router(setup.router, prefix="/api")
     app.include_router(admin.router, prefix="/api")
+    app.include_router(usage.router, prefix="/api")
     app.include_router(courses.router, prefix="/api")
     app.include_router(chat.router, prefix="/api")
     app.include_router(discussion.router, prefix="/api")

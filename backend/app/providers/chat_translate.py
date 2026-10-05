@@ -187,19 +187,32 @@ def to_tools(tools: list[dict[str, Any]], *, openai: bool) -> list[dict[str, Any
 
 
 def usage_dict(usage: Any) -> dict[str, Any]:
-    """Chat usage in the Responses shape the rest of the application reads; absent fields count as zero."""
+    """Chat usage in the Responses shape the rest of the application reads. A field the server did not send is
+    left out, not zero: the usage ledger tells « not reported » from zero (spec 015), and the readers
+    (`token_counts`, `read_usage`) take a missing field as theirs to treat. A `cost` some servers add (OpenRouter's)
+    is passed through as sent; the ledger decides whether it is a usable figure."""
     if usage is None:
         return {}
 
     def get(obj: Any, name: str) -> Any:
         return obj.get(name) if isinstance(obj, dict) else getattr(obj, name, None)
 
-    prompt, completion = get(usage, "prompt_tokens"), get(usage, "completion_tokens")
-    cached = get(get(usage, "prompt_tokens_details"), "cached_tokens")
-    reasoning = get(get(usage, "completion_tokens_details"), "reasoning_tokens")
-    return {
-        "input_tokens": int(prompt or 0),
-        "output_tokens": int(completion or 0),
-        "input_tokens_details": {"cached_tokens": int(cached or 0)},
-        "output_tokens_details": {"reasoning_tokens": int(reasoning or 0)},
-    }
+    def number(value: Any) -> int | None:
+        return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+    out: dict[str, Any] = {}
+    for source, target in (("prompt_tokens", "input_tokens"), ("completion_tokens", "output_tokens")):
+        value = number(get(usage, source))
+        if value is not None:
+            out[target] = value
+    for group, source_group, source, target in (
+        ("input_tokens_details", "prompt_tokens_details", "cached_tokens", "cached_tokens"),
+        ("output_tokens_details", "completion_tokens_details", "reasoning_tokens", "reasoning_tokens"),
+    ):
+        value = number(get(get(usage, source_group), source))
+        if value is not None:
+            out[group] = {target: value}
+    cost = get(usage, "cost")
+    if cost is not None:
+        out["cost"] = cost
+    return out

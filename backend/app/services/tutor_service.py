@@ -7,6 +7,7 @@ import logging
 import time
 import uuid
 from collections.abc import AsyncIterator
+from contextlib import aclosing
 from typing import Any
 
 from app.api.schemas.chat import Entry
@@ -15,6 +16,7 @@ from app.config import Settings
 from app.domain import errors
 from app.domain.chapter import LessonChapter
 from app.domain.errors import ToolValidationError
+from app.domain.usage import UsageScope, add_usage, usage_scope
 from app.providers.base import Completed, Failed, LLMClient, TextDelta, ToolCallRequested
 from app.services import history, prompt_service
 from app.services.prompts import PromptLibrary
@@ -57,7 +59,29 @@ class TutorService:
     async def run_turn(
         self, items: list[dict[str, Any]], ctx: TurnContext
     ) -> AsyncIterator[TurnEvent]:
+        """One turn. Its provider calls are recorded in the usage ledger for the student whose turn it is
+        (spec 015): the scope is open for as long as the turn runs, and a context without a user (a unit test, a
+        script) records nothing."""
         turn_id = uuid.uuid4().hex[:12]
+        scope = (
+            UsageScope(
+                user_id=ctx.user_id,
+                feature="discussion_turn" if ctx.mode == "discussion" else "tutor_turn",
+                course_id=ctx.course_id,
+                chapter_id=ctx.chapter_id,
+                correlation_id=turn_id,
+            )
+            if ctx.user_id
+            else None
+        )
+        with usage_scope(scope):
+            async with aclosing(self._turn(items, ctx, turn_id)) as turn:
+                async for event in turn:
+                    yield event
+
+    async def _turn(
+        self, items: list[dict[str, Any]], ctx: TurnContext, turn_id: str
+    ) -> AsyncIterator[TurnEvent]:
         started = time.monotonic()
         first_token_at: float | None = None
         block_id = 0
@@ -81,7 +105,7 @@ class TutorService:
                     elif isinstance(event, ToolCallRequested):
                         calls.append(event)
                     elif isinstance(event, Completed):
-                        usage = event.usage
+                        usage = add_usage(usage, event.usage)  # the turn's rounds, summed (spec 015 R1.7)
                     elif isinstance(event, Failed):
                         failure = event
 
@@ -96,7 +120,7 @@ class TutorService:
                 self._log_turn(
                     turn_id, round_index + 1, tool_log, "end", started, first_token_at, usage, ctx
                 )
-                yield TurnEnd(reason="end", usage=usage)
+                yield TurnEnd(reason="end", usage=_for_the_student(usage))
                 return
 
             # Replay what the model said and did, so the next round has its own context.
@@ -141,7 +165,7 @@ class TutorService:
         self._log_turn(
             turn_id, self._settings.max_tool_rounds, tool_log, "max_rounds", started, first_token_at, usage, ctx
         )
-        yield TurnEnd(reason="max_rounds", usage=usage)
+        yield TurnEnd(reason="max_rounds", usage=_for_the_student(usage))
 
     def _log_turn(
         self,
@@ -173,6 +197,11 @@ class TutorService:
                 "cached_tokens": (usage.get("input_tokens_details") or {}).get("cached_tokens", 0),
             },
         )
+
+
+def _for_the_student(usage: dict[str, Any]) -> dict[str, Any]:
+    """What `turn.end` carries: the tokens, not a cost the provider reported (the ledger is the administrator's)."""
+    return {key: value for key, value in usage.items() if key != "cost"}
 
 
 def _tool_output(call_id: str, payload: dict[str, Any]) -> dict[str, Any]:

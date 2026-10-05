@@ -155,7 +155,8 @@ Repositories (`app/db/repositories.py`) are synchronous and open one short sessi
 routes run them through `run_in_threadpool`; the one write inside a section tool runs inline. That
 is the seam to revisit if the database moves to PostgreSQL.
 
-Voice usage is now a table (`voice_usage`, with the user id) as well as a log line.
+Voice usage is a row of the usage ledger (`ai_usage`, spec 015, with the user id) as well as a log line. Deleting an
+account deletes its ledger rows (`ON DELETE CASCADE`); deleting a course or a chapter keeps them with the id nulled.
 
 ## Database and migrations
 
@@ -167,7 +168,7 @@ uv run alembic revision --autogenerate -m "…"    # after editing app/db/models
 ```
 
 Tables: `users` (with `locale`, `enabled` and `last_seen_at`), `sessions`, `courses`, `chapters`, `authoring_runs`, `progress`,
-`conversations` (spec 007, [discussion.md](./discussion.md)), `voice_usage`.
+`conversations` (spec 007, [discussion.md](./discussion.md)), `ai_usage` (spec 015, [ai-usage.md](./ai-usage.md); it replaced `voice_usage`).
 Migration `0003` (spec 005) dropped `enrolments` and recreated `progress` with its chapter foreign
 key; no data was carried over. SQLite enforces foreign keys (`PRAGMA foreign_keys=ON`), which the
 course and chapter cascades rely on.

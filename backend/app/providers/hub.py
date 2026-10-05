@@ -34,6 +34,7 @@ from app.providers.openai_chat import OpenAIChatClient
 from app.providers.openai_realtime import OpenAIRealtimeClient
 from app.providers.openai_responses import OpenAIResponsesClient
 from app.providers.openai_transcription import OpenAITranscriptionClient
+from app.providers.recording import UsageSink, record_clients
 
 
 @dataclass(frozen=True)
@@ -146,9 +147,12 @@ class _TranscriptionProxy:
 
 
 class ProviderHub:
-    def __init__(self, settings: Settings, factory: ClientFactory = build_clients) -> None:
+    def __init__(
+        self, settings: Settings, factory: ClientFactory = build_clients, sink: UsageSink | None = None
+    ) -> None:
         self._settings = settings
         self._factory = factory
+        self._sink = sink  # the usage ledger (spec 015): every client is built behind its recording wrapper
         self._lock = threading.Lock()
         self._clients: Clients | None = None
         self.llm: LLMClient = _LLMProxy(self)
@@ -188,7 +192,10 @@ class ProviderHub:
     def build(self, config: AiConfig | None) -> Clients | None:
         """The clients of a configuration, not yet in force: a configuration that cannot be built raises
         here, before anything is stored."""
-        return self._factory(self._settings, config) if config else None
+        if not config:
+            return None
+        clients = self._factory(self._settings, config)
+        return record_clients(clients, self._sink) if self._sink else clients
 
     def install(self, clients: Clients | None) -> None:
         """Swap a built set in, in one assignment. `None` unconfigures."""

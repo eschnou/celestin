@@ -33,9 +33,11 @@ class TurnContext:
     # Bound by the controller to the progress store (004 design 3.6). None in
     # unit tests and scripts: the transition is then only adopted in memory.
     save: Callable[[Progress], None] | None = None
-    # For the logs only (004 §9); nothing branches on them.
+    # For the logs (004 §9) and the usage ledger (spec 015: a turn with no user records nothing).
     user_id: str | None = None
     chapter_id: str | None = None
+    # Also for the usage ledger (spec 015): the course the chapter belongs to.
+    course_id: str | None = None
     # Which tools this turn may call (007 §3.6). A discussion is built with
     # `save=None` as well, so a section tool could not persist even if it ran.
     mode: Mode = DEFAULT_MODE
@@ -61,6 +63,7 @@ class TurnContext:
         pack: str | None = None,
         locale: Locale = DEFAULT_LOCALE,
         language: CourseLanguage = DEFAULT_COURSE_LANGUAGE,
+        course_id: str | None = None,
     ) -> TurnContext:
         """From the stored record: inconsistent progress is repaired, never rejected."""
         return cls(
@@ -69,6 +72,7 @@ class TurnContext:
             save=save,
             user_id=user_id,
             chapter_id=chapter_id,
+            course_id=course_id,
             mode=mode,
             pack=pack,
             locale=locale,

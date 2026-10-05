@@ -22,7 +22,9 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+from app.domain.ai_config import ROLES as AI_ROLES
 from app.domain.subject import SUBJECT_IDS
+from app.domain.usage import FEATURES, STATUSES
 from app.domain.user import ROLES
 
 
@@ -248,25 +250,51 @@ class ConversationRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
-class VoiceUsageRow(Base):
-    __tablename__ = "voice_usage"
+class AiUsageRow(Base):
+    """One call to a model (spec 015 §4): who, what for, which model, how much, how long. Metadata only: no
+    prompt, answer, transcript or provider text is a column. Deleted with the user; kept, with the course and
+    chapter ids nulled, when a course or chapter goes. `cost_usd` is the provider's own figure or null."""
+
+    __tablename__ = "ai_usage"
+    __table_args__ = (
+        CheckConstraint("role in ('" + "','".join(AI_ROLES) + "')", name="ck_ai_usage_role"),
+        CheckConstraint("feature in ('" + "','".join(FEATURES) + "')", name="ck_ai_usage_feature"),
+        CheckConstraint("status in ('" + "','".join(STATUSES) + "')", name="ck_ai_usage_status"),
+        Index("ix_ai_usage_user_created", "user_id", "created_at"),
+        Index("ix_ai_usage_created", "created_at"),
+        Index("ix_ai_usage_correlation", "correlation_id"),
+        Index("ix_ai_usage_course", "course_id"),
+        Index("ix_ai_usage_chapter", "chapter_id"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     user_id: Mapped[str] = mapped_column(
         String(32), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    session_id: Mapped[str] = mapped_column(String(32), nullable=False)
-    reason: Mapped[str] = mapped_column(String(8), nullable=False)
-    duration_s: Mapped[int] = mapped_column(Integer, nullable=False)
-    responses: Mapped[int] = mapped_column(Integer, nullable=False)
-    input_text: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    input_audio: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    cached_text: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    cached_audio: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    output_text: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    output_audio: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    cost_estimate_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    course_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("courses.id", ondelete="SET NULL"), nullable=True
+    )
+    chapter_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("chapters.id", ondelete="SET NULL"), nullable=True
+    )
+    correlation_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    role: Mapped[str] = mapped_column(String(14), nullable=False)
+    feature: Mapped[str] = mapped_column(String(16), nullable=False)
+    model: Mapped[str] = mapped_column(String(200), nullable=False)
+    provider: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(10), nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ttft_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cached_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reasoning_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    input_audio_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_audio_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    audio_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class AppSettingRow(Base):

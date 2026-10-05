@@ -41,7 +41,7 @@ from app.services.tools.context import TurnContext
 from app.services.tutor_service import TutorService
 from app.services.dictation import DictationService
 from app.services.work_reading import WorkReader
-from app.services.voice_service import VoiceService
+from app.services.voice_service import VoiceService, VoiceSessionScopes
 
 
 def get_settings_dep(request: Request) -> Settings:
@@ -113,13 +113,18 @@ def get_tutor_service(
 TutorServiceDep = Annotated[TutorService, Depends(get_tutor_service)]
 
 
+def get_voice_scopes(request: Request) -> VoiceSessionScopes:
+    return request.app.state.voice_scopes
+
+
 def get_voice_service(
     settings: SettingsDep,
     prompts: PromptsDep,
     realtime: Annotated[RealtimeClient, Depends(get_realtime)],
     hub: HubDep,
+    scopes: Annotated[VoiceSessionScopes, Depends(get_voice_scopes)],
 ) -> VoiceService:
-    return VoiceService(realtime=realtime, prompts=prompts, settings=settings, ai=hub)
+    return VoiceService(realtime=realtime, prompts=prompts, settings=settings, ai=hub, scopes=scopes)
 
 
 VoiceServiceDep = Annotated[VoiceService, Depends(get_voice_service)]
@@ -273,7 +278,7 @@ def lesson_chapter(
 
 
 def load_context(
-    user: User, chapter: LessonChapter, repos: Repositories, mode: Mode = DEFAULT_MODE
+    user: User, chapter: LessonChapter, repos: Repositories, mode: Mode = DEFAULT_MODE, course_id: str | None = None
 ) -> TurnContext:
     """The stored progress as a turn context, the store bound for the section
     tools (004 design 3.6).
@@ -292,6 +297,7 @@ def load_context(
         save=save,
         user_id=user.id,
         chapter_id=chapter.id,
+        course_id=course_id,
         mode=mode,
         pack=chapter.pack,
         locale=user.locale,
@@ -310,4 +316,4 @@ def open_lesson(
     """Everything a chat or voice request needs before touching the model: the
     ownership check, the content and the stored progress, in one threadpool hop."""
     chapter = lesson_chapter(user, course_id, chapter_id, repos, cache)
-    return chapter, load_context(user, chapter, repos, mode)
+    return chapter, load_context(user, chapter, repos, mode, course_id)

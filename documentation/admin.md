@@ -69,6 +69,13 @@ only, throttled). A key is stored encrypted and never shown again; what the serv
 read-only. While no provider is configured the dashboard shows a banner and the student's AI routes answer `503`.
 Details: [ai-providers.md](./ai-providers.md).
 
+## AI usage (spec 015)
+
+`/admin/usage` (« Consommation de l'IA », linked from the dashboard) shows every call to a model, one by one, and the
+totals per user over a period, with the provider-reported cost where there is one. Four read-only routes under
+`/api/admin/usage` (`summary`, `users`, `users/{id}`, `calls`), admin only. A student cannot read any of it, not even
+their own. Details, fields and the privacy rule: [ai-usage.md](./ai-usage.md).
+
 ## Routes
 
 All admit `admin` only (`require_roles("admin")`; `test_route_guards.py` still refuses any
@@ -79,6 +86,9 @@ unguarded route). A user id is whatever the admin names: there is no ownership h
 | `GET /api/admin/users?q=&status=&limit=&offset=` | — | `{users, total, counts: {total, enabled, disabled}, registration_mode}`; `status` is `all`, `enabled` or `disabled`; `q` matches name or email, case-insensitively, `%` and `_` literal; accounts waiting for an admin first, then newest; `limit` 1–200 (default 50) |
 | `PATCH /api/admin/users/{id}` | `{enabled}` | `200 {user}`; `404`; `409 own_account` when disabling oneself |
 | `POST /api/admin/users/{id}/reset-password` | — | `200 {user, password}` with `Cache-Control: no-store`; `404`; `409 own_account` |
+
+The usage routes (`GET /api/admin/usage/summary`, `/users`, `/users/{id}`, `/calls`; spec 015) are in
+[ai-usage.md](./ai-usage.md).
 
 A user row is `id, email, name, role, locale, enabled, created_at, last_seen_at`. `users.last_seen_at`
 is set when a session is opened and at the hourly touch, so it survives sign-out and password
@@ -111,6 +121,9 @@ src/routes/_auth/admin/index.tsx             « Administration »: the registrat
 src/components/celestin/admin/users-panel.tsx    filters (all / disabled / enabled, with counts), search, table, paging (25), enable, disable and reset with confirmations, the one-time password dialog
 src/components/celestin/settings/password-section.tsx   « Mot de passe » on the settings screen
 src/lib/admin.ts                             the queries and the two mutations
+src/routes/_auth/admin/usage.tsx             « Consommation »: the page's state is its address (spec 015)
+src/components/celestin/admin/usage-panel.tsx, usage-calls.tsx, usage-labels.ts   period, totals, per-user table, calls table, the words for roles, features and statuses
+src/lib/admin-usage.ts                       the usage queries, the address's schema, the period → span rule
 src/lib/auth.ts                              authConfigQuery, register() → {status: signed_in | pending}, changePassword, homePath, isAdminPath
 ```
 

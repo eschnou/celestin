@@ -152,14 +152,92 @@ async def test_usage_is_stored_with_the_user(make_voice_client) -> None:
     from sqlalchemy import select
     from sqlalchemy.orm import Session
 
-    from app.db.models import VoiceUsageRow
+    from app.db.models import AiUsageRow
 
     report = {"session_id": "s", "reason": "cap", "duration_s": 10, "responses": 1, "usage": {"output_audio": 7}}
     async with make_voice_client(FakeRealtime()) as client:
         await client.post("/api/voice/usage", json=report)
         with Session(client.app.state.engine) as s:
-            row = s.scalar(select(VoiceUsageRow))
-    assert row and row.user_id == client.user["id"] and row.output_audio == 7 and row.reason == "cap"
+            row = s.scalar(select(AiUsageRow))
+    assert row and row.user_id == client.user["id"] and row.output_audio_tokens == 7 and row.output_tokens == 7
+    assert (row.role, row.feature, row.status, row.correlation_id) == ("voice", "voice_session", "ok", "s")
+    assert row.audio_seconds == 10.0 and row.cost_usd is None
+
+
+async def test_a_minted_session_reports_its_usage_for_its_course_and_chapter(make_voice_client) -> None:
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+
+    from app.db.models import AiUsageRow
+
+    async with make_voice_client(FakeRealtime()) as client:
+        minted = (await client.post("/api/voice/session", json=EMPTY)).json()
+        report = {"session_id": minted["session_id"], "reason": "learner", "duration_s": 30, "responses": 2,
+                  "usage": {"input_audio": 10, "input_text": 90, "output_audio": 5}}
+        # The browser names the session only: a course or chapter id in the body is not accepted.
+        assert (await client.post("/api/voice/usage", json={**report, "course_id": "x"})).status_code == 204
+        assert (await client.post("/api/voice/usage", json=report)).status_code == 204
+        with Session(client.app.state.engine) as s:
+            rows = s.scalars(select(AiUsageRow).order_by(AiUsageRow.id)).all()
+    (row,) = rows  # the malformed one (an unknown field) was dropped
+    assert (row.user_id, row.course_id, row.chapter_id) == (client.user["id"], client.course_id, client.chapter_id)
+    assert (row.correlation_id, row.model, row.input_tokens, row.output_audio_tokens) == (
+        minted["session_id"], minted["model"], 100, 5)
+
+
+def _ledger_rows(client) -> list:
+    from sqlalchemy import select
+    from sqlalchemy.orm import Session
+
+    from app.db.models import AiUsageRow
+
+    with Session(client.app.state.engine) as s:
+        return list(s.scalars(select(AiUsageRow).order_by(AiUsageRow.id)))
+
+
+async def test_a_session_reported_twice_is_one_row(make_voice_client) -> None:
+    """The stop and the unload beacon can both report the same session (spec 015)."""
+    report = {"session_id": "s-twice", "reason": "learner", "duration_s": 5, "responses": 1, "usage": {"input_text": 9}}
+    async with make_voice_client(FakeRealtime()) as client:
+        assert [(await client.post("/api/voice/usage", json=report)).status_code for _ in range(3)] == [204] * 3
+        rows = _ledger_rows(client)
+    assert [(r.correlation_id, r.input_tokens) for r in rows] == [("s-twice", 9)]
+
+
+async def test_reports_beyond_what_the_minting_allows_are_dropped_with_a_204(make_voice_client, caplog) -> None:
+    async with make_voice_client(FakeRealtime(), voice_sessions_per_hour=1) as client:  # two reports an hour
+        with caplog.at_level("WARNING"):
+            statuses = [
+                (await client.post("/api/voice/usage", json={"session_id": f"s{n}", "reason": "cap", "duration_s": 1, "responses": 1})).status_code
+                for n in range(4)
+            ]
+        rows = _ledger_rows(client)
+    assert statuses == [204] * 4  # a beacon is never refused
+    assert [r.correlation_id for r in rows] == ["s0", "s1"]
+    assert any(r.getMessage() == "voice_usage_rate_limited" for r in caplog.records)
+
+
+@pytest.mark.parametrize("totals", [{"input_text": -1}, {"output_audio": 10**12}, {"cached_text": "many"}])
+async def test_a_forged_total_is_dropped_not_stored(make_voice_client, totals: dict, caplog) -> None:
+    report = {"session_id": "s", "reason": "cap", "duration_s": 1, "responses": 1, "usage": totals}
+    async with make_voice_client(FakeRealtime()) as client:
+        with caplog.at_level("WARNING"):
+            r = await client.post("/api/voice/usage", json=report)
+        assert r.status_code == 204 and _ledger_rows(client) == []
+    assert any(rec.getMessage() == "voice_usage_malformed" for rec in caplog.records)
+
+
+async def test_a_failed_store_is_logged_by_its_class_only(make_voice_client, monkeypatch, caplog) -> None:
+    async with make_voice_client(FakeRealtime()) as client:
+        def boom(*_: object, **__: object) -> None:
+            raise RuntimeError("secret bound value 4242")
+
+        monkeypatch.setattr(client.app.state.repos.ai_usage, "add_once", boom)
+        with caplog.at_level("ERROR"):
+            await client.post("/api/voice/usage", json={"session_id": "s", "reason": "cap", "duration_s": 1, "responses": 1})
+    (record,) = [r for r in caplog.records if r.getMessage() == "voice_usage_not_stored"]
+    assert record.error == "RuntimeError" and not record.exc_info  # type: ignore[attr-defined]
+    assert "4242" not in caplog.text
 
 
 async def test_voice_limiter_is_per_user(make_voice_client) -> None:
@@ -181,7 +259,7 @@ async def test_usage_survives_a_failing_store(make_voice_client, monkeypatch, ca
         def boom(*_: object, **__: object) -> None:
             raise RuntimeError("disk full")
 
-        monkeypatch.setattr(client.app.state.repos.voice_usage, "add", boom)
+        monkeypatch.setattr(client.app.state.repos.ai_usage, "add_once", boom)
         with caplog.at_level("INFO"):
             r = await client.post("/api/voice/usage", json=report)
     assert r.status_code == 204

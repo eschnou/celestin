@@ -139,19 +139,20 @@ def chat_result(response: Any, *, parse_json: bool) -> CompletionResult:
     choices = getattr(response, "choices", None) or []
     if not choices:
         raise ProviderUnavailable()
+    usage = usage_dict(getattr(response, "usage", None))
     choice = choices[0]
     if getattr(choice, "finish_reason", None) == "length":
-        raise ProviderOutputTruncated("length")
+        raise ProviderOutputTruncated("length", usage)
     text = strip_think(getattr(choice.message, "content", None) or "")
     data = None
     if parse_json:
         try:
             data = json.loads(extract_json(text))
         except ValueError as exc:
-            raise ProviderOutputInvalid(str(exc)) from exc
+            raise ProviderOutputInvalid(str(exc), usage) from exc
         if not isinstance(data, dict):
-            raise ProviderOutputInvalid("not a JSON object")
-    return CompletionResult(text=text, data=data, usage=usage_dict(getattr(response, "usage", None)))
+            raise ProviderOutputInvalid("not a JSON object", usage)
+    return CompletionResult(text=text, data=data, usage=usage)
 
 
 async def _map_chunks(raw: AsyncIterator[Any]) -> AsyncIterator[ProviderEvent]:

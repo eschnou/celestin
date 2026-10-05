@@ -196,13 +196,39 @@ def test_usage_in_the_responses_shape() -> None:
     "usage",
     [None, {}, SimpleNamespace(prompt_tokens=None, completion_tokens=None, prompt_tokens_details=None)],
 )
-def test_missing_usage_fields_count_as_zero(usage) -> None:
-    result = usage_dict(usage)
-    if usage is None:
-        assert result == {}
-    else:
-        assert (result["input_tokens"], result["output_tokens"]) == (0, 0)
-        assert result["input_tokens_details"]["cached_tokens"] == 0
+def test_missing_usage_fields_are_left_out_not_zero(usage) -> None:
+    """Spec 015: the ledger tells « not reported » from zero; readers take a missing field as zero themselves."""
+    assert usage_dict(usage) == {}
+
+
+def test_a_reported_zero_is_kept() -> None:
+    usage = SimpleNamespace(
+        prompt_tokens=0, completion_tokens=0,
+        prompt_tokens_details=SimpleNamespace(cached_tokens=0), completion_tokens_details=SimpleNamespace(reasoning_tokens=0),
+    )
+    assert usage_dict(usage) == {
+        "input_tokens": 0, "output_tokens": 0,
+        "input_tokens_details": {"cached_tokens": 0}, "output_tokens_details": {"reasoning_tokens": 0},
+    }
+
+
+def test_details_are_reported_only_when_the_server_sent_them() -> None:
+    usage = SimpleNamespace(prompt_tokens=5, completion_tokens=2, prompt_tokens_details=SimpleNamespace(cached_tokens=3))
+    assert usage_dict(usage) == {"input_tokens": 5, "output_tokens": 2, "input_tokens_details": {"cached_tokens": 3}}
+
+
+def test_a_cost_the_server_adds_is_passed_through_as_sent() -> None:
+    assert usage_dict(SimpleNamespace(prompt_tokens=5, completion_tokens=2, cost=0.0123))["cost"] == 0.0123
+    assert usage_dict({"prompt_tokens": 5, "completion_tokens": 2, "cost": "n/a"})["cost"] == "n/a"
+    assert "cost" not in usage_dict(SimpleNamespace(prompt_tokens=5, completion_tokens=2))
+    assert "cost" not in usage_dict(SimpleNamespace(prompt_tokens=5, completion_tokens=2, cost=None))
+
+
+def test_token_counts_still_read_a_missing_field_as_zero() -> None:
+    from app.domain.chapter import token_counts
+
+    assert token_counts(usage_dict(None)) == {"input_tokens": 0, "cached_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0}
+    assert token_counts(usage_dict({"prompt_tokens": 7}))["output_tokens"] == 0
 
 
 def test_usage_as_a_plain_dict() -> None:

@@ -91,24 +91,6 @@ def test_progress_is_per_user(repos: Repositories) -> None:
     assert repos.progress.load(b.id, suites) is None
 
 
-def test_voice_usage_row(repos: Repositories, db_engine) -> None:
-    from sqlalchemy import select
-    from sqlalchemy.orm import Session
-
-    from app.api.schemas.voice import VoiceUsageReport, VoiceUsageTotals
-    from app.db.models import VoiceUsageRow
-
-    user = repos.users.create("a@b.be", "Léa", "hash")
-    report = VoiceUsageReport(
-        session_id="s1", reason="learner", duration_s=60, responses=2, usage=VoiceUsageTotals(input_audio=5)
-    )
-    repos.voice_usage.add(user.id, report, 0.01)
-    with Session(db_engine) as s:
-        row = s.scalar(select(VoiceUsageRow))
-    assert row and row.input_audio == 5 and row.user_id == user.id and row.cost_estimate_usd == 0.01
-    assert row.session_id == "s1" and row.reason == "learner"
-
-
 def test_session_lookup_joins_the_user(repos: Repositories) -> None:
     user = repos.users.create("a@b.be", "Léa", "hash")
     repos.sessions.create(user.id, "th", now=NOW)

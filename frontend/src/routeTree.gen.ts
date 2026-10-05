@@ -16,6 +16,7 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as AuthSettingsRouteImport } from './routes/_auth/settings'
 import { Route as AuthAdminIndexRouteImport } from './routes/_auth/admin/index'
+import { Route as AuthAdminUsageRouteImport } from './routes/_auth/admin/usage'
 import { Route as AuthCoursesIndexRouteImport } from './routes/_auth/courses/index'
 import { Route as AuthCoursesCourseIdIndexRouteImport } from './routes/_auth/courses/$courseId/index'
 import { Route as AuthCoursesCourseIdChaptersChapterIdIndexRouteImport } from './routes/_auth/courses/$courseId/chapters/$chapterId/index'
@@ -56,6 +57,11 @@ const AuthAdminIndexRoute = AuthAdminIndexRouteImport.update({
   path: '/admin/',
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthAdminUsageRoute = AuthAdminUsageRouteImport.update({
+  id: '/admin/usage',
+  path: '/admin/usage',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AuthCoursesIndexRoute = AuthCoursesIndexRouteImport.update({
   id: '/courses/',
   path: '/courses/',
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/setup': typeof SetupRoute
   '/settings': typeof AuthSettingsRoute
+  '/admin/usage': typeof AuthAdminUsageRoute
   '/admin/': typeof AuthAdminIndexRoute
   '/courses/': typeof AuthCoursesIndexRoute
   '/courses/$courseId/': typeof AuthCoursesCourseIdIndexRoute
@@ -105,6 +112,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/setup': typeof SetupRoute
   '/settings': typeof AuthSettingsRoute
+  '/admin/usage': typeof AuthAdminUsageRoute
   '/admin': typeof AuthAdminIndexRoute
   '/courses': typeof AuthCoursesIndexRoute
   '/courses/$courseId': typeof AuthCoursesCourseIdIndexRoute
@@ -120,6 +128,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/setup': typeof SetupRoute
   '/_auth/settings': typeof AuthSettingsRoute
+  '/_auth/admin/usage': typeof AuthAdminUsageRoute
   '/_auth/admin/': typeof AuthAdminIndexRoute
   '/_auth/courses/': typeof AuthCoursesIndexRoute
   '/_auth/courses/$courseId/': typeof AuthCoursesCourseIdIndexRoute
@@ -135,6 +144,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/setup'
     | '/settings'
+    | '/admin/usage'
     | '/admin/'
     | '/courses/'
     | '/courses/$courseId/'
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/setup'
     | '/settings'
+    | '/admin/usage'
     | '/admin'
     | '/courses'
     | '/courses/$courseId'
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/setup'
     | '/_auth/settings'
+    | '/_auth/admin/usage'
     | '/_auth/admin/'
     | '/_auth/courses/'
     | '/_auth/courses/$courseId/'
@@ -229,6 +241,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminIndexRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/admin/usage': {
+      id: '/_auth/admin/usage'
+      path: '/admin/usage'
+      fullPath: '/admin/usage'
+      preLoaderRoute: typeof AuthAdminUsageRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/courses/': {
       id: '/_auth/courses/'
       path: '/courses'
@@ -269,6 +288,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthRouteChildren {
   AuthSettingsRoute: typeof AuthSettingsRoute
+  AuthAdminUsageRoute: typeof AuthAdminUsageRoute
   AuthAdminIndexRoute: typeof AuthAdminIndexRoute
   AuthCoursesIndexRoute: typeof AuthCoursesIndexRoute
   AuthCoursesCourseIdIndexRoute: typeof AuthCoursesCourseIdIndexRoute
@@ -279,6 +299,7 @@ interface AuthRouteChildren {
 
 const AuthRouteChildren: AuthRouteChildren = {
   AuthSettingsRoute: AuthSettingsRoute,
+  AuthAdminUsageRoute: AuthAdminUsageRoute,
   AuthAdminIndexRoute: AuthAdminIndexRoute,
   AuthCoursesIndexRoute: AuthCoursesIndexRoute,
   AuthCoursesCourseIdIndexRoute: AuthCoursesCourseIdIndexRoute,

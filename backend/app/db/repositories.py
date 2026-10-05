@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import json
 import uuid
-from dataclasses import dataclass, replace
-from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from dataclasses import asdict, dataclass, fields, replace
+from collections.abc import Iterable
+from datetime import UTC, datetime, timedelta
+from typing import Any, Literal
 
 from sqlalchemy import DateTime, Integer, Boolean, String, delete, exists, func, insert, literal, select, update
 from sqlalchemy.exc import IntegrityError
@@ -20,6 +21,7 @@ from sqlalchemy.orm import Session, defer, sessionmaker
 
 from app.db.base import as_utc, utcnow
 from app.db.models import (
+    AiUsageRow,
     AppSettingRow,
     AuthoringRunRow,
     ChapterUploadRow,
@@ -29,7 +31,6 @@ from app.db.models import (
     ProgressRow,
     SessionRow,
     UserRow,
-    VoiceUsageRow,
 )
 from app.domain.chapter import ChapterRecord, CourseRecord, CourseWithChapters, OwnedChapter, RunUsage
 from app.domain.content import ValidContent
@@ -45,10 +46,8 @@ from app.domain.errors import (
 )
 from app.domain.locale import DEFAULT_LOCALE, Locale, is_locale
 from app.domain.progress import Progress
+from app.domain.usage import UsageEntry
 from app.domain.user import Role, User
-
-if TYPE_CHECKING:
-    from app.api.schemas.voice import VoiceUsageReport
 
 
 def new_id() -> str:
@@ -94,6 +93,12 @@ class ProgressRecord:
 class _Repo:
     def __init__(self, factory: sessionmaker[Session]) -> None:
         self._factory = factory
+
+
+def _user_match(query: str) -> Any:
+    """The clause that finds accounts by name or address: case-insensitive, `%` and `_` literal."""
+    needle = "%" + query.strip().lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    return func.lower(UserRow.email).like(needle, escape="\\") | func.lower(UserRow.name).like(needle, escape="\\")
 
 
 def _user(row: UserRow) -> StoredUser:
@@ -277,10 +282,7 @@ class UserRepository(_Repo):
         and how many match in all. `query` matches the name or the address."""
         where = []
         if query.strip():
-            needle = "%" + query.strip().lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-            where.append(
-                func.lower(UserRow.email).like(needle, escape="\\") | func.lower(UserRow.name).like(needle, escape="\\")
-            )
+            where.append(_user_match(query))
         if enabled is not None:
             where.append(UserRow.enabled.is_(enabled))
         if user_id is not None:
@@ -893,19 +895,292 @@ def _record(row: ProgressRow) -> ProgressRecord:
     )
 
 
-class VoiceUsageRepository(_Repo):
-    def add(self, user_id: str, report: "VoiceUsageReport", cost_estimate_usd: float) -> None:
+@dataclass(frozen=True)
+class Period:
+    """A half-open span, `since <= created_at < until`; an open end is unbounded. Instants of any offset."""
+
+    since: datetime | None = None
+    until: datetime | None = None
+
+
+@dataclass(frozen=True)
+class CallFilters:
+    user_id: str | None = None
+    role: str | None = None
+    feature: str | None = None
+    model: str | None = None
+    status: str | None = None
+    correlation_id: str | None = None
+
+
+@dataclass(frozen=True)
+class UsageTotals:
+    """What a set of calls came to. `cost_usd` is the sum of the costs the provider reported and is None when no
+    call reported one; `costed_calls` is how many did, out of `calls`. Tokens sum what was reported."""
+
+    calls: int = 0
+    input_tokens: int = 0
+    cached_tokens: int = 0
+    output_tokens: int = 0
+    reasoning_tokens: int = 0
+    cost_usd: float | None = None
+    costed_calls: int = 0
+
+
+@dataclass(frozen=True)
+class UsageSummary:
+    totals: UsageTotals
+    models: list[str]
+
+
+@dataclass(frozen=True)
+class UserUsage:
+    user_id: str
+    name: str
+    email: str
+    enabled: bool
+    totals: UsageTotals
+
+
+@dataclass(frozen=True)
+class RoleUsage:
+    role: str
+    totals: UsageTotals
+
+
+@dataclass(frozen=True)
+class ModelUsage:
+    model: str
+    provider: str
+    totals: UsageTotals
+
+
+@dataclass(frozen=True)
+class Breakdown:
+    totals: UsageTotals
+    by_role: list[RoleUsage]
+    by_model: list[ModelUsage]
+
+
+@dataclass(frozen=True)
+class CallListing:
+    """One call, with the account's name and the course's subject and language (never the course's name)."""
+
+    id: int
+    entry: UsageEntry
+    user_name: str
+    user_email: str
+    course_subject: str | None
+    course_language: str | None
+
+
+UserUsageOrder = Literal["calls", "input_tokens", "output_tokens", "cost", "name"]
+
+
+def _utc(value: datetime) -> datetime:
+    """SQLite stores no offset: an instant is compared as UTC, whatever offset it came with."""
+    return as_utc(value).astimezone(UTC)
+
+
+def _totals_columns() -> tuple[Any, ...]:
+    return (
+        func.count(AiUsageRow.id),
+        func.coalesce(func.sum(AiUsageRow.input_tokens), 0),
+        func.coalesce(func.sum(AiUsageRow.cached_tokens), 0),
+        func.coalesce(func.sum(AiUsageRow.output_tokens), 0),
+        func.coalesce(func.sum(AiUsageRow.reasoning_tokens), 0),
+        func.sum(AiUsageRow.cost_usd),
+        func.count(AiUsageRow.cost_usd),
+    )
+
+
+def _totals(columns: tuple[Any, ...]) -> UsageTotals:
+    calls, tokens_in, cached, tokens_out, reasoning, cost, costed = columns
+    return UsageTotals(
+        calls=int(calls),
+        input_tokens=int(tokens_in),
+        cached_tokens=int(cached),
+        output_tokens=int(tokens_out),
+        reasoning_tokens=int(reasoning),
+        cost_usd=None if cost is None else float(cost),
+        costed_calls=int(costed),
+    )
+
+
+def _sum_totals(parts: Iterable[UsageTotals]) -> UsageTotals:
+    """The totals of disjoint sets of calls: the cost is a sum only of those that reported one."""
+    parts = list(parts)
+    costs = [p.cost_usd for p in parts if p.cost_usd is not None]
+    return UsageTotals(
+        calls=sum(p.calls for p in parts),
+        input_tokens=sum(p.input_tokens for p in parts),
+        cached_tokens=sum(p.cached_tokens for p in parts),
+        output_tokens=sum(p.output_tokens for p in parts),
+        reasoning_tokens=sum(p.reasoning_tokens for p in parts),
+        cost_usd=sum(costs) if costs else None,
+        costed_calls=sum(p.costed_calls for p in parts),
+    )
+
+
+def _period_where(period: Period) -> list[Any]:
+    where = []
+    if period.since is not None:
+        where.append(AiUsageRow.created_at >= _utc(period.since))
+    if period.until is not None:
+        where.append(AiUsageRow.created_at < _utc(period.until))
+    return where
+
+
+class AiUsageRepository(_Repo):
+    """The usage ledger (spec 015). Writes are one row per call; reads aggregate in SQL."""
+
+    def add(self, entry: UsageEntry) -> None:
+        """Store one row. A course or chapter deleted while its call was in flight must not cost the row: it is
+        stored without them (the same thing the foreign keys do to rows already there)."""
+        values = {**asdict(entry), "created_at": _utc(entry.created_at)}
+        try:
+            self._insert(values)
+        except IntegrityError:
+            if values["course_id"] is None and values["chapter_id"] is None:
+                raise  # the user is gone: nothing to attribute the call to
+            self._insert({**values, "course_id": None, "chapter_id": None})
+
+    def _insert(self, values: dict[str, Any]) -> None:
         with self._factory() as s:
-            s.add(
-                VoiceUsageRow(
-                    user_id=user_id,
-                    cost_estimate_usd=cost_estimate_usd,
-                    created_at=utcnow(),
-                    **report.model_dump(exclude={"usage"}),
-                    **report.usage.model_dump(),
-                )
-            )
+            s.add(AiUsageRow(**values))
             s.commit()
+
+    def add_once(self, entry: UsageEntry) -> bool:
+        """`add`, unless the user already has a row of that feature for that correlation id (a session reported
+        twice). A row with no correlation id is always stored. Returns whether it was."""
+        if entry.correlation_id is not None:
+            with self._factory() as s:
+                known = s.scalar(
+                    select(AiUsageRow.id)
+                    .where(
+                        AiUsageRow.user_id == entry.user_id,
+                        AiUsageRow.feature == entry.feature,
+                        AiUsageRow.correlation_id == entry.correlation_id,
+                    )
+                    .limit(1)
+                )
+            if known is not None:
+                return False
+        self.add(entry)
+        return True
+
+    def summary(self, period: Period, *, user_id: str | None = None) -> UsageSummary:
+        where = _period_where(period)
+        if user_id is not None:
+            where.append(AiUsageRow.user_id == user_id)
+        with self._factory() as s:
+            totals = _totals(tuple(s.execute(select(*_totals_columns()).where(*where)).one()))
+            models = s.scalars(
+                select(AiUsageRow.model).where(*where, AiUsageRow.model != "").distinct().order_by(AiUsageRow.model)
+            ).all()
+            return UsageSummary(totals=totals, models=list(models))
+
+    def per_user(
+        self,
+        period: Period,
+        *,
+        query: str = "",
+        order: UserUsageOrder = "calls",
+        descending: bool = True,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[UserUsage], int]:
+        """The users with calls in the period, and how many there are in all. `query` matches the name or the
+        address as the accounts list does."""
+        where = _period_where(period)
+        if query.strip():
+            where.append(_user_match(query))
+        columns = _totals_columns()
+        grouped = (
+            select(AiUsageRow.user_id, UserRow.name, UserRow.email, UserRow.enabled, *columns)
+            .join(UserRow, UserRow.id == AiUsageRow.user_id)
+            .where(*where)
+            .group_by(AiUsageRow.user_id, UserRow.name, UserRow.email, UserRow.enabled)
+        )
+        sort = {
+            "calls": columns[0],
+            "input_tokens": columns[1],
+            "output_tokens": columns[3],
+            "cost": columns[5],
+            "name": func.lower(UserRow.name),
+        }[order]
+        ordering = sort.desc() if descending else sort.asc()
+        if order == "cost":
+            ordering = ordering.nulls_last()
+        with self._factory() as s:
+            total = s.scalar(select(func.count()).select_from(grouped.subquery())) or 0
+            rows = s.execute(grouped.order_by(ordering, AiUsageRow.user_id).limit(limit).offset(offset)).all()
+            return [
+                UserUsage(user_id=row[0], name=row[1], email=row[2], enabled=bool(row[3]), totals=_totals(tuple(row[4:])))
+                for row in rows
+            ], total
+
+    def user_breakdown(self, user_id: str, period: Period) -> Breakdown:
+        where = [*_period_where(period), AiUsageRow.user_id == user_id]
+        columns = _totals_columns()
+        with self._factory() as s:
+            by_role = s.execute(
+                select(AiUsageRow.role, *columns).where(*where).group_by(AiUsageRow.role).order_by(AiUsageRow.role)
+            ).all()
+            by_model = s.execute(
+                select(AiUsageRow.model, AiUsageRow.provider, *columns)
+                .where(*where)
+                .group_by(AiUsageRow.model, AiUsageRow.provider)
+                .order_by(columns[0].desc(), AiUsageRow.model)
+            ).all()
+        return Breakdown(
+            totals=_sum_totals(_totals(tuple(row[1:])) for row in by_role),  # the roles partition the rows
+            by_role=[RoleUsage(role=row[0], totals=_totals(tuple(row[1:]))) for row in by_role],
+            by_model=[ModelUsage(model=row[0], provider=row[1], totals=_totals(tuple(row[2:]))) for row in by_model],
+        )
+
+    def calls(
+        self, period: Period, filters: CallFilters, *, limit: int = 50, offset: int = 0
+    ) -> tuple[list[CallListing], bool]:
+        """A page of calls, newest first, and whether there is a next page (one more row is read, no count)."""
+        where = _period_where(period)
+        for column, value in (
+            (AiUsageRow.user_id, filters.user_id),
+            (AiUsageRow.role, filters.role),
+            (AiUsageRow.feature, filters.feature),
+            (AiUsageRow.model, filters.model),
+            (AiUsageRow.status, filters.status),
+            (AiUsageRow.correlation_id, filters.correlation_id),
+        ):
+            if value is not None:
+                where.append(column == value)
+        with self._factory() as s:
+            rows = s.execute(
+                select(AiUsageRow, UserRow.name, UserRow.email, CourseRow.subject, CourseRow.language)
+                .join(UserRow, UserRow.id == AiUsageRow.user_id)
+                .outerjoin(CourseRow, CourseRow.id == AiUsageRow.course_id)
+                .where(*where)
+                .order_by(AiUsageRow.created_at.desc(), AiUsageRow.id.desc())
+                .limit(limit + 1)
+                .offset(offset)
+            ).all()
+            listing = [
+                CallListing(
+                    id=row.id,
+                    entry=_entry(row),
+                    user_name=name,
+                    user_email=email,
+                    course_subject=subject,
+                    course_language=language,
+                )
+                for row, name, email, subject, language in rows[:limit]
+            ]
+            return listing, len(rows) > limit
+
+
+def _entry(row: AiUsageRow) -> UsageEntry:
+    values = {f.name: getattr(row, f.name) for f in fields(UsageEntry)}
+    return UsageEntry(**{**values, "created_at": as_utc(row.created_at)})
 
 
 @dataclass(frozen=True)
@@ -1099,7 +1374,7 @@ class Repositories:
     runs: AuthoringRunRepository
     progress: ProgressRepository
     conversations: ConversationRepository
-    voice_usage: VoiceUsageRepository
+    ai_usage: AiUsageRepository
     app_settings: AppSettingsRepository
 
     @classmethod
@@ -1112,6 +1387,6 @@ class Repositories:
             runs=AuthoringRunRepository(factory),
             progress=ProgressRepository(factory),
             conversations=ConversationRepository(factory),
-            voice_usage=VoiceUsageRepository(factory),
+            ai_usage=AiUsageRepository(factory),
             app_settings=AppSettingsRepository(factory),
         )

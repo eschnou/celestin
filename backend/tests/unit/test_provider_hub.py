@@ -163,3 +163,89 @@ def test_the_real_factory_picks_the_adapter_of_each_roles_api_style(settings: Se
 
 def test_tagged_completion_is_exported() -> None:
     assert TaggedCompletion("r", "m").role == "r"
+
+
+# --- the usage ledger (spec 015 §3.2) ------------------------------------------
+
+
+class _Sink:
+    def __init__(self) -> None:
+        self.entries: list = []
+
+    def record(self, entry) -> None:  # noqa: ANN001
+        self.entries.append(entry)
+
+
+@pytest.fixture
+def recorded(settings: Settings, factory: Factory):
+    sink = _Sink()
+    return ProviderHub(settings, factory, sink), sink
+
+
+async def test_a_hub_with_a_sink_records_every_role(recorded) -> None:
+    from app.domain.usage import UsageScope, usage_scope
+
+    hub, sink = recorded
+    cfg = config("one")
+    hub.apply(cfg)
+    with usage_scope(UsageScope("u1", "authoring", correlation_id="run1")):
+        await drain(hub.llm.stream(input=[], tools=[]))
+        await complete(hub, "authoring")
+        await complete(hub, "transcription")
+    assert [(e.role, e.feature, e.model, e.provider) for e in sink.entries] == [
+        ("tutor", "authoring", "tutor-one", "api.openai.com"),
+        ("authoring", "authoring", "authoring-one", "api.openai.com"),
+        ("transcription", "document_reading", "transcription-one", "api.openai.com"),
+    ]
+
+
+async def test_the_clients_the_live_test_uses_directly_record_too(recorded) -> None:
+    from app.domain.usage import UsageScope, usage_scope
+
+    hub, sink = recorded
+    hub.apply(config())
+    with usage_scope(UsageScope("admin", "ai_test")):
+        async with hub.current().tutor.stream(input=[], tools=[]) as events:
+            [e async for e in events]
+        await hub.current().authoring.complete(role="authoring", instructions=[], input=[], max_output_tokens=1)
+    assert [(e.user_id, e.feature) for e in sink.entries] == [("admin", "ai_test")] * 2
+
+
+async def test_without_a_sink_the_clients_are_the_factorys(hub: ProviderHub, factory: Factory) -> None:
+    from app.providers.recording import RecordingLLM
+
+    hub.apply(config())
+    assert not isinstance(hub.current().tutor, RecordingLLM)
+
+
+async def test_a_swap_records_the_new_model_and_a_call_in_flight_the_old_one(recorded) -> None:
+    from app.domain.usage import UsageScope, usage_scope
+
+    hub, sink = recorded
+    hub.apply(config("old"))
+    with usage_scope(UsageScope("u1", "tutor_turn")):
+        in_flight = hub.llm.stream(input=[], tools=[])
+        hub.apply(config("new"))
+        await drain(in_flight)
+        await drain(hub.llm.stream(input=[], tools=[]))
+    assert [e.model for e in sink.entries] == ["tutor-old", "tutor-new"]
+
+
+async def test_the_realtime_client_is_not_wrapped(recorded) -> None:
+    hub, sink = recorded
+    hub.apply(config())
+    assert (await hub.realtime.create_client_secret(session={}, ttl_s=60)).value == "secret-voice-one"
+    assert sink.entries == []
+
+
+async def test_dictation_is_wrapped_only_when_it_is_on(settings: Settings, factory: Factory) -> None:
+    from dataclasses import replace
+
+    from app.domain.ai_config import DictationConfig
+    from app.providers.recording import RecordingTranscriber
+
+    hub = ProviderHub(settings, factory, _Sink())
+    hub.apply(config())
+    assert hub.current().transcriber is None
+    hub.apply(replace(config(), dictation=DictationConfig("stt-model", OPENAI)))
+    assert isinstance(hub.current().transcriber, RecordingTranscriber)

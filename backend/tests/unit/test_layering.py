@@ -42,3 +42,13 @@ def test_message_fr_is_gone() -> None:
         str(p.relative_to(APP)) for p in APP.rglob("*.py") if "message_fr" in p.read_text(encoding="utf-8")
     ]
     assert offenders == [], offenders
+
+
+@pytest.mark.parametrize("path", sorted((APP / "providers").glob("*.py")), ids=lambda p: p.name)
+def test_providers_do_not_reach_the_database(path: Path) -> None:
+    """Spec 015 §3.2: the recorder is handed a sink; `app/providers/` never imports `app.db` (nor `app.services`)."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    modules = {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module and n.level == 0}
+    modules |= {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
+    offenders = sorted(m for m in modules if m.startswith(("app.db", "app.services", "app.api")))
+    assert offenders == [], f"{path.name} imports {offenders}"

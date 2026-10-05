@@ -221,3 +221,119 @@ def test_a_voice_session_on_another_provider_is_not_priced_with_openais_prices()
     assert service.log_usage(report, user_id="u") == 0.0
     priced, _ = _service(voice_base_url="https://rt.example/v1", voice_api_key="k2", voice_price_audio_in=1.0)
     assert priced.log_usage(report, user_id="u") == 1.0
+
+
+# --- the ledger row of a session (spec 015 R4) ---------------------------------
+
+
+def _usage_service(voice_model: str | None = "gpt-realtime-2.1"):
+    from dataclasses import replace
+
+    from app.domain.ai_config import Connection
+
+    settings = Settings(openai_api_key="k", _env_file=None)
+    config = load_ai_config(settings)
+    voice = replace(config.voice, model=voice_model, connection=Connection("https://api.example.test/v1", "k")) if voice_model else None
+    return VoiceService(FakeRealtime(), StubPrompts(PROMPT), settings, FixedAiConfig(replace(config, voice=voice)))  # type: ignore[arg-type]
+
+
+def test_a_session_is_one_ledger_row_with_folded_totals() -> None:
+    from datetime import UTC, datetime
+
+    from app.api.schemas.voice import VoiceUsageReport, VoiceUsageTotals
+
+    report = VoiceUsageReport(
+        session_id="s1", reason="learner", duration_s=90, responses=3,
+        usage=VoiceUsageTotals(input_text=100, input_audio=40, cached_text=20, cached_audio=10, output_text=50, output_audio=30),
+    )
+    now = datetime(2026, 2, 1, 10, 1, 30, tzinfo=UTC)
+    entry = _usage_service().usage_entry(report, "u1", now)
+    assert (entry.role, entry.feature, entry.status, entry.error_code) == ("voice", "voice_session", "ok", None)
+    assert (entry.input_tokens, entry.cached_tokens, entry.output_tokens) == (140, 30, 80)
+    assert (entry.input_audio_tokens, entry.output_audio_tokens, entry.audio_seconds) == (40, 30, 90.0)
+    assert entry.created_at == datetime(2026, 2, 1, 10, 0, 0, tzinfo=UTC)
+    assert (entry.model, entry.provider, entry.correlation_id) == ("gpt-realtime-2.1", "api.example.test", "s1")
+    assert entry.cost_usd is None and entry.latency_ms is None and entry.course_id is None
+
+
+def test_a_session_that_ended_in_error_is_a_failed_row() -> None:
+    from datetime import UTC, datetime
+
+    from app.api.schemas.voice import VoiceUsageReport
+
+    report = VoiceUsageReport(session_id="", reason="error", duration_s=1, responses=0)
+    entry = _usage_service(None).usage_entry(report, "u1", datetime.now(UTC))
+    assert (entry.status, entry.error_code, entry.model, entry.provider, entry.correlation_id) == ("failed", "voice_error", "", "", None)
+
+
+# --- what a minted session was for (spec 015 §3.4) -----------------------------
+
+
+def _scopes_service(scopes=None):
+    from app.services.voice_service import VoiceSessionScopes
+
+    service = _usage_service()
+    service._scopes = scopes if scopes is not None else VoiceSessionScopes()  # noqa: SLF001
+    return service
+
+
+def _report(session_id: str = "s1"):
+    from app.api.schemas.voice import VoiceUsageReport
+
+    return VoiceUsageReport(session_id=session_id, reason="learner", duration_s=5, responses=1)
+
+
+def test_a_session_minted_here_is_attributed_to_its_course_and_chapter() -> None:
+    from datetime import UTC, datetime
+
+    from app.services.voice_service import VoiceSessionScope, VoiceSessionScopes
+
+    scopes = VoiceSessionScopes()
+    scopes.put("s1", VoiceSessionScope("u1", "c1", "ch1", "minted-model", "minted.host"))
+    entry = _scopes_service(scopes).usage_entry(_report(), "u1", datetime.now(UTC))
+    # The model and host are the ones the session was minted with, not those in force when it is reported.
+    assert (entry.course_id, entry.chapter_id, entry.model, entry.provider) == ("c1", "ch1", "minted-model", "minted.host")
+
+
+def test_another_users_session_id_gives_no_course_and_no_chapter() -> None:
+    from datetime import UTC, datetime
+
+    from app.services.voice_service import VoiceSessionScope, VoiceSessionScopes
+
+    scopes = VoiceSessionScopes()
+    scopes.put("s1", VoiceSessionScope("someone-else", "c1", "ch1", "m", "h"))
+    entry = _scopes_service(scopes).usage_entry(_report(), "u1", datetime.now(UTC))
+    assert (entry.user_id, entry.course_id, entry.chapter_id, entry.model) == ("u1", None, None, "gpt-realtime-2.1")
+
+
+def test_a_session_this_process_did_not_mint_gives_no_course_and_no_chapter() -> None:
+    from datetime import UTC, datetime
+
+    entry = _scopes_service().usage_entry(_report("after-a-restart"), "u1", datetime.now(UTC))
+    assert (entry.course_id, entry.chapter_id) == (None, None)
+
+
+def test_the_scopes_expire_and_are_bounded() -> None:
+    from app.services.voice_service import VoiceSessionScope, VoiceSessionScopes
+
+    now = [0.0]
+    scopes = VoiceSessionScopes(max_entries=2, ttl_s=10, clock=lambda: now[0])
+    one = VoiceSessionScope("u", None, None, "m", "h")
+    scopes.put("a", one)
+    scopes.put("b", one)
+    scopes.put("c", one)  # over the bound: the oldest goes
+    assert (scopes.get("a"), scopes.get("b"), scopes.get("c")) == (None, one, one)
+    now[0] = 11
+    assert scopes.get("b") is None and scopes.get("c") is None  # expired
+
+
+def test_putting_a_session_again_refreshes_it() -> None:
+    from app.services.voice_service import VoiceSessionScope, VoiceSessionScopes
+
+    now = [0.0]
+    scopes = VoiceSessionScopes(ttl_s=10, clock=lambda: now[0])
+    scopes.put("a", VoiceSessionScope("u", None, None, "m", "h"))
+    now[0] = 8
+    scopes.put("a", VoiceSessionScope("u", "c", None, "m", "h"))
+    now[0] = 15
+    assert scopes.get("a") is not None and scopes.get("a").course_id == "c"  # type: ignore[union-attr]

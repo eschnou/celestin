@@ -27,3 +27,28 @@ export function formatMegabytes(bytes: number): string {
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(tag(), { dateStyle: "medium" });
 }
+
+/** An amount in US dollars, four decimals: « 0,0123 $US » / "US$0.0123". Only ever a cost a provider reported. */
+export function formatCost(usd: number): string {
+  return usd.toLocaleString(tag(), {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  });
+}
+
+/** A duration in milliseconds, as short as it reads: « 420 ms », « 1,2 s », « 2 min 5 s ». */
+export function formatDurationMs(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms).toLocaleString(tag())} ms`;
+  if (ms < 60_000) {
+    return `${(ms / 1000).toLocaleString(tag(), { maximumFractionDigits: 1 })} s`;
+  }
+  const total = Math.round(ms / 1000); // whole seconds first, so 119 600 ms is 2 min 0 s, not 1 min 60 s
+  return `${Math.floor(total / 60).toLocaleString(tag())} min ${(total % 60).toLocaleString(tag())} s`;
+}
+
+/** A date and time from an ISO timestamp, in the interface language: « 2 oct. 2026, 14:03:07 ». */
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString(tag(), { dateStyle: "medium", timeStyle: "medium" });
+}

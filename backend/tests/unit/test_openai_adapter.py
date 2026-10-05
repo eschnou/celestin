@@ -196,6 +196,34 @@ def test_incomplete_is_truncated() -> None:
         completion_result(_response("# Tit", status="incomplete"), parse_json=False)
 
 
+def test_a_truncated_or_invalid_answer_carries_what_it_was_billed() -> None:
+    """Spec 015: the ledger and the authoring run count the provider's own tokens for an answer they cannot use."""
+    billed = {"input_tokens": 90, "output_tokens": 40}
+    with pytest.raises(ProviderOutputTruncated) as truncated:
+        completion_result(_response("# Tit", status="incomplete", usage=billed), parse_json=False)
+    assert truncated.value.usage == billed
+    with pytest.raises(ProviderOutputInvalid) as invalid:
+        completion_result(_response("{not json", usage=billed), parse_json=True)
+    assert invalid.value.usage == billed
+
+
+def test_a_cost_the_provider_reports_reaches_the_result() -> None:
+    """OpenRouter puts `cost` in the usage block; the SDK keeps provider extras, so `model_dump` carries it."""
+    usage = {"input_tokens": 3, "output_tokens": 1, "cost": 0.0042}
+    assert completion_result(_response("ok", usage=usage), parse_json=False).usage["cost"] == 0.0042
+
+
+def test_the_sdks_usage_model_keeps_a_provider_extra() -> None:
+    from openai.types.responses import ResponseUsage
+
+    usage = ResponseUsage.model_validate({
+        "input_tokens": 3, "output_tokens": 1, "total_tokens": 4,
+        "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 0},
+        "output_tokens_details": {"reasoning_tokens": 0}, "cost": 0.0042,
+    })
+    assert usage.model_dump()["cost"] == 0.0042
+
+
 @pytest.mark.parametrize("text", ["{not json", "[1, 2]"])
 def test_bad_json_is_invalid(text: str) -> None:
     with pytest.raises(ProviderOutputInvalid):

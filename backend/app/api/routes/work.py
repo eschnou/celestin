@@ -30,5 +30,5 @@ async def read_work(
     data = await photo.read()
     if not data:
         raise DocumentInvalid("empty")
-    text = await reader.read(data, course.language, user.id)
+    text = await reader.read(data, course.language, user.id, course.id)
     return WorkReadResponse(text="" if text in _NOTHING else text)

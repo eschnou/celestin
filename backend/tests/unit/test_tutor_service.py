@@ -303,3 +303,86 @@ def test_inconsistent_progress_is_repaired_before_the_stream(courses: None) -> N
 def test_unknown_done_ids_are_dropped(courses: None) -> None:
     ctx = context(build(FakeLLM([]), courses), ProgressDTO(done=["intro", "ghost"]))
     assert ctx.progress.done == frozenset({"intro"})
+
+
+# --- the usage ledger (spec 015 R1.7, R2) ----------------------------------------
+
+
+class _Sink:
+    def __init__(self) -> None:
+        self.entries: list = []
+
+    def record(self, entry) -> None:  # noqa: ANN001
+        self.entries.append(entry)
+
+
+def recorded(rounds: list, sink: _Sink) -> TutorService:
+    from app.providers.recording import RecordingLLM
+
+    return build(RecordingLLM(FakeLLM(rounds), model="tutor-m", host="api.test", sink=sink))  # type: ignore[arg-type]
+
+
+async def drain_for(service: TutorService, user_id: str | None, mode: str = "parcours") -> list:
+    ctx = TurnContext.from_progress(
+        CHAPTER.curriculum, [], None, user_id=user_id, chapter_id="ch1", course_id="c1", mode=mode  # type: ignore[arg-type]
+    )
+    items = service.build_input(CHAPTER, [], ctx)
+    return [event async for event in service.run_turn(items, ctx)]
+
+
+async def test_a_turn_with_tool_rounds_is_summed_and_every_round_is_a_row() -> None:
+    usage = lambda n, cost=None: {"input_tokens": n, "output_tokens": 1, **({"cost": cost} if cost else {})}  # noqa: E731
+    sink = _Sink()
+    service = recorded(
+        [
+            [call("display_board", {"card": CARD}), Completed(usage=usage(100, 0.25))],
+            [call("display_board", {"card": CARD}, "c2"), Completed(usage=usage(110, 0.25))],
+            [TextDelta("fin"), Completed(usage=usage(120))],
+        ],
+        sink,
+    )
+    events = await drain_for(service, "u1")
+    end = events[-1]
+    # The tokens of every round; the provider's cost is the administrator's (the ledger), not the student's.
+    assert isinstance(end, TurnEnd) and end.usage == {"input_tokens": 330, "output_tokens": 3}
+    assert [(e.user_id, e.course_id, e.chapter_id, e.feature, e.role, e.model) for e in sink.entries] == [
+        ("u1", "c1", "ch1", "tutor_turn", "tutor", "tutor-m")
+    ] * 3
+    assert [e.input_tokens for e in sink.entries] == [100, 110, 120]
+    turn_id = events[0].turn_id  # type: ignore[union-attr]
+    assert {e.correlation_id for e in sink.entries} == {turn_id}
+
+
+async def test_a_discussion_turn_has_its_own_feature() -> None:
+    sink = _Sink()
+    await drain_for(recorded([[TextDelta("x"), Completed()]], sink), "u1", mode="discussion")
+    assert [e.feature for e in sink.entries] == ["discussion_turn"]
+
+
+async def test_a_context_without_a_user_records_nothing() -> None:
+    sink = _Sink()
+    await drain_for(recorded([[TextDelta("x"), Completed()]], sink), None)
+    assert sink.entries == []
+
+
+async def test_a_turn_abandoned_midway_leaves_a_cancelled_row_and_closes_the_scope() -> None:
+    from app.domain.usage import current_scope
+
+    sink = _Sink()
+    service = recorded([[TextDelta("a"), TextDelta("b"), Completed(usage={"input_tokens": 9})]], sink)
+    ctx = TurnContext.from_progress(CHAPTER.curriculum, [], None, user_id="u1", chapter_id="ch1", course_id="c1")
+    turn = service.run_turn(service.build_input(CHAPTER, [], ctx), ctx)
+    async for event in turn:
+        if isinstance(event, TextDeltaEvent):
+            break
+    await turn.aclose()
+    assert [(e.status, e.input_tokens) for e in sink.entries] == [("cancelled", None)]
+    assert current_scope() is None
+
+
+async def test_a_failing_provider_round_is_a_failed_row_and_the_usual_error() -> None:
+    sink = _Sink()
+    service = recorded([[Failed(code="provider_rate_limited", message="PROVIDER TEXT")]], sink)
+    with pytest.raises(ProviderRateLimited):
+        await drain_for(service, "u1")
+    assert [(e.status, e.error_code) for e in sink.entries] == [("failed", "provider_rate_limited")]

@@ -29,6 +29,7 @@ from app.domain.errors import (
 from app.domain.language import DEFAULT_COURSE_LANGUAGE, CourseLanguage
 from app.domain.subject import Subject
 from app.domain.transcription import MarkerCounts
+from app.domain.usage import UsageScope, usage_scope
 from app.domain.user import User
 from app.providers.base import AiConfigSource
 from app.services.authoring.agent import AuthoringAgent, AuthoringFailed, AuthoringOutput
@@ -125,9 +126,12 @@ class AuthoringRunner:
             extra={**extra, "trigger": trigger, "subject": course.subject, "language": course.language, **size,
                    "model": self._model()},
         )
-        task = asyncio.create_task(
-            self._execute(run_id, record.id, course.subject, text, document, extra, course.language)
-        )
+        # The usage ledger (spec 015): a task copies the context it is created in, so every stage, repair, retry and
+        # page of this run, in the background after the request has returned, is attributed to its owner.
+        with usage_scope(UsageScope(user.id, "authoring", course.id, record.id, run_id)):
+            task = asyncio.create_task(
+                self._execute(run_id, record.id, course.subject, text, document, extra, course.language)
+            )
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
         return record

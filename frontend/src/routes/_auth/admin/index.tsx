@@ -1,4 +1,4 @@
-import { createFileRoute, getRouteApi } from "@tanstack/react-router";
+import { createFileRoute, getRouteApi, Link } from "@tanstack/react-router";
 import { AuthPage } from "@/components/celestin/app-bar";
 import { AiBanner } from "@/components/celestin/admin/ai-banner";
 import { UsersPanel } from "@/components/celestin/admin/users-panel";
@@ -19,6 +19,12 @@ function AdminPage() {
       <h1 className="text-xl font-bold">{m.admin_title()}</h1>
       <p className={muted}>{m.admin_subtitle()}</p>
       <AiBanner />
+      <p className="mt-4">
+        <Link to="/admin/usage" className="font-semibold text-primary hover:underline">
+          {m.usage_link()}
+        </Link>
+        <span className={muted}> — {m.usage_link_help()}</span>
+      </p>
       <UsersPanel me={user} />
     </AuthPage>
   );
