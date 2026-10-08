@@ -72,6 +72,13 @@ WORDS = by_language(
         none_active="No section is in progress. Start one with start_section.",
         only_active="Only the current section can be finished: “{label}” (id: {id}).",
     ),
+    nl=Words(
+        unknown="Sectie “{section_id}” bestaat niet. Secties van het hoofdstuk: {ids}.",
+        locked="Sectie “{label}” is nog niet open.{hint}",
+        hint=" Je kunt “{label}” beginnen (id: {id}).",
+        none_active="Geen sectie is bezig. Begin er een met start_section.",
+        only_active="Alleen de huidige sectie kan worden afgerond: “{label}” (id: {id}).",
+    ),
 )
 
 

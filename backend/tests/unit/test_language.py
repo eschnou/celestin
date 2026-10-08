@@ -16,17 +16,17 @@ from app.domain.locale import LOCALES
 from app.domain.subject import offered, offered_languages, offers, require_offered
 
 
-def test_the_course_languages_are_french_and_english() -> None:
-    assert COURSE_LANGUAGES == ("fr", "en") and DEFAULT_COURSE_LANGUAGE == "fr"
-    assert set(COURSE_LANGUAGES) == set(LOCALES)  # the same two codes today, two types on purpose
+def test_the_course_languages_are_french_english_and_dutch() -> None:
+    assert COURSE_LANGUAGES == ("fr", "en", "nl") and DEFAULT_COURSE_LANGUAGE == "fr"
+    assert set(COURSE_LANGUAGES) <= set(LOCALES)  # a course language is also an interface language, two types on purpose
 
 
 def test_by_language_is_complete_or_nothing() -> None:
-    assert by_language(fr=1, en=2) == {"fr": 1, "en": 2}
+    assert by_language(fr=1, en=2, nl=3) == {"fr": 1, "en": 2, "nl": 3}
     with pytest.raises(ValueError, match="missing"):
-        by_language(fr=1)  # type: ignore[call-arg]
+        by_language(fr=1, en=2)  # type: ignore[call-arg]
     with pytest.raises(ValueError, match="unknown"):
-        by_language(fr=1, en=2, de=3)
+        by_language(fr=1, en=2, nl=3, de=4)
 
 
 @pytest.mark.parametrize("value", ["fr", "en"])
@@ -46,12 +46,12 @@ def test_the_error_reads_in_both_interface_languages() -> None:
     assert InvalidLanguage.code == "invalid_language" and InvalidLanguage.status == 422
 
 
-def test_the_launch_subjects_are_offered_in_french_and_english() -> None:
+def test_the_launch_subjects_are_offered_in_french_english_and_dutch() -> None:
     subjects = ("mathematics", "sciences", "languages", "general")
     for subject in subjects:
-        assert offers(subject, "fr") and offers(subject, "en")
-    assert offered() == [(subject, language) for subject in subjects for language in ("fr", "en")]
-    assert offered_languages() == ("fr", "en")
+        assert offers(subject, "fr") and offers(subject, "en") and offers(subject, "nl")
+    assert offered() == [(subject, language) for subject in subjects for language in ("fr", "en", "nl")]
+    assert offered_languages() == ("fr", "en", "nl")
     require_offered("sciences", "en")
 
 

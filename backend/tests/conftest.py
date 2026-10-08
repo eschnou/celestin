@@ -106,6 +106,7 @@ def sign_in(
 
 
 ENGLISH_LESSON_DIR = FIXTURES / "chapters" / "sequences_en"
+DUTCH_LESSON_DIR = FIXTURES / "chapters" / "rijen_nl"
 
 
 def seed_lesson(app, user_id: str, language: str = "fr") -> tuple[str, str]:
@@ -116,11 +117,10 @@ def seed_lesson(app, user_id: str, language: str = "fr") -> tuple[str, str]:
 
     repos = app.state.repos
     fixed = repos.courses.get_owned(user_id, COURSE_ID) is not None or _free(repos, COURSE_ID)
-    extra: dict = (
-        {"directory": ENGLISH_LESSON_DIR, "course_name": "Mathematics Year 5", "language": "en"}
-        if language == "en"
-        else {"course_name": COURSE_NAME}
-    )
+    extra: dict = {
+        "en": {"directory": ENGLISH_LESSON_DIR, "course_name": "Mathematics Year 5", "language": "en"},
+        "nl": {"directory": DUTCH_LESSON_DIR, "course_name": "Wiskunde 5e jaar", "language": "nl"},
+    }.get(language, {"course_name": COURSE_NAME})
     return install_chapter(
         repos,
         app.state.prompts,

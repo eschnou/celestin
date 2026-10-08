@@ -33,6 +33,7 @@ KIND_LABEL_FR: dict[str, str] = {"teach": "cours", "practise": "exercices", "syn
 KIND_LABELS = by_language(
     fr=KIND_LABEL_FR,
     en={"teach": "lesson", "practise": "practice", "synthesis": "summary"},
+    nl={"teach": "les", "practise": "oefeningen", "synthesis": "samenvatting"},
 )
 
 Text = Annotated[str, Field(min_length=1, max_length=600)]

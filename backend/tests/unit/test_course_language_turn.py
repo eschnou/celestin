@@ -17,6 +17,7 @@ from tests.fixtures.fake_clients import FixedAiConfig
 from app.services.ai_settings import load_ai_config
 from app.api.schemas.chat import ProgressDTO
 from app.config import Settings
+from app.domain.language import COURSE_LANGUAGES
 from app.services import prompt_service
 from app.services.tools import registry
 from app.services.tools.context import TurnContext
@@ -127,7 +128,7 @@ def test_a_stale_pointer_fails_when_the_declarations_are_built(monkeypatch: pyte
 # --- the voice session ---------------------------------------------------------------
 
 
-@pytest.mark.parametrize("language", ["fr", "en"])
+@pytest.mark.parametrize("language", COURSE_LANGUAGES)
 def test_the_voice_session_is_built_from_the_chapters_language(language: str) -> None:
     prompts = RecordingPrompts()
     service, _ = _service(prompts)
@@ -153,6 +154,19 @@ def test_the_instructions_of_the_two_languages_differ_only_by_their_files() -> N
     assert french != english and "Chapter path" in english and "Parcours du chapitre" in french
 
 
+def test_the_dutch_instructions_and_voice_state_text() -> None:
+    service, _ = _service(RecordingPrompts())
+    chapter = lesson_chapter(name="valid_nl.yaml", language="nl")
+    assert "Traject van het hoofdstuk" in service.instructions(chapter)
+    seed = service.seed([], _ctx(chapter), now=NOW)
+    text = seed[-1]["content"][0]["text"]
+    assert text.startswith("Het is vrijdag 11 september, 10:05 (voormiddag).") and "Stand van het traject" in text
+    started = service.execute_tool("start_section", '{"section_id":"intro"}', _ctx(chapter))
+    assert started.state_text and "Huidige sectie" in started.state_text
+    refused = service.execute_tool("complete_section", '{"section_id":"intro","summary":"x"}', _ctx(chapter))
+    assert json.loads(refused.output)["error"] == "Geen sectie is bezig. Begin er een met start_section."
+
+
 def test_the_voice_state_text_is_in_the_courses_language() -> None:
     service, _ = _service(RecordingPrompts())
     chapter = lesson_chapter(name="valid_en.yaml", language="en")
@@ -173,7 +187,9 @@ def test_build_input_reads_the_chapters_language() -> None:
     from app.services.tutor_service import TutorService
     from tests.fixtures.fake_llm import FakeLLM
 
-    for language, name in (("fr", "valid.yaml"), ("en", "valid_en.yaml")):
+    chapter_word = {"fr": "Parcours du chapitre", "en": "Chapter path", "nl": "Traject van het hoofdstuk"}
+    status_word = {"fr": "État du parcours", "en": "Path status", "nl": "Stand van het traject"}
+    for language, name in (("fr", "valid.yaml"), ("en", "valid_en.yaml"), ("nl", "valid_nl.yaml")):
         prompts = RecordingPrompts()
         service = TutorService(FakeLLM([]), prompts, Settings(openai_api_key="k", _env_file=None))  # type: ignore[arg-type]
         chapter = lesson_chapter(name=name, language=language)
@@ -181,8 +197,9 @@ def test_build_input_reads_the_chapters_language() -> None:
         assert {lang for _, lang in prompts.asked} == {language}
         developer = items[0]["content"][0]["text"]
         assert f"[subject:{language}]" in developer
-        assert ("Chapter path" in developer) == (language == "en")
-        assert ("Path status" in items[-1]["content"][0]["text"]) == (language == "en")
+        assert chapter_word[language] in developer
+        assert status_word[language] in items[-1]["content"][0]["text"]
+        assert all(word not in developer for other, word in chapter_word.items() if other != language)
 
 
 def test_prompt_service_defaults_to_french() -> None:
@@ -196,7 +213,7 @@ def test_prompt_service_defaults_to_french() -> None:
 # --- observability (§11) -------------------------------------------------------------
 
 
-@pytest.mark.parametrize("language", ["fr", "en"])
+@pytest.mark.parametrize("language", COURSE_LANGUAGES)
 async def test_a_voice_session_is_logged_with_its_language(
     language: str, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -208,7 +225,7 @@ async def test_a_voice_session_is_logged_with_its_language(
     assert record.language == language  # type: ignore[attr-defined]
 
 
-@pytest.mark.parametrize("language", ["fr", "en"])
+@pytest.mark.parametrize("language", COURSE_LANGUAGES)
 async def test_a_turn_is_logged_with_its_language(language: str, caplog: pytest.LogCaptureFixture) -> None:
     from app.providers.base import Completed, TextDelta
     from app.services.tutor_service import TutorService

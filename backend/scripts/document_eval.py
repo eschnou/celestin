@@ -2,7 +2,7 @@
 
     uv run python -m scripts.document_eval --render-only --pdf path/to/course.pdf
     uv run python -m scripts.document_eval --pdf path/to/course.pdf [--verify on|off]
-    uv run python -m scripts.document_eval --images photos/ [--subject sciences] [--language en]
+    uv run python -m scripts.document_eval --images photos/ [--subject sciences] [--language en|nl]
 
 `--render-only` stops after rendering (free). Otherwise the document is transcribed
 and authored by the real agent; outputs go to `backend/.eval/document/`.

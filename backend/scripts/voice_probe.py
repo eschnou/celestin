@@ -5,7 +5,7 @@ messages through the text pipeline with the *voice* rendering of the prompt as
 the developer message, and checks the answers read like speech: maths in words,
 no `$…$` in the prose, formulas pushed to the board.
 
-    uv run python -m scripts.voice_probe [--language en]
+    uv run python -m scripts.voice_probe [--language en|nl]
 
 `--language en` runs the English probes on the English chapter, and also fails on a way of
 writing maths that cannot be said out loud: an exponent (`x^2`), a subscript (`u_n`), a
@@ -20,28 +20,37 @@ import sys
 
 from app.api.schemas.events import BoardSetEvent, TextDeltaEvent
 from app.config import get_settings
+from app.domain.language import by_language
 from app.services.tutor_service import TutorService
 from app.services.voice_service import VoiceService
 from scripts import ai_clients
 from scripts.smoke import context_for, load_lesson
 
-PROBES = {
-    "fr": [
+PROBES = by_language(
+    fr=[
         "Redis-moi la définition d'une suite arithmétique.",
         "C'est quoi la formule du terme général d'une suite géométrique ?",
         "Dans quel intervalle doit être q pour que la suite tende vers zéro ?",
     ],
-    "en": [
+    en=[
         "Tell me the definition of an arithmetic sequence again.",
         "What is the formula for the general term of a geometric sequence?",
         "In which interval does q have to be for the sequence to tend to zero?",
     ],
-}
+    nl=[
+        "Geef me de definitie van een rekenkundige rij nog eens.",
+        "Wat is de formule voor de algemene term van een meetkundige rij?",
+        "In welk interval moet q liggen opdat de rij naar nul gaat?",
+    ],
+)
+_NO_LATEX = re.compile(r"\$[^$]+\$|\\[A-Za-z]+|[A-Za-z0-9)][\^_][A-Za-z0-9({]")
 # What a voice cannot say: LaTeX, and written-out maths. English also refuses a decimal comma.
-UNSPEAKABLE = {
-    "fr": re.compile(r"\$[^$]+\$|\\[A-Za-z]+|[A-Za-z0-9)][\^_][A-Za-z0-9({]"),
-    "en": re.compile(r"\$[^$]+\$|\\[A-Za-z]+|[A-Za-z0-9)][\^_][A-Za-z0-9({]|\d,(?!\d{3}(?!\d))\d"),
-}
+UNSPEAKABLE = by_language(
+    fr=_NO_LATEX,
+    en=re.compile(_NO_LATEX.pattern + r"|\d,(?!\d{3}(?!\d))\d"),
+    # Dutch writes a decimal comma, like French: only the LaTeX and the written-out maths are unspeakable.
+    nl=_NO_LATEX,
+)
 
 
 def unspeakable(text: str, language: str = "fr") -> bool:

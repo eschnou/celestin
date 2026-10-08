@@ -4,7 +4,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import type { CourseLanguage } from "@/lib/course-language";
+import {
+  DEFAULT_COURSE_LANGUAGE,
+  isCourseLanguage,
+  type CourseLanguage,
+} from "@/lib/course-language";
 import { useLocale } from "@/lib/i18n";
 import { AUTONYM } from "@/lib/locale";
 import { apiMessage } from "@/lib/tutor/client";
@@ -47,7 +51,10 @@ export function CreateCourseForm({
     defaultValues: {
       name: "",
       subject: "",
-      language: offered.includes(locale) ? locale : (offered[0] ?? "fr"),
+      language:
+        isCourseLanguage(locale) && offered.includes(locale)
+          ? locale
+          : (offered[0] ?? DEFAULT_COURSE_LANGUAGE),
     },
   });
   const subjectId = form.watch("subject");

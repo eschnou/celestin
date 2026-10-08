@@ -20,7 +20,7 @@ def test_every_language_has_its_markers() -> None:
     assert MARKERS["fr"].handwritten == "[manuscrit" and MARKERS["en"].handwritten == "[handwritten"
     assert MARKERS["en"].uncertain == "[uncertain" and MARKERS["en"].illegible == "[illegible]"
     assert MARKERS["en"].empty_page == "[empty page]"
-    assert len({MARKERS[language].empty_page for language in COURSE_LANGUAGES}) == 2
+    assert len({MARKERS[language].empty_page for language in COURSE_LANGUAGES}) == len(COURSE_LANGUAGES)
 
 
 def test_an_english_batch_is_validated_with_the_page_markers_only() -> None:

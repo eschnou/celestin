@@ -146,7 +146,32 @@ _PACK_WORDS_EN: dict[str, re.Pattern[str]] = {
         ),
     }.items()
 }
-PACK_WORDS_BY_LANGUAGE = by_language(fr=PACK_WORDS, en=_PACK_WORDS_EN)
+# The same, for a Dutch course (spec 017 §4.6). *Tangens* is always the function: the line is the *raaklijn*,
+# so no exclusion is needed. « exponentiële groei » is a phenomenon, not the function.
+_PACK_WORDS_NL: dict[str, re.Pattern[str]] = {
+    name: re.compile(pattern, re.IGNORECASE)
+    for name, pattern in {
+        "exp": (
+            r"\\exp(?![A-Za-z])|\bexp\s*\(|\bexponenti[eë]le\s+functies?\b"
+            r"|\bexponenti[eë]le\s+met\s+grondtal\b"
+            r"|\b(?:de|een)\s+exponenti[eë]le\b(?!\s+(?:groei|afname|model|kromme|vorm|notatie|schrijfwijze|uitdrukking))"
+            r"|(?-i:\be\}?\s*\^)(?!\s*\{?\s*[-+−](?!\s*[\w\\({]))"
+        ),
+        "ln": (
+            r"\bln\b|\bnatuurlijke\s+logaritmes?\b|\bneperiaanse\s+logaritmes?\b"
+            r"|\blogaritmes?\s+met\s+grondtal\s+\$?\s*(?:\\mathrm\{e\}|\{e\}|e)(?!\w)"
+        ),
+        "log": (
+            r"\blog(?![A-Za-z])|\b(?:tientallige|decimale|briggse)\s+logaritmes?\b|\b10-logaritmes?\b"
+            r"|\blogaritmes?\s+met\s+grondtal\s+\$?\s*10\b"
+        ),
+        "cbrt": r"\b(?:derdemachts|kubieke)\s*wortels?\b|\\sqrt\s*\[\s*3\s*\]|∛",
+        "sin": r"\bsin\b|\bsinus",
+        "cos": r"\bcos\b|\bcosinus",
+        "tan": r"\btan\b|\btg\b|\btangens\b",
+    }.items()
+}
+PACK_WORDS_BY_LANGUAGE = by_language(fr=PACK_WORDS, en=_PACK_WORDS_EN, nl=_PACK_WORDS_NL)
 
 # What gives an exercise's answer away in a label, a title or a caption, once LaTeX
 # spacing, `\left`, `\right` and braces are gone (`gives_away`). First a relation: an
@@ -162,7 +187,9 @@ _RELATION = re.compile(
 _GROUPS = re.compile(r"(?=\(([^()]*)\))|(?=[\[\]]([^\[\]]*)[\[\]])")
 # English writes half-open intervals with one of each: `(2, 3]`, `[2, 5)`.
 _GROUPS_EN = re.compile(_GROUPS.pattern + r"|(?=[\[(]([^\[\]()]*)[\])])")
-GROUPS = by_language(fr=_GROUPS, en=_GROUPS_EN)
+# Dutch (Flemish): the board's outward brackets, and the mixed ones a teacher writes by hand (`(2, 5]`, `[2, 5)`).
+_GROUPS_NL = _GROUPS_EN
+GROUPS = by_language(fr=_GROUPS, en=_GROUPS_EN, nl=_GROUPS_NL)
 # A value: a digit, π, a root or infinity, however it is written (`\frac{9}{4}`
 # keeps its digits). A name (`x_S`, `a`) is not one.
 _VALUE = re.compile(r"\d|π|∞|\\(?:pi|sqrt|infty)(?![A-Za-z])")
@@ -173,7 +200,9 @@ _COMMA = re.compile(r",(?=\s|[-+])")
 # is not told apart on purpose: a refused « (1,500 m) » costs the model one rewrite, a missed
 # `(3,100)` would put the answer on an open exercise.
 _COMMA_EN = re.compile(",")
-COMMA = by_language(fr=_COMMA, en=_COMMA_EN)
+# Dutch: a decimal comma, as French (`(0,5)` is one value, `(1, 4)` a pair).
+_COMMA_NL = _COMMA
+COMMA = by_language(fr=_COMMA, en=_COMMA_EN, nl=_COMMA_NL)
 _LATEX_SPACING = re.compile(r"\\[,;:! ]|\\(?:left|right|quad)\b|[{}~]")
 
 

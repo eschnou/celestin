@@ -240,7 +240,7 @@ the voice provider (OpenAI by default) under its API data-retention terms.
 cd backend
 uv run python -m scripts.voice_smoke   # mints one real secret: proves the session config is accepted
 uv run python -m scripts.voice_probe   # three prompts through the text model with the voice block, flags $…$ in speech
-# both take --language en: the English chapter, and the probe also flags x^2, u_n, \frac and a decimal comma
+# both take --language en|nl: the English or Dutch chapter, and the probe also flags x^2, u_n, \frac (and, in English, a decimal comma)
 ```
 
 Both call the real API. The probe is a proxy: it runs the text model, not the Realtime one.

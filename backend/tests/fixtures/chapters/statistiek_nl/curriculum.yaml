@@ -1,0 +1,51 @@
+# Traject voor het hoofdstuk beschrijvende statistiek: een Nederlandstalig fixture (spec 017)
+# voor de grafiekproeven, met de hand geschreven naast zijn pack. Verwijzingen zoals
+# "§4.5" of "6.1.1" wijzen naar de naburige pack.
+
+id: statistiek
+title: Beschrijvende statistiek met één veranderlijke
+
+sections:
+  - id: woordenschat
+    kind: teach
+    title: Populatie, individu, veranderlijke
+    goal: De definities van de cursus kennen en het soort van een veranderlijke herkennen.
+    pack: ["§4.1", "§4.2", "§4.3"]
+    beats:
+      - De drie definities van §4.1 samen aanhalen, dan die van de statistische veranderlijke.
+      - De drie soorten veranderlijke, met telkens een voorbeeld uit de cursus.
+      - De relatieve frequentie, als decimaal getal en als percentage.
+      - Controlevraag over het soort van een veranderlijke.
+    done_when: Heeft de controlevraag beantwoord.
+
+  - id: grafieken
+    kind: teach
+    title: Een reeks voorstellen
+    goal: De grafiek kiezen en aflezen die bij elk soort veranderlijke past.
+    pack: ["§4.4", "§4.5", "§4.6", "§4.7"]
+    beats:
+      - Het cirkeldiagram van de cursus (lievelingssport) en de hoek van een sector.
+      - Het staafdiagram van de gelezen boeken en zijn frequentiepolygoon.
+      - Het histogram van de reistijden, klassen van verschillende breedte en de referentiebreedte.
+      - De cumulatieve frequentiepolygoon van de reistijden.
+      - Controlevraag over de grafiek die bij een continue veranderlijke past.
+    done_when: Heeft de controlevraag beantwoord.
+
+  - id: maten
+    kind: teach
+    title: Modus, gemiddelde, mediaan, kwartielen
+    goal: De centrummaten berekenen en de boxplot tekenen.
+    pack: ["§4.8", "§4.9"]
+    beats:
+      - Modus, gemiddelde en mediaan op het voorbeeld van de boeken.
+      - De definitie van de kwartielen, Q1 en Q3 van de boeken, dan de boxplot.
+      - Controlevraag over de mediaan van een reeks met een even aantal waarden.
+    done_when: Heeft de controlevraag beantwoord.
+
+  - id: oefenen
+    kind: practise
+    title: Grafieken en maten
+    goal: Een reeks tekenen en haar maten berekenen.
+    exercises: ["6.1.1", "6.1.2", "6.2.1", "6.2.2", "6.3.1"]
+    count: 3
+    done_when: Drie oefeningen opgelost, waaronder een histogram met klassen van verschillende breedte.

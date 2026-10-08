@@ -1,0 +1,49 @@
+# Traject voor het hoofdstuk intervallen en ongelijkheden: een Nederlandstalig fixture (spec 017)
+# voor de figuurproeven, met de hand geschreven, elk antwoord nagerekend. Verwijzingen zoals
+# "§4.2" of "6.1.3" wijzen naar de naburige pack.
+
+id: ongelijkheden
+title: Intervallen en eerstegraadsongelijkheden
+
+sections:
+  - id: intervallen
+    kind: teach
+    title: Intervallen
+    goal: Een verzameling reële getallen als interval schrijven en op een getallenas voorstellen.
+    pack: ["§4.1"]
+    beats:
+      - De definitie van het interval [a ; b], dan de tabel met intervallen uit de cursus.
+      - Het voorbeeld [-1 ; 3[ en zijn getallenas, met de haakjes.
+      - Controlevraag over het interval dat bij een ongelijkheid past.
+    done_when: Heeft de controlevraag beantwoord.
+
+  - id: verzamelingen
+    kind: teach
+    title: Unie en doorsnede
+    goal: De unie en de doorsnede van twee verzamelingen of van twee intervallen vinden.
+    pack: ["§4.2"]
+    beats:
+      - De definities van unie en doorsnede.
+      - De delers van 8 en van 12 in het verzamelingendiagram van de cursus.
+      - De doorsnede en de unie van [-3 ; 2] en ]0 ; 5] op een getallenas.
+      - Controlevraag over de doorsnede van twee intervallen.
+    done_when: Heeft de controlevraag beantwoord.
+
+  - id: ongelijkheden
+    kind: teach
+    title: Eerstegraadsongelijkheden
+    goal: Een eerstegraadsongelijkheid oplossen en de oplossingenverzameling schrijven.
+    pack: ["§4.3"]
+    beats:
+      - De regel over het omkeren van de richting, op de twee voorbeelden uit de cursus.
+      - De oplossingenverzameling als interval, en op een getallenas.
+      - Controlevraag over de richting van de ongelijkheid na delen door een negatief getal.
+    done_when: Heeft de controlevraag beantwoord.
+
+  - id: oefenen
+    kind: practise
+    title: Intervallen, verzamelingen en ongelijkheden
+    goal: Intervallen schrijven en voorstellen, unies en doorsneden vinden, ongelijkheden oplossen.
+    exercises: ["6.1.1", "6.1.2", "6.1.3", "6.2.1", "6.2.2", "6.3.1", "6.3.2", "6.3.3"]
+    count: 3
+    done_when: Drie oefeningen opgelost, waaronder een ongelijkheid die de richting omkeert.

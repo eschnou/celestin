@@ -435,3 +435,12 @@ def test_apart_unlabelled_intervals_pass_under_hatching() -> None:
 def test_touching_unlabelled_intervals_stay_separate_sets_without_hatching() -> None:
     # With brackets, two unlabelled intervals are two sets: they may meet.
     assert line(interval(None, 2, "right"), interval(2, 5, "right")) is None
+
+
+def test_a_number_is_read_the_way_each_course_language_writes_it() -> None:
+    """Spec 017 §4.3: the reader is a per-language table, not a branch."""
+    from app.domain.language import COURSE_LANGUAGES
+    from app.services.tools.figures import NUMBER, _number
+
+    assert set(NUMBER) == set(COURSE_LANGUAGES)
+    assert _number("1,5", "fr") == 1.5 and _number("1,500", "en") == 1500.0

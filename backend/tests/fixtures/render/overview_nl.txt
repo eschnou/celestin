@@ -1,0 +1,7 @@
+## Traject van het hoofdstuk “Minihoofdstuk”
+
+Secties in volgorde, vergrendeld: een sectie opent pas wanneer de vorige afgerond is. `start_section(id)` geeft je het plan van een sectie, `complete_section(id, samenvatting)` rondt ze af.
+
+1. `intro` (les) — Inleiding. Begrijpen waarover we praten.
+2. `exos` (oefeningen) — Oefeningen. Toepassen.
+3. `bilan` (samenvatting) — Samenvatting. Alles door elkaar.

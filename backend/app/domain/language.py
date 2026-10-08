@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Literal, TypeGuard, TypeVar, get_args
 
-CourseLanguage = Literal["fr", "en"]
+CourseLanguage = Literal["fr", "en", "nl"]
 COURSE_LANGUAGES: tuple[CourseLanguage, ...] = get_args(CourseLanguage)
 DEFAULT_COURSE_LANGUAGE: CourseLanguage = "fr"
 

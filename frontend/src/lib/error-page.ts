@@ -17,6 +17,12 @@ const TEXT: Record<Locale, { title: string; body: string; retry: string; home: s
     retry: "Try again",
     home: "Go home",
   },
+  nl: {
+    title: "Deze pagina is niet geladen",
+    body: "Er is iets misgegaan aan onze kant. Je kunt de pagina vernieuwen of terug naar de startpagina gaan.",
+    retry: "Opnieuw proberen",
+    home: "Terug naar de startpagina",
+  },
 };
 
 /** The 500 answer for a render that failed: the page in the language of the request's header

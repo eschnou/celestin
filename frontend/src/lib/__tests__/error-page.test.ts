@@ -16,4 +16,12 @@ describe("renderErrorPage", () => {
     expect(page).toContain("Try again");
     expect(page).not.toContain("Réessayer");
   });
+
+  it("speaks Dutch when asked (spec 017)", () => {
+    const page = renderErrorPage("nl");
+    expect(page).toContain('<html lang="nl">');
+    expect(page).toContain("<title>Deze pagina is niet geladen</title>");
+    expect(page).toContain("Opnieuw proberen");
+    expect(page).not.toContain("Réessayer");
+  });
 });

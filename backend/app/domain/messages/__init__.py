@@ -18,10 +18,11 @@ from typing import Any
 from app.domain.locale import DEFAULT_LOCALE, Locale
 from app.domain.messages.en import MESSAGES as EN
 from app.domain.messages.fr import MESSAGES as FR
+from app.domain.messages.nl import MESSAGES as NL
 
 log = logging.getLogger(__name__)
 
-CATALOGS: dict[Locale, dict[str, str]] = {"fr": FR, "en": EN}
+CATALOGS: dict[Locale, dict[str, str]] = {"fr": FR, "en": EN, "nl": NL}
 
 _fallbacks_logged: set[str] = set()
 

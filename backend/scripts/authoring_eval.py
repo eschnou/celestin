@@ -2,7 +2,8 @@
 
     uv run python -m scripts.authoring_eval                       # every fixture
     uv run python -m scripts.authoring_eval --language en         # the English fixtures
-    uv run python -m scripts.authoring_eval --file path.txt --subject sciences [--language en]
+    uv run python -m scripts.authoring_eval --language nl         # the Dutch fixtures
+    uv run python -m scripts.authoring_eval --file path.txt --subject sciences [--language en|nl]
 
 Prints, per material: outcome, attempts, per-stage time, tokens and cost; writes the
 pack and the curriculum to `backend/.eval/<name>/` for reading. Quality is judged by
@@ -19,7 +20,7 @@ import sys
 import uuid
 from pathlib import Path
 
-from app.domain.language import COURSE_LANGUAGES, DEFAULT_COURSE_LANGUAGE
+from app.domain.language import COURSE_LANGUAGES, DEFAULT_COURSE_LANGUAGE, by_language
 from app.config import get_settings
 from app.domain.chapter import RunUsage
 from app.services.authoring.agent import AuthoringAgent, AuthoringFailed
@@ -29,20 +30,26 @@ from scripts import ai_clients
 BACKEND = Path(__file__).resolve().parent.parent
 MATERIAL = BACKEND / "tests" / "fixtures" / "material"
 OUT = BACKEND / ".eval"
-FIXTURES = {
-    "fr": [
+FIXTURES = by_language(
+    fr=[
         ("maths_second_degre.txt", "mathematics"),
         ("physics_mru.txt", "sciences"),
         ("injection.txt", "mathematics"),
         ("maths_statistique.txt", "mathematics"),
     ],
-    "en": [
+    en=[
         ("maths_quadratics_en.txt", "mathematics"),
         ("physics_uniform_motion_en.txt", "sciences"),
         ("injection_en.txt", "mathematics"),
         ("maths_statistics_en.txt", "mathematics"),
     ],
-}
+    nl=[
+        ("maths_kwadratische_nl.txt", "mathematics"),
+        ("fysica_eenparige_beweging_nl.txt", "sciences"),
+        ("injection_nl.txt", "mathematics"),
+        ("maths_statistiek_nl.txt", "mathematics"),
+    ],
+)
 
 
 async def evaluate(agent: AuthoringAgent, path: Path, subject: str, language: str = "fr") -> dict:

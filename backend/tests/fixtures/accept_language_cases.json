@@ -23,5 +23,17 @@
   { "header": "en,fr", "expected": "en" },
   { "header": "english", "expected": "fr" },
   { "header": "en_GB", "expected": "fr" },
-  { "header": " , ,en", "expected": "en" }
+  { "header": " , ,en", "expected": "en" },
+  { "header": "nl", "expected": "nl" },
+  { "header": "nl-BE", "expected": "nl" },
+  { "header": "nl-NL", "expected": "nl" },
+  { "header": "nl-BE,nl;q=0.9,en;q=0.8", "expected": "nl" },
+  { "header": "nl-BE;q=0.8,fr;q=0.9", "expected": "fr" },
+  { "header": "fr,nl;q=0.8", "expected": "fr" },
+  { "header": "nl;q=0", "expected": "fr" },
+  { "header": "de,nl;q=0.5", "expected": "nl" },
+  { "header": "en-GB,nl;q=0.4", "expected": "en" },
+  { "header": "nl;q=0.5,en;q=0.9", "expected": "en" },
+  { "header": "NL-be", "expected": "nl" },
+  { "header": "nl_BE", "expected": "fr" }
 ]

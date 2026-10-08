@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DUTCH,
   ENGLISH,
   FRENCH,
   formatInterval,
@@ -11,17 +12,18 @@ import {
   type Notation,
 } from "../format";
 import type { Bound } from "../format";
+import type { CourseLanguage } from "@/lib/course-language";
 import CASES from "./notation_cases.json";
 
 type Row =
   | {
-      language: "fr" | "en";
+      language: CourseLanguage;
       kind: "interval";
       args: [Bound, Bound, boolean, boolean];
       text: string;
     }
-  | { language: "fr" | "en"; kind: "pair"; args: [number, number]; text: string }
-  | { language: "fr" | "en"; kind: "number"; args: [number]; text: string };
+  | { language: CourseLanguage; kind: "pair"; args: [number, number]; text: string }
+  | { language: CourseLanguage; kind: "number"; args: [number]; text: string };
 
 function write(notation: Notation, row: Row): string {
   switch (row.kind) {
@@ -38,10 +40,33 @@ describe("the notation of each course language", () => {
   it("is chosen by the course language", () => {
     expect(notationFor("fr")).toBe(FRENCH);
     expect(notationFor("en")).toBe(ENGLISH);
+    expect(notationFor("nl")).toBe(DUTCH);
   });
 
   it.each(CASES as Row[])("writes $kind $args as $text ($language)", (row) => {
     expect(write(notationFor(row.language), row)).toBe(row.text);
+  });
+
+  it("writes Flemish notation as the Belgian-French one, with Dutch words (spec 017)", () => {
+    for (const key of [
+      "number",
+      "value",
+      "pair",
+      "bound",
+      "interval",
+      "classLabel",
+      "separator",
+    ] as const) {
+      expect(DUTCH[key]).toBe(FRENCH[key]);
+    }
+    expect(DUTCH.number(0.45)).toBe("0,45");
+    expect(DUTCH.value(12.5, "pourcentage").replace(/\s/g, " ")).toBe("12,5 %");
+    expect(DUTCH.measureName).toEqual({
+      effectif: "Frequentie",
+      frequence: "Relatieve frequentie",
+      pourcentage: "Percentage",
+    });
+    expect(DUTCH.boxStats).toEqual(["Minimum", "Q1", "Mediaan", "Q3", "Maximum"]);
   });
 
   it("keeps the French functions the French row", () => {

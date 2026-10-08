@@ -147,7 +147,7 @@ _MODE_TOOLS: dict[Mode, tuple[str, ...]] = {
 # the one built from the code, French; both rows are empty until the English probes show
 # French leaking from the descriptions into an English course's speech, and then only the
 # texts that leak are written here, with one more snapshot (`board_declarations_en.json`).
-TOOL_TEXT: dict[CourseLanguage, dict[str, dict[str, str]]] = by_language(fr={}, en={})
+TOOL_TEXT: dict[CourseLanguage, dict[str, dict[str, str]]] = by_language(fr={}, en={}, nl={})
 
 
 def _pointer(declaration: dict[str, Any], pointer: str) -> tuple[Any, str]:
@@ -243,6 +243,13 @@ _WORDS = by_language(
         invalid="Invalid arguments. {details}",
         unavailable="The tool '{name}' is not available here. Available tools: {offered}.",
         root="(root)",
+    ),
+    nl=_Words(
+        bad_json="Ongeldige JSON-argumenten: {reason}.",
+        not_object="De argumenten moeten een JSON-object zijn.",
+        invalid="Ongeldige argumenten. {details}",
+        unavailable="De tool '{name}' is hier niet beschikbaar. Beschikbare tools: {offered}.",
+        root="(basis)",
     ),
 )
 

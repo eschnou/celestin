@@ -1,0 +1,41 @@
+# Traject voor het hoofdstuk eenparige rechtlijnige beweging: een Nederlandstalig fixture voor
+# fysica (spec 017) voor de grafiekproeven, met de hand geschreven uit
+# tests/fixtures/material/fysica_eenparige_beweging_nl.txt. Verwijzingen zoals "§4.3" of
+# "6.2.2" wijzen naar de naburige pack. Oefening 6.1.2 staat in § 7 (verkeerde
+# verbetersleutel): ze wordt niet aangeboden.
+
+id: eenparige-beweging
+title: Eenparige rechtlijnige beweging
+
+sections:
+  - id: beweging
+    kind: teach
+    title: Referentiestelsel, baan en gemiddelde snelheid
+    goal: Een beweging beschrijven ten opzichte van een referentiestelsel en een gemiddelde snelheid berekenen.
+    pack: ["§4.1", "§4.2"]
+    beats:
+      - De persoon in de bus, in rust ten opzichte van de bus en in beweging ten opzichte van het trottoir.
+      - De definitie van de baan, dan van de rechtlijnige beweging.
+      - De gemiddelde snelheid, haar formule en de omzetting 72 km/h = 20 m/s.
+      - Controlevraag over het omzetten van km/h in m/s.
+    done_when: Heeft de controlevraag beantwoord.
+
+  - id: eenparig
+    kind: teach
+    title: Eenparige beweging, haar vergelijking en haar grafieken
+    goal: Een eenparige beweging herkennen, haar vergelijking opstellen en de snelheid aflezen op de x(t)-grafiek.
+    pack: ["§4.3"]
+    beats:
+      - De definitie van de eenparige rechtlijnige beweging.
+      - De proef met het karretje, zijn tabel met metingen en zijn x(t)-grafiek.
+      - De bewegingsvergelijking, dan de x(t)- en v(t)-grafiek van een eenparige beweging.
+      - Controlevraag over wat de helling van de x(t)-grafiek voorstelt.
+    done_when: Heeft de controlevraag beantwoord.
+
+  - id: oefenen
+    kind: practise
+    title: Oefeningen over de eenparige beweging
+    goal: Een snelheid en een plaats berekenen, en een snelheid aflezen op een grafiek.
+    exercises: ["6.1.1", "6.2.1", "6.2.2"]
+    count: 2
+    done_when: Twee oefeningen opgelost, waaronder een snelheid afgelezen op een grafiek.

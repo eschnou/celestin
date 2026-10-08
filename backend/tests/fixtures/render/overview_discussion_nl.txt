@@ -1,0 +1,7 @@
+## Traject van het hoofdstuk “Minihoofdstuk”
+
+Secties in volgorde. Dit is het traject van het hoofdstuk: het wordt gevolgd in de trajectmodus, niet hier. Je kunt je leerling zeggen waar een begrip behandeld wordt en voorstellen er naartoe te gaan; je kunt geen sectie openen of afronden.
+
+1. `intro` (les) — Inleiding. Begrijpen waarover we praten.
+2. `exos` (oefeningen) — Oefeningen. Toepassen.
+3. `bilan` (samenvatting) — Samenvatting. Alles door elkaar.

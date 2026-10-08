@@ -11,4 +11,5 @@ export type MarkerExamples = { uncertain: string; illegible: string; page: strin
 export const MARKER_EXAMPLES: Record<CourseLanguage, MarkerExamples> = {
   fr: { uncertain: "[incertain : …]", illegible: "[illisible]", page: "--- page N ---" },
   en: { uncertain: "[uncertain: …]", illegible: "[illegible]", page: "--- page N ---" },
+  nl: { uncertain: "[onzeker: …]", illegible: "[onleesbaar]", page: "--- page N ---" },
 };

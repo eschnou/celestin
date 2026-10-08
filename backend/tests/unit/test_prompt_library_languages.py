@@ -94,7 +94,7 @@ def test_an_offered_language_requires_its_whole_set(root: Path) -> None:
         "transcription/work.en.md",
     ]
     assert set(expected) <= set(names)
-    assert len(names) == 2 * len(expected)  # the French set is the same size
+    assert len(names) == 3 * len(expected)  # the French and Dutch sets are the same size
     assert len(names) == len(set(names))
     PromptLibrary(root).check()
 
@@ -128,8 +128,8 @@ def test_health_lists_the_broken_english_files_with_their_language(root: Path) -
 
 def test_the_other_languages_templates(root: Path) -> None:
     library = PromptLibrary(root)
-    assert [t.language for t in library.other_templates("sciences", "fr")] == ["en"]
-    assert [t.language for t in library.other_templates("sciences", "en")] == ["fr"]
+    assert [t.language for t in library.other_templates("sciences", "fr")] == ["en", "nl"]
+    assert [t.language for t in library.other_templates("sciences", "en")] == ["fr", "nl"]
 
 
 def test_no_other_template_while_a_subject_has_one_language(root: Path, french_only: None) -> None:

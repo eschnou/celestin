@@ -207,3 +207,25 @@ def test_the_producers_without_a_code_are_the_model_only_ones() -> None:
     (transcription pages, the agent's own failures). A new uncoded producer fails here so
     that it is a decision, not an accident."""
     assert _uncoded_producers() == {"domain/transcription.py", "services/authoring/agent.py"}
+
+
+def test_every_interface_language_has_its_where_words() -> None:
+    """Spec 017 §4.3: a language with no entry would read the English words by default."""
+    from app.domain.locale import LOCALES
+    from app.domain.messages.issues import WHERE_WORDS
+
+    assert set(WHERE_WORDS) == set(LOCALES)
+
+
+def test_a_dutch_reader_gets_dutch_words_and_reasons() -> None:
+    """Spec 017 R1.7: `where` and the reason, in the interface language; an uncoded issue keeps its French message."""
+    assert render_where("titre", "nl") == "titel" and render_where("exercice 6.1.2", "nl") == "oefening 6.1.2"
+    assert render_where("section n°3", "nl") == "sectie nr. 3" and render_where("§ 4.2", "nl") == "§ 4.2"
+    coded = ContentIssue("§ 4.2", "titre manquant", "pack.title_missing", {})
+    assert render_issue(coded, "nl")["message"] == "het document moet beginnen met een titel “# Titel van het hoofdstuk”"
+    plain = ContentIssue("§ 4.2", "titre manquant")
+    assert render_issue(plain, "nl") == {"where": "§ 4.2", "message": "titre manquant"}
+    wrong = ContentIssue("document", "x", "pack.wrong_language", {"found_language": "fr", "expected_language": "en"})
+    assert render_issue(wrong, "nl")["message"] == (
+        "het document volgt het model in het Frans, maar deze cursus is in het Engels"
+    )

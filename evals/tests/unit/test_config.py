@@ -42,6 +42,17 @@ def test_a_wrong_file_says_what_is_wrong(bad, message):
         parse(bad)
 
 
+@pytest.mark.parametrize("language", ["fr", "en", "nl"])
+def test_every_course_language_is_accepted_as_a_default(language):
+    config = parse({"defaults": {"language": language}, **raw()})
+    assert config.defaults.language == language
+
+
+def test_an_unknown_language_is_refused():
+    with pytest.raises(ConfigError, match="not one of"):
+        parse({"defaults": {"language": "de"}, **raw()})
+
+
 def test_select_names_the_unknown_model():
     config = parse(raw())
     assert config.select(None) == config.models and config.select(["m"])[0].name == "m"

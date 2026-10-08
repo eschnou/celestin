@@ -40,6 +40,7 @@
   "auth_password_too_long": "Please use a shorter password.",
   "auth_password_rule": "At least {min} characters. Not your first name or your email address.",
   "nav_my_courses": "My courses",
+  "common_close": "Close",
   "common_cancel": "Cancel",
   "error_generic": "Célestin can't be reached right now. Try again in a moment.",
   "error_invalid_request": "Célestin couldn't handle this session. Reload the page to start a new one.",

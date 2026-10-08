@@ -80,10 +80,10 @@ withholds answers, and it hurts when it is an unrestricted chat. The full reason
 **Built for school**
 - **Four subject categories**: mathematics, sciences (physics, chemistry, biology), languages (French and foreign
   languages) and general courses (history, geography and anything else learnt from the course). Each is a subject
-  prompt and a pack template, in French and in English; the student's material carries the content.
-- **French and English courses.** French courses follow Belgian (FWB) conventions: decimal commas, `]a; b[`,
-  sequences from `u₁`. English courses use the international ones. The interface itself is French or English,
-  independently.
+  prompt and a pack template, in French, English and Dutch; the student's material carries the content.
+- **French, English and Dutch courses.** French courses follow Belgian (FWB) conventions: decimal commas, `]a; b[`,
+  sequences from `u₁`. English courses use the international ones. Dutch (Flemish) courses keep the Belgian
+  notation. The interface itself is French, English or Dutch, independently.
 - Private by design: a student's courses, material and progress are visible only to them. No third-party
   analytics.
 
@@ -270,7 +270,7 @@ under [`specs/`](specs/index.md).
 
 ## Roadmap
 
-The four subject categories, the parcours, the discussion mode, voice, the board's drawings, French and English courses,
+The four subject categories, the parcours, the discussion mode, voice, the board's drawings, French, English and Dutch courses,
 accounts and administration are built. Next:
 
 - More subjects: chemistry, biology, history, mother tongue, foreign languages.

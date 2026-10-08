@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import Literal, TypeGuard, get_args
 
-Locale = Literal["fr", "en"]
+Locale = Literal["fr", "en", "nl"]
 LOCALES: tuple[Locale, ...] = get_args(Locale)
 DEFAULT_LOCALE: Locale = "fr"
 

@@ -10,11 +10,12 @@ from starlette.concurrency import run_in_threadpool
 from app.api.deps import AiReady, ReposDep, WorkBudgetDep, WorkReaderDep, owned_course
 from app.api.schemas.work import WorkReadResponse
 from app.domain.errors import DocumentInvalid
+from app.domain.transcription import MARKERS
 
 router = APIRouter()
 
 # The one thing the transcription model is asked to say when the photo holds no writing.
-_NOTHING = ("[rien de lisible]", "[nothing legible]")
+_NOTHING = frozenset(markers.nothing for markers in MARKERS.values())
 
 
 @router.post("/courses/{course_id}/work", response_model=WorkReadResponse, dependencies=[AiReady])

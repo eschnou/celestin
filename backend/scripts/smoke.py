@@ -1,6 +1,6 @@
 """One real conversation. Opt-in, never part of the default test run.
 
-    uv run python -m scripts.smoke [--language en]
+    uv run python -m scripts.smoke [--language en|nl]
 
 Runs two turns through the same service the API uses, so the second proves prompt
 caching engaged on the prefix production actually sends (design 7).
@@ -23,6 +23,7 @@ from app.api.schemas.events import (
     TurnEnd,
 )
 from app.config import get_settings
+from app.domain.language import by_language
 from app.domain.mode import MODES
 from app.providers.hub import build_clients
 from app.services.tutor_service import TutorService
@@ -30,7 +31,7 @@ from scripts import ai_clients
 
 
 def language_of(argv: list[str]) -> str:
-    """`--language fr|en` (default `fr`): the course language the script runs in."""
+    """`--language fr|en|nl` (default `fr`): the course language the script runs in."""
     from app.domain.language import COURSE_LANGUAGES
 
     language = argv[argv.index("--language") + 1] if "--language" in argv else "fr"
@@ -40,8 +41,8 @@ def language_of(argv: list[str]) -> str:
 
 
 def load_lesson(settings, argv: list[str]):
-    """`--chapter-dir <path>` (default `tests/fixtures/chapters/suites`, or the English fixture for
-    `--language en`), `--subject <id>` (default `mathematics`) and `--language fr|en`: the
+    """`--chapter-dir <path>` (default `tests/fixtures/chapters/suites`, or the English or Dutch fixture for
+    `--language en|nl`), `--subject <id>` (default `mathematics`) and `--language fr|en|nl`: the
     chapter as a lesson, validated like the seed."""
     from pathlib import Path
 
@@ -67,10 +68,11 @@ def context_for(
     )
 
 
-SECOND_TURN = {
-    "fr": "Explique-moi la somme d'une suite géométrique.",
-    "en": "Explain the sum of a geometric sequence to me.",
-}
+SECOND_TURN = by_language(
+    fr="Explique-moi la somme d'une suite géométrique.",
+    en="Explain the sum of a geometric sequence to me.",
+    nl="Leg me de som van een meetkundige rij uit.",
+)
 
 
 async def one_turn(

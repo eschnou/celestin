@@ -1,0 +1,47 @@
+# Traject voor het hoofdstuk over rekenkundige en meetkundige rijen: een Nederlandstalig wiskundefixture
+# (spec 017), met de hand geschreven naast zijn pack. Verwijzingen zoals "§4.2" of "6.1.1"
+# wijzen naar het naburige pack.
+
+id: rijen
+title: Rekenkundige en meetkundige rijen
+
+sections:
+  - id: rijen
+    kind: teach
+    title: Rijen en rekenkundige rijen
+    goal: Een rij lezen aan de hand van haar termen en werken met een rekenkundige rij, haar verschil en haar algemene term.
+    pack: ["§4.1", "§4.2"]
+    beats:
+      - Wat een rij is, met u_n = 3n - 2 en haar afzonderlijke punten op een grafiek.
+      - De definitie van een rekenkundige rij en de algemene term u_n = u_1 + (n - 1) r.
+      - De som van de eerste n termen, op het voorbeeld van de cursus u_1 = 5 en r = 3.
+      - Controlevraag over het aantal stappen tussen u_1 en u_n.
+    done_when: De controlevraag beantwoord heeft.
+
+  - id: meetkundig
+    kind: teach
+    title: Meetkundige rijen en welke soort het is
+    goal: Werken met een meetkundige rij en beslissen of een lijst termen rekenkundig, meetkundig of geen van beide is.
+    pack: ["§4.3", "§4.4"]
+    beats:
+      - De definitie van een meetkundige rij en de algemene term u_n = u_1 q^(n-1).
+      - De som van de eerste n termen en haar voorwaarde q is niet 1, op u_1 = 2 en q = 3.
+      - De methode in drie stappen om de soort te bepalen, op 3, 6, 12, 24 en 7, 4, 1, -2.
+      - Controlevraag over een lijst die noch rekenkundig, noch meetkundig is.
+    done_when: De controlevraag beantwoord heeft.
+
+  - id: oefeningen
+    kind: practise
+    title: Oefeningen op rijen
+    goal: Termen, sommen en verschillen of redenen vinden, en de soort van een rij herkennen.
+    exercises: ["6.1.1", "6.1.2", "6.2.1", "6.2.2", "6.3.1", "6.3.2", "6.3.3"]
+    count: 3
+    done_when: Drie oefeningen opgelost, waaronder één over het bepalen van de soort.
+
+  - id: samenvatting
+    kind: synthesis
+    title: Samenvattende problemen
+    goal: Een situatie omzetten in een rekenkundige of een meetkundige rij en een vraag erover beantwoorden.
+    exercises: ["6.4.1", "6.4.2"]
+    count: 1
+    done_when: Eén probleem opgelost.

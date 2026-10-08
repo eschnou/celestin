@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from app.domain.language import COURSE_LANGUAGES
 from app.services.tools.figures import COORDS, INTERVAL, _bare, _number
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
@@ -32,10 +33,17 @@ def test_the_two_copies_are_identical() -> None:
     assert (FIXTURES / "notation_cases.json").read_bytes() == FRONTEND_COPY.read_bytes()
 
 
-def test_the_table_covers_each_kind_in_both_languages() -> None:
+def test_the_table_covers_each_kind_in_every_language() -> None:
     assert {(c["language"], c["kind"]) for c in CASES} == {
-        (language, kind) for language in ("fr", "en") for kind in ("interval", "pair", "number")
+        (language, kind) for language in COURSE_LANGUAGES for kind in ("interval", "pair", "number")
     }
+
+
+def test_the_dutch_rows_are_the_french_ones() -> None:
+    """Spec 017 §1 decision 1: the Flemish board writes the Belgian-French notation. If a convention turns out
+    different, these rows are the ones to change, with the Dutch formatter and the Dutch prompts."""
+    rows = lambda language: [{k: v for k, v in c.items() if k != "language"} for c in CASES if c["language"] == language]  # noqa: E731
+    assert rows("nl") == rows("fr")
 
 
 @pytest.mark.parametrize("case", [c for c in CASES if c["kind"] == "interval"], ids=lambda c: f"{c['language']} {c['text']}")

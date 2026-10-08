@@ -1,0 +1,25 @@
+id: mini
+title: Minihoofdstuk
+sections:
+  - id: intro
+    kind: teach
+    title: Inleiding
+    goal: Begrijpen waarover we praten.
+    beats:
+      - De definitie aanhalen.
+      - Controlevraag.
+    done_when: De controlevraag beantwoord heeft.
+  - id: exos
+    kind: practise
+    title: Oefeningen
+    goal: Toepassen.
+    exercises: ["6.1.1", "6.1.2"]
+    count: 2
+    done_when: Twee oefeningen opgelost.
+  - id: bilan
+    kind: synthesis
+    title: Samenvatting
+    goal: Alles door elkaar.
+    exercises: ["6.1.x"]
+    count: 1
+    done_when: Eén oefening opgelost.

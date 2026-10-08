@@ -85,3 +85,46 @@ describe("CreateCourseForm: the language", () => {
     expect([...select.options].map((o) => o.value)).toEqual(["fr"]);
   });
 });
+
+describe("CreateCourseForm: Dutch (spec 017)", () => {
+  const THREE: Subject[] = [
+    { id: "mathematics", label: "Wiskunde", languages: ["fr", "en", "nl"] },
+    { id: "sciences", label: "Wetenschappen", languages: ["fr", "en", "nl"] },
+  ];
+
+  it("lists the three languages by their own names", () => {
+    mount(THREE);
+    const select = screen.getByLabelText("Langue du cours") as HTMLSelectElement;
+    expect([...select.options].map((o) => [o.value, o.textContent, o.lang])).toEqual([
+      ["fr", "Français", "fr"],
+      ["en", "English", "en"],
+      ["nl", "Nederlands", "nl"],
+    ]);
+  });
+
+  it("starts on Dutch under a Dutch interface, in Dutch words, and sends the choice", async () => {
+    await withLocale("nl", async () => {
+      const onCreate = mount(THREE);
+      const select = screen.getByLabelText("Taal van de cursus") as HTMLSelectElement;
+      expect(select.value).toBe("nl");
+      expect(
+        screen.getByText(
+          "De taal waarin je cursus geschreven is: Célestin geeft er les in. De taal kan achteraf niet gewijzigd worden.",
+        ),
+      ).toBeTruthy();
+      fireEvent.change(screen.getByLabelText("Naam van de cursus"), {
+        target: { value: "Cursus" },
+      });
+      fireEvent.change(screen.getByLabelText("Vak"), { target: { value: "sciences" } });
+      fireEvent.click(screen.getByRole("button", { name: "De cursus aanmaken" }));
+      await waitFor(() => expect(onCreate).toHaveBeenCalledWith("Cursus", "sciences", "nl"));
+    });
+  });
+
+  it("starts on the first offered language when Dutch is not offered under a Dutch interface", async () => {
+    await withLocale("nl", () => {
+      mount(BOTH);
+      expect((screen.getByLabelText("Taal van de cursus") as HTMLSelectElement).value).toBe("fr");
+    });
+  });
+});

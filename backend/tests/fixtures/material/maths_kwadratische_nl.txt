@@ -1,0 +1,59 @@
+Hoofdstuk 3: Vierkantsvergelijkingen
+
+1. Definitie
+Een vierkantsvergelijking in één onbekende is een vergelijking die kan geschreven worden in
+de vorm ax² + bx + c = 0 waarbij a, b, c reële getallen zijn en a ≠ 0.
+De getallen a, b en c heten de coëfficiënten van de vergelijking.
+
+Voorbeelden: 3x² − 5x + 2 = 0 (a = 3, b = −5, c = 2)
+x² − 16 = 0 (a = 1, b = 0, c = −16)
+
+2. De discriminant
+De discriminant van de vergelijking ax² + bx + c = 0 is het getal
+D = b² − 4ac
+
+Regel (vanbuiten leren):
+• Als D > 0, heeft de vergelijking twee verschillende oplossingen: x₁ = (−b − √D) / 2a en x₂ = (−b + √D) / 2a
+• Als D = 0, heeft de vergelijking juist één (dubbele) oplossing: x = −b / 2a
+• Als D < 0, heeft de vergelijking geen reële oplossing: V = { }
+
+Schrijf de oplossingenverzameling altijd als V = { … }.
+
+Pagina 2
+
+3. Bijzondere gevallen (geen discriminant nodig)
+• Als b = 0: ax² + c = 0 ⇔ x² = −c/a. Voorbeeld: x² − 16 = 0 ⇔ x² = 16 ⇔ x = −4 of x = 4. V = {−4, 4}
+• Als c = 0: zet x buiten haakjes. Voorbeeld: 2x² − 8x = 0 ⇔ 2x(x − 4) = 0 ⇔ x = 0 of x = 4. V = {0, 4}
+
+Opgelet: deel nooit beide leden door x, je zou de oplossing x = 0 verliezen!
+
+4. Som en product van de oplossingen
+Als D ≥ 0: x₁ + x₂ = −b/a en x₁ · x₂ = c/a
+
+OEFENINGEN
+
+Opdr. 1. Los op in de reële getallen:
+a) x² − 7x + 10 = 0
+b) 9x² − 12x + 4 = 0
+c) 2x² + x + 3 = 0
+
+Opdr. 1 antwoorden (in de klas gemaakt)
+a) D = 49 − 40 = 9; x₁ = (7 − 3)/2 = 2; x₂ = (7 + 3)/2 = 5; V = {2, 5}
+b) D = 144 − 144 = 0; x = 12/18 = 2/3; V = {2/3}
+c) D = 1 − 24 = −23 < 0; V = { }
+
+Opdr. 2. Los op zonder D te gebruiken:
+a) 3x² − 48 = 0
+b) 4x² + 10x = 0
+
+Opdr. 2 antwoorden
+a) x² = 16 dus V = {−4, 4}
+b) 2x(2x + 5) = 0 dus V = {0, −5/2}
+
+Opdr. 3. Vraagstuk. Een rechthoek is 3 cm langer dan breed en haar oppervlakte is 70 cm². Wat zijn haar afmetingen?
+Antwoord: noem b de breedte, dus b(b + 3) = 70, dat is b² + 3b − 70 = 0. D = 9 + 280 = 289, √D = 17.
+b = (−3 − 17)/2 = −10 of b = (−3 + 17)/2 = 7. Een breedte kan niet negatief zijn.
+Afmetingen: 7 cm op 10 cm.
+
+Opdr. 4. Geef, zonder op te lossen, de som en het product van de oplossingen van 3x² + 5x − 2 = 0.
+(geen antwoord gegeven)

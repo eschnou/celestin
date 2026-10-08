@@ -14,7 +14,7 @@ The student creates a **course** (a name and a subject, e.g. « Physique 5e », 
 
 We are not a source of content. The student's material is the only source of truth about *what* is taught; the product supplies the pedagogy.
 
-The first users are French-speaking Belgian secondary students (Fédération Wallonie-Bruxelles). The interface and the tutor speak French by default; a course can also be an English course (spec 011), taught in English, and the interface is French or English at the user's choice (spec 010). Mathematics and physics come first; the other subjects follow on the same machinery.
+The first users are French-speaking Belgian secondary students (Fédération Wallonie-Bruxelles). The interface and the tutor speak French by default; a course can also be an English course (spec 011) or a Dutch one (spec 017, Flemish), taught in that language, and the interface is French, English or Dutch at the user's choice (spec 010). Mathematics and physics come first; the other subjects follow on the same machinery.
 
 ## 2. Why this, why now
 
@@ -30,7 +30,7 @@ The first users are French-speaking Belgian secondary students (Fédération Wal
 ## 3. Users
 
 ### 3.1 The student
-- Secondary school, French-speaking or English-speaking, any track. Receives course material from teachers: typed notes, « cours à trous », handouts, exercise sheets with or without corrections.
+- Secondary school, French-, English- or Dutch-speaking, any track. Receives course material from teachers: typed notes, « cours à trous », handouts, exercise sheets with or without corrections.
 - Assessed by written tests that mix definitions to recite, procedures to apply, derivations or reasoning to reproduce, and applied problems.
 - Does not want to learn a new notation, method or vocabulary — the tutor must speak their teacher's language.
 - Motivation is the next test, not badges. Will abandon anything that feels like extra homework with no payoff, or that takes long to set up.
@@ -79,7 +79,7 @@ The tutor works in three modes on the same chapter material:
 
 ### 6.2 Courses and chapters
 
-**Creating a course.** The student gives a name, picks a subject and says in which language the course is written (French or English; the interface language is the natural first guess). That is all. The course appears in « Mes cours ». The subject and the language are locked for good: a student who picked the wrong one creates a new course. The language is the one of the material, the pack, the path, Célestin's speech and the board's notation (spec 011).
+**Creating a course.** The student gives a name, picks a subject and says in which language the course is written (French, English or Dutch; the interface language is the natural first guess). That is all. The course appears in « Mes cours ». The subject and the language are locked for good: a student who picked the wrong one creates a new course. The language is the one of the material, the pack, the path, Célestin's speech and the board's notation (spec 011).
 
 **Subjects.** A closed list of four broad categories, defined by us. They are grouped by how a subject is taught and answered, not by school discipline: the student's material carries the content, a subject only fixes the way of teaching, writing and checking.
 
@@ -90,7 +90,7 @@ The tutor works in three modes on the same chapter material:
 | Languages | Langues | French and foreign languages | rules, vocabulary, conjugations, texts, fill-in exercises |
 | General courses | Cours généraux | history, geography, general studies, anything learnt from the course | facts and reference points, causes and consequences, documents |
 
-Each is offered in French and in English (spec 011). There is no « Autre » and no per-discipline subject: « Cours généraux » is the broad category for a knowledge course. The student's school year is not asked; the tutor takes the level from the material. For a language course, Célestin speaks the course's language (French for a French-speaking student) and works in the language being learnt; the dictation of a language course gets no language hint, since it mixes two.
+Each is offered in French, English and Dutch (specs 011, 017). There is no « Autre » and no per-discipline subject: « Cours généraux » is the broad category for a knowledge course. The student's school year is not asked; the tutor takes the level from the material. For a language course, Célestin speaks the course's language (French for a French-speaking student) and works in the language being learnt; the dictation of a language course gets no language hint, since it mixes two.
 
 **Adding a chapter.** The student uploads the chapter's material — one PDF, or photos of the pages taken with the phone — typed notes, « cours à trous » filled by hand, exercise sheets, corrections. A transcription stage reads every page (handwriting and formulas included, doubtful readings marked) into text; that text is the chapter's source, which the student can read and correct. The file itself is not kept. (Specs 005 took pasted text; spec 006 replaces it with upload.)
 
@@ -163,7 +163,7 @@ The tutor tests the student's knowledge of a chapter or a whole course: definiti
 
 ### 6.7 How the tutor behaves
 
-- Speaks the course's language (French with tutoiement, or English with an informal « you »), warm and direct. Praise only when earned and specific.
+- Speaks the course's language (French with tutoiement, English with an informal « you », or Dutch with « je »), warm and direct. Praise only when earned and specific.
 - Uses only the course's formulas, methods and vocabulary. Introduces nothing the material does not contain. If asked about something outside the course, it answers briefly and says it's beyond what the material covers.
 - Prefers questions to explanations when the student is stuck. Explains fully when they meet a concept for the first time.
 - Recognises recurring errors and names the pattern rather than just correcting the instance.
@@ -178,7 +178,7 @@ The tutor tests the student's knowledge of a chapter or a whole course: definiti
 - **Cards**: plan, explanation, worked example, exercise with an answer widget matched to the answer type, verdict, hint, solution, check question, recap.
 - **« Paramètres »**: from the user menu; the interface language today, built to hold the account's other settings (name, email address, password) later.
 
-Interface copy is French or English, at the user's choice: the browser's language on the first visit, kept on the account, changed in the settings (spec 010). The tutor, the board and the notation follow the course's language (spec 011). Web app, laptop first, tablet-friendly.
+Interface copy is French, English or Dutch, at the user's choice: the browser's language on the first visit, kept on the account, changed in the settings (spec 010). The tutor, the board and the notation follow the course's language (spec 011). Web app, laptop first, tablet-friendly.
 
 ## 7. A first session, end to end
 
@@ -254,7 +254,7 @@ The next day they notice the pack lists « km/h » where the teacher writes « k
 1. **Checking outside maths.** Which answer kinds does the checker cover per subject, and when does the tutor fall back to rubric grading?
 2. **Authoring failures.** How much of a partially usable result do we keep — a pack with no valid curriculum, a curriculum with dangling references — or is a chapter all or nothing?
 3. **Copyright of teacher material.** Material is stored privately for the student who uploaded it; confirm this is acceptable before any sharing feature.
-4. **Material language.** Spec 011 made a course French or English, chosen when it is created; what about other languages (Dutch, German)? And material in a language other than its course's is not detected: only a pack written for the other language's template is. Outside « Langues étrangères », should the language be inferred from the document?
+4. **Material language.** Specs 011 and 017 made a course French, English or Dutch, chosen when it is created; what about other languages (German)? And material in a language other than its course's is not detected: only a pack written for the other language's template is. Outside « Langues étrangères », should the language be inferred from the document?
 5. **Level.** The school year is not asked for now. Does the tutor need it once several courses and subjects coexist?
 6. **Test dates.** Should a course or chapter carry a test date that shapes the path and, later, Révision mode?
 

@@ -85,6 +85,7 @@ def complete_section(args: CompleteSectionArgs, ctx: TurnContext) -> SectionComp
 _UNKNOWN = by_language(
     fr="Section inconnue dans le parcours actuel.",
     en="Unknown section in the current path.",
+    nl="Onbekende sectie in het huidige traject.",
 )
 
 

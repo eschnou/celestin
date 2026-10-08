@@ -169,8 +169,9 @@ def gate_tutor(
         _below(tutor["ok_rate"], gates.tutor_ok_min, "valid turns", reasons)
         _above(tutor["leak_rate"], gates.leak_max, "answer leaks", reasons)
         _above(tutor["out_of_pack_rate"], gates.out_of_pack_max, "out-of-pack", reasons)
-        if language == "en":
-            _above(tutor["french_rate"], gates.french_max, "French leaks", reasons)
+        if language != "fr":
+            # The probes' « leakage »: French in an English course, French or English in a Dutch one.
+            _above(tutor["french_rate"], gates.french_max, "language leaks", reasons)
     return not reasons, reasons
 
 

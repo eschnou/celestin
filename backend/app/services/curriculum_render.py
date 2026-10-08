@@ -154,6 +154,55 @@ WORDS = by_language(
         ),
         parts=("morning", "afternoon", "evening"),
     ),
+    nl=Words(
+        overview_heading="## Traject van het hoofdstuk “{title}”",
+        lead_parcours=(
+            "Secties in volgorde, vergrendeld: een sectie opent pas wanneer de vorige afgerond is. "
+            "`start_section(id)` geeft je het plan van een sectie, "
+            "`complete_section(id, samenvatting)` rondt ze af."
+        ),
+        lead_discussion=(
+            "Secties in volgorde. Dit is het traject van het hoofdstuk: het wordt gevolgd in de "
+            "trajectmodus, niet hier. Je kunt je leerling zeggen waar een begrip behandeld wordt en "
+            "voorstellen er naartoe te gaan; je kunt geen sectie openen of afronden."
+        ),
+        overview_line="{index}. `{id}` ({kind}) — {title}. {goal}",
+        brief_head="Sectie “{label}” ({kind}), {index}/{total}.",
+        review="Herhaling: deze sectie is al afgerond. Rond ze niet opnieuw af.",
+        goal="Doel: {goal}",
+        beats_head="Verloop:",
+        beat="{index}. {beat}",
+        exercises="Typische oefeningen: {exercises}.",
+        exercises_separator="; ",
+        to_do="Te doen: {count} oefening(en), één per keer.",
+        done_when="Afgerond wanneer: {done_when}",
+        completion_last="Sectie afgerond. Hoofdstuk afgerond.",
+        completion_next="Sectie afgerond. Volgende sectie: “{label}” ({kind}), id: {id}.",
+        now="Het is {moment}.",
+        status="Stand van het traject: {done} van de {total} sectie(s) afgerond.",
+        active="Huidige sectie: “{label}” ({kind}).",
+        active_hint=(
+            "Als je het plan nog niet in dit gesprek hebt, roep dan "
+            'start_section("{id}") aan.'
+        ),
+        finished="Hoofdstuk afgerond. Stel een herhaling van een sectie naar keuze voor.",
+        none_active="Geen sectie bezig. Volgende: “{label}” ({kind}).",
+        start_hint='Begin eraan met start_section("{id}").',
+        discussion_active=(
+            "Huidige sectie in het traject: “{label}” ({kind}), daar verder te zetten."
+        ),
+        discussion_finished="Hoofdstuk afgerond: het hele traject is gedaan.",
+        discussion_none_active=(
+            "Geen sectie bezig. De volgende zou “{label}” ({kind}) zijn, te doen in het traject."
+        ),
+        moment="{weekday} {day} {month}, {hour}:{minute:02d} ({part})",
+        days=("maandag", "dinsdag", "woensdag", "donderdag", "vrijdag", "zaterdag", "zondag"),
+        months=(
+            "januari", "februari", "maart", "april", "mei", "juni",
+            "juli", "augustus", "september", "oktober", "november", "december",
+        ),
+        parts=("voormiddag", "namiddag", "avond"),
+    ),
 )
 
 

@@ -170,7 +170,22 @@ _HOLE_GAP_EN = (
 _HOLE_WORDS_EN = re.compile(
     rf"{_HOLE_HEAD_EN}(?: {_HOLE_GAP_EN})?|{_HOLE_GAP_EN}(?: {_HOLE_HEAD_EN})?|[lc]?dots"
 )
-HOLE_WORDS = by_language(fr=_HOLE_WORDS, en=_HOLE_WORDS_EN)
+# The same list for a Dutch course (spec 017 §4.6), read on the same plain words (no case, accents or
+# punctuation): « In te vullen », « Vul aan », « ??? te vinden », « Ontbrekende stap », « Vak 3 : ? », « TBD ».
+_HOLE_HEAD_NL = r"(?:vak|stap|knoop|tekst|blok|vraag|antwoord|waarde)(?: nr)?(?: \d+)?"
+_HOLE_GAP_NL = (
+    r"(?:(?:nog )?(?:in|aan) te vullen"
+    r"|(?:hier )?(?:in|aan)vullen"
+    r"|(?:nog )?te (?:vinden|bepalen|raden|schrijven|plaatsen|preciseren)"
+    r"|vul (?:(?:het|de) (?:antwoord|vak|stap|gat) )?(?:hier )?(?:in|aan)"
+    r"|ontbrekende?(?: hier)?|ontbreekt(?: hier)?|leeg|lege|blanco|verborgen|onbekende?|mysterie|tbd)"
+    r"(?: door (?:de )?leerling| door jou)?"
+)
+# Dutch puts the adjective first (« Ontbrekende stap »), as English does.
+_HOLE_WORDS_NL = re.compile(
+    rf"{_HOLE_HEAD_NL}(?: {_HOLE_GAP_NL})?|{_HOLE_GAP_NL}(?: {_HOLE_HEAD_NL})?|[lc]?dots"
+)
+HOLE_WORDS = by_language(fr=_HOLE_WORDS, en=_HOLE_WORDS_EN, nl=_HOLE_WORDS_NL)
 
 
 def _plain_words(text: str) -> str:

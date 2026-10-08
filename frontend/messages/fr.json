@@ -40,6 +40,7 @@
   "auth_password_too_long": "Un mot de passe plus court, s'il te plaît.",
   "auth_password_rule": "Au moins {min} caractères. Pas ton prénom ni ton adresse email.",
   "nav_my_courses": "Mes cours",
+  "common_close": "Fermer",
   "common_cancel": "Annuler",
   "error_generic": "Célestin est injoignable pour le moment. Réessaie dans un instant.",
   "error_invalid_request": "Célestin n'a pas pu traiter cette séance. Recharge la page pour en démarrer une neuve.",

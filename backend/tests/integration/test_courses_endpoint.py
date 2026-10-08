@@ -18,10 +18,10 @@ CH = f"/api/courses/{COURSE_ID}/chapters/{CHAPTER_ID}"
 async def test_subjects_lists_available_ones_with_limits(client: AsyncClient) -> None:
     body = (await client.get("/api/subjects")).json()
     assert body["subjects"] == [
-        {"id": "mathematics", "label": "Mathématiques", "languages": ["fr", "en"]},
-        {"id": "sciences", "label": "Sciences", "languages": ["fr", "en"]},
-        {"id": "languages", "label": "Langues", "languages": ["fr", "en"]},
-        {"id": "general", "label": "Cours généraux", "languages": ["fr", "en"]},
+        {"id": "mathematics", "label": "Mathématiques", "languages": ["fr", "en", "nl"]},
+        {"id": "sciences", "label": "Sciences", "languages": ["fr", "en", "nl"]},
+        {"id": "languages", "label": "Langues", "languages": ["fr", "en", "nl"]},
+        {"id": "general", "label": "Cours généraux", "languages": ["fr", "en", "nl"]},
     ]
     assert body["limits"] == {
         "chapter_text_min_chars": 300, "chapter_text_max_chars": 100_000, "pack_max_chars": 60_000,
@@ -609,7 +609,7 @@ async def test_an_english_course_carries_its_language_everywhere(client: AsyncCl
         COURSE_ID: "fr",
     }
     subjects = (await client.get("/api/subjects")).json()["subjects"]
-    assert all(s["languages"] == ["fr", "en"] for s in subjects)
+    assert all(s["languages"] == ["fr", "en", "nl"] for s in subjects)
     chapter = client.app.state.repos.chapters.create(course_id, "texte", max_chapters=40)
     content = (await client.get(f"/api/courses/{course_id}/chapters/{chapter.id}/content")).json()
     assert content["language"] == "en"

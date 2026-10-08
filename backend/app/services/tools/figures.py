@@ -99,8 +99,14 @@ _COORDS = re.compile(rf"\({_BOUND}[^;()]*;{_BOUND}[^;()]*\)")
 # member is no bound, and a third member keeps `[^,;…]*` from reaching the closing bracket.
 _INTERVAL_EN = re.compile(rf"[\[\](]{_BOUND}[^,;\[\]()]*[,;]{_BOUND}[^,;\[\]()]*[\[\])]")
 _COORDS_EN = re.compile(rf"\({_BOUND}[^,;()]*[,;]{_BOUND}[^,;()]*\)")
-INTERVAL = by_language(fr=_INTERVAL, en=_INTERVAL_EN)
-COORDS = by_language(fr=_COORDS, en=_COORDS_EN)
+# Dutch (spec 017 §4.6): the board writes `]a ; b[` and `(a ; b)`, with a decimal comma inside a member
+# (`(2 ; −1,5)`): the French shape. But a Flemish teacher also writes `]a, b[` and `(a, b)`: the English shape,
+# a comma between members. Either is recognised. A decimal alone in brackets (`]0,5[`) is read as an interval
+# too, which on an open exercise's label is the safe direction (one rewrite, never a leaked answer).
+_INTERVAL_NL = re.compile(f"(?:{_INTERVAL.pattern})|(?:{_INTERVAL_EN.pattern})")
+_COORDS_NL = re.compile(f"(?:{_COORDS.pattern})|(?:{_COORDS_EN.pattern})")
+INTERVAL = by_language(fr=_INTERVAL, en=_INTERVAL_EN, nl=_INTERVAL_NL)
+COORDS = by_language(fr=_COORDS, en=_COORDS_EN, nl=_COORDS_NL)
 # A measure: the whole label, or what follows its « = » (`\widehat{B} = 40°`, `|AB| = 5 cm`).
 _DEGREES = re.compile(r"^(?:[^=]*=)?(\d+(?:[.,]\d+)?)°$")
 _LENGTH = re.compile(r"^(?:[^=]*=)?(\d+(?:[.,]\d+)?)(mm|cm|dm|m|km)?$")
@@ -108,8 +114,10 @@ _LENGTH = re.compile(r"^(?:[^=]*=)?(\d+(?:[.,]\d+)?)(mm|cm|dm|m|km)?$")
 _NUMBER_EN = r"(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
 _DEGREES_EN = re.compile(rf"^(?:[^=]*=)?{_NUMBER_EN}°$")
 _LENGTH_EN = re.compile(rf"^(?:[^=]*=)?{_NUMBER_EN}(mm|cm|dm|m|km)?$")
-DEGREES = by_language(fr=_DEGREES, en=_DEGREES_EN)
-LENGTH = by_language(fr=_LENGTH, en=_LENGTH_EN)
+# Dutch writes measures with a decimal comma, as French does.
+_DEGREES_NL, _LENGTH_NL = _DEGREES, _LENGTH
+DEGREES = by_language(fr=_DEGREES, en=_DEGREES_EN, nl=_DEGREES_NL)
+LENGTH = by_language(fr=_LENGTH, en=_LENGTH_EN, nl=_LENGTH_NL)
 _MM = {"mm": 1.0, "cm": 10.0, "dm": 100.0, "m": 1000.0, "km": 1e6}
 # LaTeX that changes how a label looks, not what it says.
 _TEX_SIZING = re.compile(
@@ -146,9 +154,21 @@ def _bare(label: str) -> str:
     return re.sub(r"[\s\ufeff]+", "", text)
 
 
+def _decimal_comma(text: str) -> float:
+    return float(text.replace(",", "."))
+
+
+def _thousands_comma(text: str) -> float:
+    return float(text.replace(",", ""))
+
+
+# How a course writes a number: a decimal comma in French, thousands commas in English.
+NUMBER = by_language(fr=_decimal_comma, en=_thousands_comma, nl=_decimal_comma)
+
+
 def _number(text: str, language: CourseLanguage = DEFAULT_COURSE_LANGUAGE) -> float:
-    """A number as the course writes it: a decimal comma in French, thousands commas in English."""
-    return float(text.replace(",", "") if language == "en" else text.replace(",", "."))
+    """A number as the course writes it (`NUMBER[language]`)."""
+    return NUMBER[language](text)
 
 
 def _dist(p: Pt, q: Pt) -> float:

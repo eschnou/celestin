@@ -197,6 +197,13 @@
   .katex {
     font-size: 1.05em;
   }
+
+  /* Dutch compounds are long (« studieoriëntatiebegeleiding »): let them hyphenate and, as a last resort,
+     break, so a button or a card at 400 px never overflows (spec 017 NFR 4.5.3). */
+  :lang(nl) {
+    hyphens: auto;
+    overflow-wrap: break-word;
+  }
 }
 
 /* Board math, set large — math is the hero */

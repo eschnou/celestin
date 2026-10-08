@@ -53,6 +53,26 @@ def test_seed_is_idempotent_and_resets_progress(tmp_path, monkeypatch, capsys) -
         get_settings.cache_clear()
 
 
+def test_seed_makes_a_dutch_course_with_the_dutch_chapter(tmp_path, monkeypatch, capsys) -> None:
+    """Spec 017 task 5.2: `--language nl`."""
+    from app.config import get_settings
+    from app.db.base import make_session_factory
+    from app.db.repositories import Repositories
+    from scripts.seed import main
+
+    url = _prepare(tmp_path, monkeypatch)
+    try:
+        assert main(["--email", "leerling@example.be", "--password", "een-sterk-wachtwoord", "--language", "nl"]) == 0
+        repos = Repositories.from_factory(make_session_factory(make_engine(url)))
+        user = repos.users.by_email("leerling@example.be").user
+        (entry,) = repos.courses.list_for_user(user.id)
+        (chapter,) = entry.chapters
+        assert entry.course.name == "Wiskunde 5e jaar" and entry.course.language == "nl"
+        assert chapter.ready and chapter.title == "Rekenkundige en meetkundige rijen"
+    finally:
+        get_settings.cache_clear()
+
+
 def test_seed_refuses_a_non_sqlite_database(monkeypatch, capsys) -> None:
     from app.config import get_settings
     from scripts.seed import main

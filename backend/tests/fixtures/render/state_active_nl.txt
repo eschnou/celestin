@@ -1,0 +1,3 @@
+Stand van het traject: 1 van de 3 sectie(s) afgerond.
+Huidige sectie: “2. Oefeningen” (oefeningen).
+Als je het plan nog niet in dit gesprek hebt, roep dan start_section("exos") aan.

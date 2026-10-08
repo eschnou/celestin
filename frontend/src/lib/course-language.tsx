@@ -10,9 +10,14 @@
  */
 import { createContext, useContext, type ReactNode } from "react";
 
-export const COURSE_LANGUAGES = ["fr", "en"] as const;
+export const COURSE_LANGUAGES = ["fr", "en", "nl"] as const;
 export type CourseLanguage = (typeof COURSE_LANGUAGES)[number];
 export const DEFAULT_COURSE_LANGUAGE: CourseLanguage = "fr";
+
+/** Whether a string (an interface language, a server value) is a language a course can have. */
+export function isCourseLanguage(value: unknown): value is CourseLanguage {
+  return typeof value === "string" && (COURSE_LANGUAGES as readonly string[]).includes(value);
+}
 
 const CourseLanguageContext = createContext<CourseLanguage>(DEFAULT_COURSE_LANGUAGE);
 

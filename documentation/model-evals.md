@@ -23,7 +23,7 @@ sits in the system.
 A folder `evals/results/<id>/` (gitignored): `run.json`, per model `live.json`, `tutor.json` (every trial with its
 flags, timings, usage and transcript), `authoring.json` and the authoring outputs, the workers' logs, and
 `report.md`. The report gives a **verdict per role** against the `[gates]` of `models.toml`, then the tutor table
-(valid turns, board use, refused tool calls, answer leaks, out-of-pack formulas, French leaks, latency, tokens,
+(valid turns, board use, refused tool calls, answer leaks, out-of-pack formulas, language leaks (French in an English course, French or English in a Dutch one; spec 017), latency, tokens,
 cost), the live checks, authoring, and, after `judge`, Claude's pairwise comparison with the reference.
 
 ## Cost

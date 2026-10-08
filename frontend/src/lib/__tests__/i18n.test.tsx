@@ -93,9 +93,16 @@ describe("resetLocale", () => {
   });
 
   it("falls back to French when the browser offers nothing supported", () => {
-    languages(["nl-BE"]);
+    languages(["de-DE"]);
     document.documentElement.lang = "en";
     act(() => resetLocale());
     expect(document.documentElement.lang).toBe("fr");
+  });
+
+  it("follows a Flemish browser to Dutch (spec 017)", () => {
+    languages(["nl-BE", "fr-BE"]);
+    document.documentElement.lang = "fr";
+    act(() => resetLocale());
+    expect(document.documentElement.lang).toBe("nl");
   });
 });

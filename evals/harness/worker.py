@@ -32,7 +32,7 @@ from app.config import Settings  # noqa: E402
 from app.providers.hub import build_clients  # noqa: E402
 from app.services.prompts import PromptLibrary  # noqa: E402
 from app.services.tutor_service import TutorService  # noqa: E402
-from harness.config import SETS  # noqa: E402
+from harness.config import LANGUAGES, SETS  # noqa: E402
 from scripts import ai_clients  # noqa: E402
 
 
@@ -206,7 +206,7 @@ async def run_trial(
         "flagged": probe.failed(flags),
         "leaked": any(f.startswith(probe.ANSWER_LEAK) for f in flags),
         "out_of_pack": any(probe.is_out_of_pack(f) for f in flags),
-        "french": any(f.startswith(probe.FRENCH_LEAK) for f in flags),
+        "french": any(f.startswith(probe.LEAK_FLAGS) for f in flags),
         "transcript": answer,
     }
 
@@ -374,7 +374,7 @@ def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="harness.worker")
     p.add_argument("--suite", choices=sorted(SUITES), required=True)
     p.add_argument("--out", required=True)
-    p.add_argument("--language", choices=("fr", "en"), default="fr")
+    p.add_argument("--language", choices=LANGUAGES, default="fr")
     p.add_argument("--runs", type=int, default=3)
     p.add_argument("--sets", default="guardrails")
     p.add_argument("--turn-timeout", type=float, default=180)

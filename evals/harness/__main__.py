@@ -16,7 +16,7 @@ from pathlib import Path
 from harness import judge as judging
 from harness import report as reporting
 from harness import runner
-from harness.config import SETS, SUITES, Config, ConfigError, load, load_dotenv, redact, worker_env
+from harness.config import LANGUAGES, SETS, SUITES, Config, ConfigError, load, load_dotenv, redact, worker_env
 from harness.runner import Plan
 
 
@@ -165,7 +165,7 @@ def parser() -> argparse.ArgumentParser:
         s.add_argument("--only", help="comma-separated model names")
         s.add_argument("--suites", help=f"comma-separated: {', '.join(SUITES)}")
         s.add_argument("--sets", help=f"comma-separated: {', '.join(SETS)}")
-        s.add_argument("--language", choices=("fr", "en"))
+        s.add_argument("--language", choices=LANGUAGES)
         s.add_argument("--runs", type=int, help="tutor trials per case")
         s.add_argument("--authoring-runs", type=int)
 

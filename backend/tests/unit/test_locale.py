@@ -26,6 +26,24 @@ def test_the_table_is_byte_identical_to_the_frontends() -> None:
 
 
 def test_the_supported_list() -> None:
-    assert LOCALES == ("fr", "en")
+    assert LOCALES == ("fr", "en", "nl")
     assert DEFAULT_LOCALE == "fr"
     assert is_locale("en") and not is_locale("de") and not is_locale(None)
+
+
+@pytest.mark.parametrize(
+    ("header", "expected"),
+    [
+        ("nl", "nl"),
+        ("nl-BE", "nl"),
+        ("nl-NL", "nl"),
+        ("nl-BE;q=0.8,fr;q=0.9", "fr"),
+        ("fr,nl;q=0.8", "fr"),
+        ("nl;q=0", "fr"),
+        ("de,nl;q=0.5", "nl"),
+        ("en-GB,nl;q=0.4", "en"),
+    ],
+)
+def test_dutch_headers(header: str, expected: str) -> None:
+    """Spec 017 R1.3: `nl`, `nl-BE` and `nl-NL` all resolve to `nl` (the shared table follows in the frontend phase)."""
+    assert parse_accept_language(header) == expected

@@ -12,7 +12,7 @@ import { withLocale } from "@/test/locale";
 
 describe("interface numbers", () => {
   it("names one Intl tag per interface language", () => {
-    expect(INTL_TAG).toEqual({ fr: "fr-BE", en: "en-GB" });
+    expect(INTL_TAG).toEqual({ fr: "fr-BE", en: "en-GB", nl: "nl-BE" });
   });
 
   it("groups digits the French way by default", () => {
@@ -35,6 +35,16 @@ describe("interface numbers", () => {
     withLocale("en", () => {
       expect(formatMegabytes(1.5 * 1024 * 1024)).toBe("1.5 MB");
       expect(formatMegabytes(25 * 1024 * 1024)).toBe("25 MB");
+    }));
+});
+
+describe("interface numbers in Dutch (spec 017)", () => {
+  it("groups digits with a dot and writes a decimal comma, with MB", () =>
+    withLocale("nl", () => {
+      expect(formatCount(1234567)).toBe("1.234.567");
+      expect(formatMegabytes(1.5 * 1024 * 1024)).toBe("1,5 MB");
+      expect(formatMegabytes(25 * 1024 * 1024)).toBe("25 MB");
+      expect(formatCost(0.0123).replace(/\s/g, " ")).toBe("US$ 0,0123");
     }));
 });
 

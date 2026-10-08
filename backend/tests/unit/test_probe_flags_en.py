@@ -69,6 +69,13 @@ from scripts.probe import (
     turn_texts,
     written,
 )
+
+# The languages that have a probe set (spec 017: Dutch joins in the probes phase).
+PROBE_LANGUAGES = [language for language in COURSE_LANGUAGES if language in probe.GUARDRAIL_SETS]
+
+
+def test_every_course_language_has_a_probe_set() -> None:
+    assert PROBE_LANGUAGES == list(COURSE_LANGUAGES)
 from tests.unit.test_chart_models import VALID as CHARTS
 from tests.unit.test_figure_models import VALID as FIGURES
 from tests.unit.test_plot_models import VALID as PLOTS
@@ -932,7 +939,7 @@ def dry_run(chosen: str | None, language: str) -> tuple[Path, list[tuple[str, li
 
 
 @pytest.mark.parametrize("chosen", SETS, ids=lambda c: c or "guardrails")
-@pytest.mark.parametrize("language", COURSE_LANGUAGES)
+@pytest.mark.parametrize("language", PROBE_LANGUAGES)
 def test_a_dry_run_loads_every_chapter_and_checks_every_section(chosen: str | None, language: str) -> None:
     target, sets, lines = dry_run(chosen, language)
     runs = [run for _, batch in sets for run in batch]
@@ -942,7 +949,7 @@ def test_a_dry_run_loads_every_chapter_and_checks_every_section(chosen: str | No
     assert lines[0].count(target.name) == 1 and "aucun appel" in lines[0]
     for run in runs:
         assert any(line.startswith(f"- {run.label} |") and run.chapter.id in line for line in lines)
-    suffix = "-en" if language == "en" else ""
+    suffix = "" if language == "fr" else f"-{language}"
     stem = {None: "", "--charts": "-charts", "--flowcharts": "-flowcharts", "--figures": "-figures", "--plots": "-plots"}
     assert target.name == f"probe-transcript{stem[chosen]}{suffix}.md"
 
@@ -980,7 +987,7 @@ def test_the_command_line_takes_a_language_a_set_and_a_dry_run() -> None:
         parse_options(["--language", "de"])
 
 
-@pytest.mark.parametrize("language", COURSE_LANGUAGES)
+@pytest.mark.parametrize("language", PROBE_LANGUAGES)
 def test_main_dry_run_makes_no_model_call(
     language: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -991,13 +998,13 @@ def test_main_dry_run_makes_no_model_call(
     monkeypatch.setattr(probe, "TutorService", boom)
     asyncio.run(probe.main(["--language", language, "--charts", "--dry-run"]))
     out = capsys.readouterr().out
-    assert "aucun appel au modèle" in out and ("-en.md" in out) is (language == "en")
+    assert "aucun appel au modèle" in out and (f"-{language}.md" in out) is (language != "fr")
     # Nothing was written: the transcript is only written after a run.
-    target = probe.CHARTS_OUT_EN if language == "en" else probe.CHARTS_OUT
+    target = {"fr": probe.CHARTS_OUT, "en": probe.CHARTS_OUT_EN, "nl": probe.CHARTS_OUT_NL}[language]
     assert str(target) not in out
 
 
-@pytest.mark.parametrize("language", COURSE_LANGUAGES)
+@pytest.mark.parametrize("language", PROBE_LANGUAGES)
 def test_a_run_writes_the_report_at_the_top_of_the_transcript(
     language: str, settings: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -1005,6 +1012,7 @@ def test_a_run_writes_the_report_at_the_top_of_the_transcript(
     replies = {
         "en": "So u_{20} = 62, the mean is 2,5 and voilà: le résultat est là.",
         "fr": "Donc u₂₀ = 62, voilà.",
+        "nl": "Dus u₂₀ = 62, het gemiddelde is 2.5 en voilà: le résultat est là.",
     }
 
     async def scripted(tutor: Any, chapter: Any, entries: Any, message: str, progress: Any, mode: str = "parcours"):
@@ -1015,15 +1023,16 @@ def test_a_run_writes_the_report_at_the_top_of_the_transcript(
     monkeypatch.setattr(probe, "run_probe", scripted)
     monkeypatch.setattr(probe, "build_clients", lambda *args, **kwargs: SimpleNamespace(tutor=object()))
     monkeypatch.setattr(probe, "TutorService", lambda **kwargs: object())
-    monkeypatch.setattr(probe, "OUT_EN" if language == "en" else "OUT", out)
+    monkeypatch.setattr(probe, {"fr": "OUT", "en": "OUT_EN", "nl": "OUT_NL"}[language], out)
     asyncio.run(probe.main(["--language", language]))
     text = out.read_text(encoding="utf-8")
     head, _, rest = text.partition("\n## Rapport")
-    assert head.startswith("# Transcript des sondes") and ("cours en anglais" in head) is (language == "en")
+    assert head.startswith("# Transcript des sondes") and ("cours en " in head) is (language != "fr")
+    assert {"fr": "", "en": "cours en anglais", "nl": "cours en néerlandais"}[language] in head
     report = rest.split("\n# Mode parcours")[0]
     # Homework (discussion): u_20 = 62 written, twice (brought, insisted on).
     assert "message(s) du tuteur" in report and "fuite de réponse : 2 /" in report
-    if language == "en":
+    if language != "fr":
         assert "fuite de langue : 17" in report  # every scripted reply says « voilà ... le résultat est là »
     else:
         assert "non mesurée" in report

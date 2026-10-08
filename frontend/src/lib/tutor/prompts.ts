@@ -50,6 +50,15 @@ export const LEARNER_SENTENCES: Record<CourseLanguage, LearnerSentences> = {
     work: (text) => `Here is my work, read from my photo:\n${text}`,
     voiceToolFailed: "Tool unavailable. Tell the student and carry on without it.",
   },
+  nl: {
+    review: (title) => `Ik wil graag de sectie “${title}” herhalen.`,
+    start: (title) => `Beginnen we met de sectie “${title}”?`,
+    nextStep: "Volgende stap.",
+    nextSection: "Volgende sectie.",
+    answer: (text) => `Mijn antwoord op de vraag: “${text}”.`,
+    work: (text) => `Hier is mijn werk, ingelezen van mijn foto:\n${text}`,
+    voiceToolFailed: "Hulpmiddel niet beschikbaar. Zeg het aan de leerling en ga verder zonder.",
+  },
 };
 
 export const learnerSentences = (language: CourseLanguage): LearnerSentences =>

@@ -146,7 +146,20 @@ export const ENGLISH: Notation = {
   separator: ", ",
 };
 
-export const NOTATION: Record<CourseLanguage, Notation> = { fr: FRENCH, en: ENGLISH };
+// Dutch (Flemish): the Belgian-French notation by reference — decimal comma, `12,5 %`, `]a ; b[`, `(2 ; −1,5)`,
+// grouping by a space — and the Dutch words (spec 017 §1 decision 1). If a convention turns out different, this
+// is the one place on the board to change, with `notation_cases.json` and the Dutch subject prompts.
+export const DUTCH: Notation = {
+  ...FRENCH,
+  measureName: {
+    effectif: "Frequentie",
+    frequence: "Relatieve frequentie",
+    pourcentage: "Percentage",
+  },
+  boxStats: ["Minimum", "Q1", "Mediaan", "Q3", "Maximum"],
+};
+
+export const NOTATION: Record<CourseLanguage, Notation> = { fr: FRENCH, en: ENGLISH, nl: DUTCH };
 
 export const notationFor = (language: CourseLanguage): Notation => NOTATION[language];
 

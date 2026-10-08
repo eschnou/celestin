@@ -16,7 +16,8 @@ log = logging.getLogger(__name__)
 # French prose runs a little under 3.2 characters per token, English a little over 4. The
 # budget is an order-of-magnitude guard, not a hard limit, so a tokenizer would be overkill;
 # the ratio only has to keep English from being trimmed as if it were French.
-CHARS_PER_TOKEN = by_language(fr=3.2, en=4.0)
+# Dutch: an estimate between the two (long compounds tokenise worse than English); to check against `ai_usage`.
+CHARS_PER_TOKEN = by_language(fr=3.2, en=4.0, nl=3.4)
 
 
 def estimate_tokens(entries: list[Entry], language: CourseLanguage = DEFAULT_COURSE_LANGUAGE) -> int:

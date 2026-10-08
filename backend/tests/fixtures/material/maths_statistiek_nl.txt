@@ -1,0 +1,77 @@
+Hoofdstuk 2 — Beschrijvende statistiek met één veranderlijke
+
+1. Woordenschat
+Definitie: Een populatie is de verzameling van alle individuen waarover een onderzoek gaat.
+Definitie: Een individu is één element van de populatie.
+Definitie: Een steekproef is een deel van de populatie dat werkelijk waargenomen wordt.
+[figuur: verzamelingendiagram met ingesloten verzamelingen: een grote verzameling "Populatie" bevat een kleinere verzameling "Steekproef"; een kruisje "individu" binnen de steekproef]
+Definitie: De eigenschap die onderzocht wordt, heet de statistische veranderlijke.
+Een veranderlijke is kwalitatief als haar waarden geen getallen zijn (kleur, lievelingssport...).
+Een veranderlijke is kwantitatief discreet als ze alleen afzonderlijke waarden aanneemt (aantal boeken, schoenmaat...).
+Een veranderlijke is kwantitatief continu als ze elke waarde van een interval kan aannemen (lengte, massa, tijd...). De waarden worden dan gegroepeerd in klassen [a ; b[.
+
+2. Frequenties
+De frequentie van een waarde is het aantal individuen met die waarde. Het totaal wordt N genoteerd.
+De relatieve frequentie van een waarde is haar frequentie gedeeld door het totaal: f = n / N. Ze wordt geschreven als decimaal getal (0,25) of als percentage (25 %).
+
+3. Een kwalitatieve veranderlijke voorstellen
+Voorbeeld: lievelingssport van 40 leerlingen uit het derde jaar.
+Voetbal: 14 ; Basketbal: 10 ; Zwemmen: 8 ; Tennis: 8.
+Cirkeldiagram: de hoek van een sector is evenredig met de frequentie: hoek = (frequentie / N) × 360°.
+[figuur: cirkeldiagram, vier sectoren: Voetbal 126°, Basketbal 90°, Zwemmen 72°, Tennis 72°]
+
+Pagina 2
+
+4. Een discrete veranderlijke voorstellen
+Voorbeeld: aantal boeken dat 24 leerlingen vorige maand lazen.
+Aantal boeken: 0 ; 1 ; 2 ; 3 ; 4 ; 5
+Frequentie: 3 ; 5 ; 7 ; 5 ; 3 ; 1
+Een discrete veranderlijke wordt voorgesteld met een staafdiagram: de waarden op de horizontale as, de frequenties op de verticale as. Door de toppen van de staven te verbinden krijgt men de frequentiepolygoon.
+[figuur: staafdiagram, horizontale as "Gelezen boeken", verticale as "Frequentie", staven 0 → 3, 1 → 5, 2 → 7, 3 → 5, 4 → 3, 5 → 1, frequentiepolygoon in het rood getekend]
+
+5. Een continue veranderlijke voorstellen
+Voorbeeld: dagelijkse reistijd naar school (in minuten) van 50 leerlingen.
+Klasse: [0 ; 10[ ; [10 ; 20[ ; [20 ; 30[ ; [30 ; 50[ ; [50 ; 90[
+Frequentie: 5 ; 10 ; 15 ; 12 ; 8
+Een continue veranderlijke wordt voorgesteld met een histogram: rechthoeken die elkaar raken, één per klasse. De oppervlakte van elke rechthoek is evenredig met de frequentie. Als de klassen niet allemaal even breed zijn, kiest men een referentiebreedte (hier 10 minuten) en is de hoogte van een rechthoek de frequentie herleid tot die breedte: hoogte = frequentie × 10 / klassenbreedte.
+[figuur: histogram, horizontale as "Reistijd (min)" met de waarden 0, 10, 20, 30, 50, 90, verticale as "Frequentie per 10 minuten", hoogten 5 ; 10 ; 15 ; 6 ; 2]
+Elke klasse bevat haar linkergrens en sluit haar rechtergrens uit.
+
+Pagina 3
+
+6. Cumulatieve frequenties
+De cumulatieve frequentie van een klasse is de som van de frequenties van die klasse en van alle klassen ervoor.
+Reistijden: 5 ; 15 ; 30 ; 42 ; 50. Cumulatieve relatieve frequenties: 10 % ; 30 % ; 60 % ; 84 % ; 100 %.
+De cumulatieve frequentiepolygoon verbindt de punten waarvan de x-coördinaat de bovengrens van elke klasse is en de y-coördinaat de cumulatieve frequentie; ze begint met 0 op de ondergrens van de eerste klasse.
+[figuur: cumulatieve frequentiepolygoon, punten (0 ; 0), (10 ; 10), (20 ; 30), (30 ; 60), (50 ; 84), (90 ; 100), verticale as in %]
+
+7. Centrummaten
+De modus is de waarde met de grootste frequentie; bij een continue veranderlijke spreekt men van de modale klasse.
+Het gemiddelde is x̄ = (n₁x₁ + n₂x₂ + ... + nₖxₖ) / N. Bij een continue veranderlijke is xᵢ het midden van elke klasse.
+De mediaan M verdeelt de geordende gegevens in twee groepen van gelijke grootte. Is N oneven, dan is het de waarde op plaats (N + 1)/2; is N even, dan is het het gemiddelde van de waarden op plaats N/2 en N/2 + 1.
+Voorbeeld (boeken): modus 2; x̄ = 51 / 24 = 2,125; M = 2.
+
+8. Kwartielen en boxplot
+Het eerste kwartiel Q₁ is de kleinste waarde van de gegevens waarvoor minstens 25 % van de waarden kleiner dan of gelijk aan die waarde is. Het derde kwartiel Q₃ is de kleinste waarde waarvoor minstens 75 % van de waarden kleiner dan of gelijk aan die waarde is.
+Voorbeeld (boeken): Q₁ = 1; Q₃ = 3.
+Een boxplot wordt getekend op schaal: een rechthoek van Q₁ tot Q₃ verdeeld door de mediaan, en twee snorharen tot het minimum en het maximum.
+[figuur: horizontale boxplot, minimum 0, Q₁ 1, mediaan 2, Q₃ 3, maximum 5]
+
+Pagina 4 — Oefeningen
+
+Oefening 1. De leeftijden van de 20 leden van een schaakclub zijn: 14: 3 ; 15: 5 ; 16: 6 ; 17: 4 ; 18: 2.
+a) Teken het staafdiagram. b) Geef de modus. c) Bereken het gemiddelde. d) Zoek de mediaan.
+Antwoorden: b) 16 ; c) x̄ = 317 / 20 = 15,85 ; d) M = 16.
+
+Oefening 2. Zoek voor de leeftijden van oefening 1 Q₁ en Q₃ en teken de boxplot.
+Antwoorden: Q₁ = 15 ; Q₃ = 17.
+
+Oefening 3. Wachttijd (in minuten) van 40 patiënten bij een kliniek: [0 ; 5[: 4 ; [5 ; 10[: 8 ; [10 ; 20[: 16 ; [20 ; 40[: 12.
+a) Teken het histogram met een referentiebreedte van 5 minuten. b) Welke klasse heeft de grootste frequentie?
+Antwoorden: a) hoogten 4 ; 8 ; 8 ; 3 ; b) [10 ; 20[.
+
+Oefening 4. Bereken voor de wachttijden van oefening 3 de cumulatieve relatieve frequenties en teken hun polygoon.
+Antwoorden: 10 % ; 30 % ; 70 % ; 100 %.
+
+Oefening 5. 48 leerlingen kozen hun middagmaal: pasta 20, salade 12, broodje 16. Bereken de hoek van elke sector van het cirkeldiagram.
+Antwoorden: 150° ; 90° ; 120°.

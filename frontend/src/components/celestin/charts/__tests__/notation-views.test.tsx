@@ -90,7 +90,7 @@ describe("a figure", () => {
   });
 
   it("draws every fixture in both languages without error", () => {
-    for (const language of ["fr", "en"] as const)
+    for (const language of ["fr", "en", "nl"] as const)
       for (const f of Object.values(FIGURES)) {
         const { container } = figure(language, f);
         expect(container.querySelector("svg")).not.toBeNull();

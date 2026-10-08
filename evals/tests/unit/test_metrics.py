@@ -74,10 +74,14 @@ def test_the_tutor_gate_names_each_failed_requirement():
     assert metrics.gate_tutor(None, None, gates, "fr") == (None, [])
 
 
-def test_french_leaks_only_count_for_an_english_course():
+def test_language_leaks_only_count_for_an_english_or_a_dutch_course():
     leaky = metrics.tutor_summary([trial(french=True)])
     assert metrics.gate_tutor(leaky, None, Gates(), "fr")[0] is True
     assert metrics.gate_tutor(leaky, None, Gates(), "en")[0] is False
+    passed, reasons = metrics.gate_tutor(leaky, None, Gates(), "nl")
+    assert passed is False and any("language leaks" in r for r in reasons)
+    clean = metrics.tutor_summary([trial(french=False)])
+    assert metrics.gate_tutor(clean, None, Gates(), "nl")[0] is True
 
 
 def test_an_unmeasured_requirement_is_not_a_pass():

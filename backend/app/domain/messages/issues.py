@@ -15,22 +15,34 @@ from app.domain.language import DEFAULT_COURSE_LANGUAGE, CourseLanguage
 from app.domain.locale import DEFAULT_LOCALE, Locale
 from app.domain.messages import has_message, render
 
-# What `where` names, in the interface language. `section « id »` is not here on purpose:
-# the curriculum editor parses it to find the section, so it keeps its one form.
-# French is what the code writes: only the English side needs a table.
-_EN_WORDS = {"titre": "title", "chapitre": "chapter", "parcours": "path"}
-_EN_PATTERNS = [
-    (re.compile(r"^exercice (\S+)$"), r"exercise \1"),
-    (re.compile(r"^section n°(\d+)$"), r"section no. \1"),
-]
+# What `where` names, in the interface language: its words and its patterns. `section « id »` is not
+# here on purpose: the curriculum editor parses it to find the section, so it keeps its one form.
+# French is what the code writes, so its entry is empty. A locale with no entry fails at import of
+# `test_issue_messages`, not in front of a user.
+WHERE_WORDS: dict[Locale, tuple[dict[str, str], list[tuple[re.Pattern[str], str]]]] = {
+    "fr": ({}, []),
+    "en": (
+        {"titre": "title", "chapitre": "chapter", "parcours": "path"},
+        [
+            (re.compile(r"^exercice (\S+)$"), r"exercise \1"),
+            (re.compile(r"^section n°(\d+)$"), r"section no. \1"),
+        ],
+    ),
+    "nl": (
+        {"titre": "titel", "chapitre": "hoofdstuk", "parcours": "traject"},
+        [
+            (re.compile(r"^exercice (\S+)$"), r"oefening \1"),
+            (re.compile(r"^section n°(\d+)$"), r"sectie nr. \1"),
+        ],
+    ),
+}
 
 
 def render_where(where: str, locale: Locale = DEFAULT_LOCALE) -> str:
-    if locale == "fr":
-        return where
-    if where in _EN_WORDS:
-        return _EN_WORDS[where]
-    for pattern, replacement in _EN_PATTERNS:
+    words, patterns = WHERE_WORDS[locale]
+    if where in words:
+        return words[where]
+    for pattern, replacement in patterns:
         if pattern.match(where):
             return pattern.sub(replacement, where)
     return where

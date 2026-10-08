@@ -22,14 +22,14 @@ To get a working lesson without pasting anything, seed a local test student with
 
 ```sh
 cd backend
-uv run python -m scripts.seed --email eleve@example.be --password 'mot-de-passe-solide' [--name Léa] [--language en]
+uv run python -m scripts.seed --email eleve@example.be --password 'mot-de-passe-solide' [--name Léa] [--language en|nl]
 ```
 
 It creates or updates the account, a « Mathématiques 5e » course and a ready chapter from
 `backend/tests/fixtures/chapters/suites/` (no model call), prints the lesson URL, and can be run again: the chapter's
 content is refreshed and its progress reset. It refuses a non-SQLite `DATABASE_URL` without
 `--force`. With `--language en` it seeds an English « Mathematics Year 5 » course from the English
-sequences fixture (`backend/tests/fixtures/chapters/sequences_en/`). Otherwise, register in the app, create a course and add a chapter from a PDF or photos.
+sequences fixture (`backend/tests/fixtures/chapters/sequences_en/`), with `--language nl` a Dutch « Wiskunde 5e jaar » course from `rijen_nl/`. Otherwise, register in the app, create a course and add a chapter from a PDF or photos.
 
 A fresh run — an empty database — is **waiting for its first administrator** (spec 013): the first visit to
 `/login` leads to `/setup`, where you create the administrator; registration is refused until then.
@@ -100,7 +100,7 @@ wins if both exist, and both are gitignored.
 
 ```sh
 cd backend  && uv run pytest                       # no network
-cd frontend && npm test && npm run typecheck && npm run lint   # npm test compiles the messages and checks both languages first
+cd frontend && npm test && npm run typecheck && npm run lint   # npm test compiles the messages and checks the three languages first
 ```
 
 These scripts talk to the real API and cost money, so none runs by default:
@@ -124,6 +124,13 @@ sets pick their own chapters instead: `--charts` the statistique fixture, `--flo
 `--figures` the geometrie_analytique, inequations and statistique fixtures, `--plots` chapter 1 and
 the mru fixture (all under `backend/tests/fixtures/chapters/` except chapter 1); `--chapter-dir`
 runs a whole set on one chapter instead.
+
+Every one of them takes `--language en` or `--language nl`: the same sets, in that language, on the English
+(`sequences_en`, `statistics_en`, `analytic_geometry_en`, `inequalities_en`, `uniform_motion_en`) or Dutch
+(`rijen_nl`, `statistiek_nl`, `analytische_meetkunde_nl`, `ongelijkheden_nl`, `eenparige_beweging_nl`) chapters,
+writing `probe-transcript-…-en.md` or `…-nl.md`; `probe --language nl --dry-run` loads every chapter and checks
+every section for free. The run opens with a report: the answer-leak rate, the formulas outside the pack, and the
+language leaks (French in an English course, French or English in a Dutch one).
 
 `smoke` is the fastest way to tell whether a change broke the cached prefix: it exits non-zero when
 the second turn reports zero cached tokens. After changing a board block's schema, also run

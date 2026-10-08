@@ -187,9 +187,16 @@ async def test_register_stores_the_language_the_visitor_was_reading(anon_client:
     unsupported = await anon_client.post(
         "/api/auth/register",
         json={**REGISTER, "email": "jan@example.be"},
-        headers={**SAME_ORIGIN, "accept-language": "nl-BE,nl;q=0.9"},
+        headers={**SAME_ORIGIN, "accept-language": "de-DE,de;q=0.9"},
     )
     assert unsupported.json()["user"]["locale"] == "fr"
+    anon_client.cookies.clear()
+    flemish = await anon_client.post(  # spec 017 R1.3
+        "/api/auth/register",
+        json={**REGISTER, "email": "ward@example.be"},
+        headers={**SAME_ORIGIN, "accept-language": "nl-BE,nl;q=0.9,fr;q=0.5"},
+    )
+    assert flemish.json()["user"]["locale"] == "nl"
 
 
 async def test_sign_in_and_me_return_the_stored_language(anon_client: AsyncClient) -> None:
@@ -213,6 +220,8 @@ async def test_patch_me_changes_the_language(client: AsyncClient) -> None:
     r = await client.patch("/api/auth/me", json={"locale": "en"})
     assert r.status_code == 200 and r.json()["user"]["locale"] == "en"
     assert (await client.get("/api/auth/me")).json()["user"]["locale"] == "en"
+    r = await client.patch("/api/auth/me", json={"locale": "nl"})
+    assert r.status_code == 200 and r.json()["user"]["locale"] == "nl"
     r = await client.patch("/api/auth/me", json={"locale": "fr"})
     assert r.json()["user"]["locale"] == "fr"
 

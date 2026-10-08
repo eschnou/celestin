@@ -110,6 +110,7 @@ MESSAGES: dict[str, str] = {
     "issue.pack.wrong_language": "le document suit le modèle en {found_language}, mais ce cours est en {expected_language}",
     "language.fr": "français",
     "language.en": "anglais",
+    "language.nl": "néerlandais",
     "issue.pack.title_missing": "le document doit commencer par un titre « # Titre du chapitre »",
     "issue.pack.title_too_long": "le titre dépasse {max} caractères",
     "issue.pack.title_multiple": "le document ne peut avoir qu'un seul titre de niveau 1",

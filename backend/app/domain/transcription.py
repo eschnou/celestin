@@ -27,6 +27,8 @@ class Markers:
     uncertain: str
     illegible: str
     empty_page: str
+    # The one thing a photo of work is read as when it holds no writing (`services/work_reading.py`).
+    nothing: str
     # The sentences about a batch of pages, as the model reads them when it must redo it.
     missing: str  # + page numbers
     unexpected: str  # + page numbers
@@ -40,6 +42,7 @@ MARKERS = by_language(
         uncertain="[incertain",
         illegible="[illisible]",
         empty_page="[page vide]",
+        nothing="[rien de lisible]",
         missing="repère manquant pour la page ",
         unexpected="page inattendue ",
         disordered="repères de page en double ou dans le désordre",
@@ -50,10 +53,22 @@ MARKERS = by_language(
         uncertain="[uncertain",
         illegible="[illegible]",
         empty_page="[empty page]",
+        nothing="[nothing legible]",
         missing="missing marker for page ",
         unexpected="unexpected page ",
         disordered="page markers duplicated or out of order",
         empty_without_marker="empty page without “[empty page]”",
+    ),
+    nl=Markers(
+        handwritten="[handgeschreven",
+        uncertain="[onzeker",
+        illegible="[onleesbaar]",
+        empty_page="[lege pagina]",
+        nothing="[niets leesbaar]",
+        missing="ontbrekende markering voor pagina ",
+        unexpected="onverwachte pagina ",
+        disordered="paginamarkeringen dubbel of in de verkeerde volgorde",
+        empty_without_marker="lege pagina zonder “[lege pagina]”",
     ),
 )
 _MARKER = re.compile(r"^\s*-{3}\s*page\s+(\d+)\s*-{3}\s*$", re.IGNORECASE | re.MULTILINE)

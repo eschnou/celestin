@@ -77,6 +77,8 @@ _KEYWORD = r"(?:chapitre|chap\.?|ch\.?|leçon|lecon|unité|unite|module|séquenc
 # A keyword is followed by its number after a space or its own dot, never glued to a word
 # (« Chi-squared » is not « Ch. i »).
 _KEYWORD_EN = r"(?:(?:chapter|chap\.?|ch\.|lesson|unit|module|section|part|topic|session)(?:\s+|(?<=\.)))"
+# The same words for a Dutch course (spec 017 R4.4): « Hoofdstuk 3: … », « Les 2 – … », « Thema 4) … ».
+_KEYWORD_NL = r"(?:(?:hoofdstuk|hfdst\.?|hfst\.?|les|eenheid|module|thema|deel|sectie|paragraaf|onderwerp|sessie|week)(?:\s+|(?<=\.)))"
 _NUMBER = r"(?:n[°o]\s*)?[0-9IVXivx]+"
 _SEPARATOR = r"\s*[):.\-–—]+\s*|\s+"
 
@@ -92,10 +94,17 @@ def _numbering(keyword: str) -> re.Pattern[str]:
 _NUMBERING = _numbering(_KEYWORD)
 # English: after a keyword any number; on its own a number (« 4) … ») or a Roman numeral with a
 # closing mark (« IV. … »), never a letter before a hyphen (« X-ray », « V-shaped »).
-_NUMBERING_EN = re.compile(
-    rf"^(?:{_KEYWORD_EN}{_NUMBER}(?:{_SEPARATOR})|(?:\d+\s*[):.\-–—]+|[IVXivx]+[):.])\s*)", re.IGNORECASE
-)
-_NUMBERING_BY_LANGUAGE = by_language(fr=_NUMBERING, en=_NUMBERING_EN)
+def _numbering_roman(keyword: str, number: str = _NUMBER) -> re.Pattern[str]:
+    return re.compile(
+        rf"^(?:{keyword}{number}(?:{_SEPARATOR})|(?:\d+\s*[):.\-–—]+|[IVXivx]+[):.])\s*)", re.IGNORECASE
+    )
+
+
+_NUMBERING_EN = _numbering_roman(_KEYWORD_EN)
+# Dutch: as English, with the Dutch keywords (a bare « IV. » or « 4) » is a number alone).
+# A Dutch heading also numbers with « nr. » (« Hoofdstuk nr. 3 »).
+_NUMBERING_NL = _numbering_roman(_KEYWORD_NL, r"(?:(?:nr|no)\.?\s*|n°\s*)?[0-9IVXivx]+")
+_NUMBERING_BY_LANGUAGE = by_language(fr=_NUMBERING, en=_NUMBERING_EN, nl=_NUMBERING_NL)
 
 
 def chapter_title(heading: str, language: CourseLanguage = DEFAULT_COURSE_LANGUAGE) -> str:
@@ -152,7 +161,7 @@ def parse_template(
 
 
 
-_LANGUAGE_NAMES_FR = {"fr": "français", "en": "anglais"}
+_LANGUAGE_NAMES_FR = by_language(fr="français", en="anglais", nl="néerlandais")
 
 
 def _wrong_language(expected: CourseLanguage, found: CourseLanguage) -> ContentIssue:

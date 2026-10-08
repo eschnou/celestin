@@ -16,7 +16,8 @@ import time
 from app.config import Settings
 from app.domain.ai_config import priced
 from app.domain.chapter import token_counts
-from app.domain.language import CourseLanguage
+from app.domain.language import CourseLanguage, by_language
+from app.domain.transcription import MARKERS
 from app.domain.usage import UsageScope, usage_scope
 from app.providers.base import AiConfigSource, CompletionClient
 from app.services.documents import DocumentService
@@ -25,11 +26,12 @@ from app.services.prompts import PromptLibrary
 log = logging.getLogger(__name__)
 
 # What the model is told next to the picture, per course language (it reads the prompt in that language).
-_PHOTO_LABEL: dict[CourseLanguage, str] = {
-    "fr": "Voici la photo du travail de l'élève.",
-    "en": "Here is the photo of the student's work.",
-}
-_DOUBT = re.compile(r"\[(?:incertain|uncertain):")
+_PHOTO_LABEL = by_language(
+    fr="Voici la photo du travail de l'élève.",
+    en="Here is the photo of the student's work.",
+    nl="Hier is de foto van het werk van de leerling.",
+)
+_DOUBT = re.compile("(?:" + "|".join(re.escape(markers.uncertain) for markers in MARKERS.values()) + "):")
 
 
 class WorkReader:

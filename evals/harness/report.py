@@ -132,7 +132,7 @@ def render(run: dict[str, Any], run_name: str) -> str:
             "`valid` = the turn ended cleanly with something shown (no provider error, no tool error, "
             "a finished turn): a model that never calls a tool still scores well here, so read `board` (turns that put a card "
             "on the board) next to the reference's, and the live check below. `refusals` = invalid tool calls the board refused, per turn: the first thing "
-            "that breaks on a small model. `leak`, `out-of-pack` and `french` come from the probes' mechanical judges.",
+            "that breaks on a small model. `leak`, `out-of-pack` and `french` come from the probes' mechanical judges (`french` is the language leak: French in an English course, French or English in a Dutch one).",
             "",
         ]
         rows = []

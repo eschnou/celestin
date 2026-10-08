@@ -4,7 +4,12 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { COURSE_LANGUAGES, CourseLanguageProvider, useCourseLanguage } from "@/lib/course-language";
+import {
+  COURSE_LANGUAGES,
+  CourseLanguageProvider,
+  isCourseLanguage,
+  useCourseLanguage,
+} from "@/lib/course-language";
 import { ChapterStrip } from "@/components/celestin/chapter-strip";
 
 afterEach(cleanup);
@@ -33,8 +38,10 @@ describe("useCourseLanguage", () => {
     expect(screen.getAllByTestId("probe").map((n) => n.textContent)).toEqual(["en", "fr"]);
   });
 
-  it("knows the two course languages", () => {
-    expect(COURSE_LANGUAGES).toEqual(["fr", "en"]);
+  it("knows the three course languages", () => {
+    expect(COURSE_LANGUAGES).toEqual(["fr", "en", "nl"]);
+    expect(isCourseLanguage("nl") && isCourseLanguage("fr") && isCourseLanguage("en")).toBe(true);
+    expect(isCourseLanguage("de") || isCourseLanguage(null) || isCourseLanguage("")).toBe(false);
   });
 });
 
@@ -45,16 +52,20 @@ describe("course text is marked with the course's language", () => {
     sections: [{ id: "s1", index: 1, kind: "teach" as const, title: "Terms", goal: "g" }],
   };
 
-  it.each(["fr", "en"] as const)("a chapter title carries the course language (%s)", (language) => {
-    render(
-      <CourseLanguageProvider language={language}>
-        <ChapterStrip chapter={chapter} progress={{ done: [], active: "s1" }} onOpen={() => {}} />
-      </CourseLanguageProvider>,
-    );
-    const other = language === "fr" ? "en" : "fr";
-    expect(document.body.querySelectorAll(`[lang="${language}"]`).length).toBeGreaterThan(0);
-    expect(document.body.querySelectorAll(`[lang="${other}"]`).length).toBe(0);
-  });
+  it.each(["fr", "en", "nl"] as const)(
+    "a chapter title carries the course language (%s)",
+    (language) => {
+      render(
+        <CourseLanguageProvider language={language}>
+          <ChapterStrip chapter={chapter} progress={{ done: [], active: "s1" }} onOpen={() => {}} />
+        </CourseLanguageProvider>,
+      );
+      expect(document.body.querySelectorAll(`[lang="${language}"]`).length).toBeGreaterThan(0);
+      for (const other of COURSE_LANGUAGES.filter((l) => l !== language)) {
+        expect(document.body.querySelectorAll(`[lang="${other}"]`).length).toBe(0);
+      }
+    },
+  );
 });
 
 describe("no constant stands in for the course's language any more", () => {

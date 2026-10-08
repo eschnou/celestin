@@ -53,5 +53,6 @@ def test_the_scope_reader_serves_the_asgi_middleware() -> None:
     from app.api.locale import locale_of_scope
 
     assert locale_of_scope({"headers": [(b"accept-language", b"en-GB,en;q=0.9")]}) == "en"
-    assert locale_of_scope({"headers": [(b"accept-language", b"nl")]}) == "fr"
+    assert locale_of_scope({"headers": [(b"accept-language", b"nl-BE")]}) == "nl"
+    assert locale_of_scope({"headers": [(b"accept-language", b"de")]}) == "fr"
     assert locale_of_scope({"headers": [(b"host", b"x")]}) == "fr"

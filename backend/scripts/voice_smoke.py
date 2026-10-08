@@ -1,6 +1,6 @@
 """Mint one real Realtime client secret. Opt-in, never part of the default test run.
 
-    uv run python -m scripts.voice_smoke
+    uv run python -m scripts.voice_smoke [--language en|nl]
 
 Proves the session configuration (prompt, pack, tools, audio settings) is accepted
 by the API. No audio is exchanged and nothing is billed beyond the request.

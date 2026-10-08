@@ -23,7 +23,7 @@ SETS: dict[str, str | None] = {
     "figures": "--figures",
     "plots": "--plots",
 }
-LANGUAGES = ("fr", "en")
+LANGUAGES = ("fr", "en", "nl")
 EFFORTS = ("", "low", "medium", "high")  # "" is « not sent »: a setting, unlike an absent key
 API_STYLES = ("responses", "chat")
 STRUCTURED = ("schema", "json")

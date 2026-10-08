@@ -1,0 +1,3 @@
+Stand van het traject: 1 van de 3 sectie(s) afgerond.
+Geen sectie bezig. Volgende: “2. Oefeningen” (oefeningen).
+Begin eraan met start_section("exos").

@@ -116,7 +116,7 @@ def test_every_subject_renders_a_tutor_prompt_with_its_voice_block_only_in_a_cal
         )
 
     text, call = render(False), render(True)
-    voice_title = {"fr": "à voix haute", "en": "out loud"}[language]
+    voice_title = {"fr": "à voix haute", "en": "out loud", "nl": "hardop"}[language]
     subject_text = LIBRARY.subject(subject, language)  # type: ignore[arg-type]
     assert subject_text.split("<!-- VOICE -->")[0].strip() in text
     assert subject_text.split("<!-- VOICE -->")[1].split("<!-- /VOICE -->")[0].strip() not in text

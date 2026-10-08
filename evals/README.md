@@ -25,7 +25,7 @@ API keys come from the environment variable a model names (`api_key_env`), never
 `evals/.env` (copy `.env.example`; gitignored, read only by the harness itself, never handed to a worker; a variable
 already set in your shell wins). The backend's `.env` is not read. A local server
 (Ollama, llama.cpp) needs none. `--resume results/<run>` measures only what a run folder lacks, `--jobs 2`
-measures two models at once (leave it at 1 for a local server), `--runs`, `--sets`, `--language` override the file.
+measures two models at once (leave it at 1 for a local server), `--runs`, `--sets`, `--language fr|en|nl` override the file. The language gate (`french_max`) applies to an English or a Dutch run.
 
 Prices (`price_input`, `price_cached`, `price_output`, USD per million tokens) go in `models.toml`. `report` and `judge`
 apply the ones currently in the file, by model name, over a past run's tokens, so prices can be filled in after a run.

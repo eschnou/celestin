@@ -18,14 +18,14 @@ from app.config import Settings, get_settings
 from app.db.base import make_engine, make_session_factory
 from app.db.repositories import Repositories
 from app.db.schema import check_schema
-from app.domain.language import COURSE_LANGUAGES, DEFAULT_COURSE_LANGUAGE, CourseLanguage
+from app.domain.language import COURSE_LANGUAGES, DEFAULT_COURSE_LANGUAGE, CourseLanguage, by_language
 from app.domain.subject import Subject
 from app.services.auth_service import PasswordHasher
 from app.services.prompts import PromptLibrary
 from scripts.chapter_files import DEFAULT_CHAPTER_DIR, default_chapter_dir, load_chapter_files
 
 COURSE_NAME = "Mathématiques 5e"
-COURSE_NAME_BY_LANGUAGE = {"fr": COURSE_NAME, "en": "Mathematics Year 5"}
+COURSE_NAME_BY_LANGUAGE = by_language(fr=COURSE_NAME, en="Mathematics Year 5", nl="Wiskunde 5e jaar")
 
 
 def install_chapter(

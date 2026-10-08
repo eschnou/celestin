@@ -155,3 +155,27 @@ def test_a_marker_survives_copy_and_pickle() -> None:
     for clone in (copy.copy(marker), copy.deepcopy(marker), pickle.loads(pickle.dumps(marker))):
         assert clone == marker and clone.key == marker.key and dict(clone.params) == dict(marker.params)
         assert clone.render("en") == "section completed · 1. Introduction"
+
+
+# --- spec 017: the Dutch interface ---------------------------------------------------
+
+
+def test_subjects_failures_and_titles_in_dutch() -> None:
+    assert render("subject.mathematics", "nl") == "Wiskunde"
+    assert authoring_message(_chapter("timeout"), "nl") == "De voorbereiding duurde te lang. Probeer opnieuw."  # type: ignore[arg-type]
+    assert authoring_message(_chapter("provider", needs_document=True), "nl").startswith("De leesdienst")  # type: ignore[arg-type]
+    assert display_title(2, "Rijen", "nl") == "Hoofdstuk 2 — Rijen"
+    assert display_title(2, None, "nl") == "Nieuw hoofdstuk 2"
+
+
+@pytest.mark.parametrize(("card", "key"), CARDS)
+def test_every_card_kind_has_its_marker_in_dutch(card: type, key: str) -> None:
+    assert card.marker.render("nl") not in (card.marker.render("fr"), card.marker.render("en"))
+
+
+def test_the_event_of_an_outcome_carries_the_marker_in_dutch() -> None:
+    section = SimpleNamespace(id="intro", label="1. Inleiding")
+    started = SectionStarted(section=section, review=False, output="o", marker=Marker("marker.section_started", label="1. Inleiding"))  # type: ignore[arg-type]
+    assert event_of(started, "nl").marker == "sectie begonnen · 1. Inleiding"
+    assert event_of(BoardCleared(marker=CLEAR_MARKER), "nl").marker == "bord gewist"
+    assert marker_for("clear_board", {}, "nl") == "bord gewist"

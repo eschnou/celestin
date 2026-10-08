@@ -3,7 +3,12 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CourseLanguageProvider, type CourseLanguage } from "@/lib/course-language";
+import {
+  COURSE_LANGUAGES,
+  CourseLanguageProvider,
+  type CourseLanguage,
+} from "@/lib/course-language";
+import { LOCALES } from "@/lib/locale";
 import { withLocale } from "@/test/locale";
 import {
   ANSWER_MESSAGE,
@@ -84,18 +89,35 @@ describe("the learner's sentences, per course language", () => {
     ]);
   });
 
+  it("are Dutch for a Dutch course (spec 017 R7.4)", () => {
+    expect(read("nl")).toEqual([
+      "Ik wil graag de sectie “Sequences” herhalen.",
+      "Beginnen we met de sectie “Sequences”?",
+      "Volgende stap.",
+      "Volgende sectie.",
+      "Mijn antwoord op de vraag: “Yes”.",
+      "Hulpmiddel niet beschikbaar. Zeg het aan de leerling en ga verder zonder.",
+    ]);
+    expect(learnerSentences("nl").work("x = 2")).toBe(
+      "Hier is mijn werk, ingelezen van mijn foto:\nx = 2",
+    );
+  });
+
   it("do not change with the interface language", async () => {
-    for (const language of ["fr", "en"] as const) {
+    for (const language of COURSE_LANGUAGES) {
       const expected = read(language);
-      expect(await withLocale("en", () => read(language))).toEqual(expected);
-      expect(await withLocale("fr", () => read(language))).toEqual(expected);
+      for (const locale of LOCALES) {
+        expect(await withLocale(locale, () => read(language))).toEqual(expected);
+      }
     }
   });
 
-  it("have a sentence for every key in both languages", () => {
-    expect(Object.keys(LEARNER_SENTENCES.en).sort()).toEqual(
-      Object.keys(LEARNER_SENTENCES.fr).sort(),
-    );
+  it("have a sentence for every key in every language", () => {
+    for (const language of COURSE_LANGUAGES) {
+      expect(Object.keys(LEARNER_SENTENCES[language]).sort()).toEqual(
+        Object.keys(LEARNER_SENTENCES.fr).sort(),
+      );
+    }
   });
 
   it("are read from the course on screen", () => {

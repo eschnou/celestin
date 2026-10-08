@@ -1,0 +1,3 @@
+Stand van het traject: 0 van de 3 sectie(s) afgerond.
+Geen sectie bezig. Volgende: “1. Inleiding” (les).
+Begin eraan met start_section("intro").

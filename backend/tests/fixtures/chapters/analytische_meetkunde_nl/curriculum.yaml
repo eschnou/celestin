@@ -1,0 +1,38 @@
+# Traject voor het hoofdstuk analytische meetkunde: een Nederlandstalig fixture (spec 017) voor
+# de figuurproeven, met de hand geschreven, elk antwoord nagerekend. Verwijzingen zoals "§4.4"
+# of "6.2.2" wijzen naar de naburige pack.
+
+id: analytische-meetkunde
+title: Analytische meetkunde in het vlak
+
+sections:
+  - id: coordinaten
+    kind: teach
+    title: Assenstelsel, midden en afstand
+    goal: Punten situeren in een orthonormaal assenstelsel, een midden en een afstand vinden.
+    pack: ["§4.1", "§4.2"]
+    beats:
+      - Het orthonormale assenstelsel van de cursus en de punten A, B en C.
+      - De formules van het midden en van de afstand, op het voorbeeld uit de cursus.
+      - Controlevraag over het midden van een lijnstuk.
+    done_when: Heeft de controlevraag beantwoord.
+
+  - id: rechten
+    kind: teach
+    title: Rechten
+    goal: De vergelijking van een rechte opstellen, evenwijdige of loodrechte rechten herkennen en een snijpunt vinden.
+    pack: ["§4.3", "§4.4", "§4.5"]
+    beats:
+      - De vergelijking van de rechte AB uit de cursus, eerst de richtingscoëfficiënt, dan het snijpunt met de y-as.
+      - Evenwijdige en loodrechte rechten; de driehoek ABC met zijn rechte hoek in B en zijn aanduidingen.
+      - Het snijpunt van de rechten d1 en d2 uit de cursus.
+      - Controlevraag over twee loodrechte rechten.
+    done_when: Heeft de controlevraag beantwoord.
+
+  - id: oefenen
+    kind: practise
+    title: Middens, afstanden en rechten
+    goal: Middens, afstanden, vergelijkingen van rechten en snijpunten vinden.
+    exercises: ["6.1.1", "6.1.2", "6.2.1", "6.2.2", "6.2.3"]
+    count: 3
+    done_when: Drie oefeningen opgelost, waaronder een snijpunt.

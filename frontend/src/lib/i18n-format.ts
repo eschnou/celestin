@@ -8,7 +8,7 @@ import { getLocale } from "@/paraglide/runtime";
 import type { Locale } from "./locale";
 
 /** The Intl tag of each interface language. */
-export const INTL_TAG: Record<Locale, string> = { fr: "fr-BE", en: "en-GB" };
+export const INTL_TAG: Record<Locale, string> = { fr: "fr-BE", en: "en-GB", nl: "nl-BE" };
 
 const tag = (): string => INTL_TAG[getLocale()];
 

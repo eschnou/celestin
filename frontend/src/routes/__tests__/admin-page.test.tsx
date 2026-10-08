@@ -130,7 +130,9 @@ describe("the users panel", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Zx9-temporaire-ok")).toBeTruthy();
     expect(within(dialog).getByText("Nouveau mot de passe de Léa")).toBeTruthy();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Fermer" }));
+    // The dialog's corner X now has the interface's name too (it was the English "Close"): two buttons are « Fermer »,
+    // the footer's first in the document.
+    fireEvent.click(within(dialog).getAllByRole("button", { name: "Fermer" })[0]!);
     await waitFor(() => expect(screen.queryByText("Zx9-temporaire-ok")).toBeNull());
   });
 

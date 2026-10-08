@@ -39,6 +39,14 @@ WORDS = {
         "off_topic": "Off-topic",
         "voice_titles": ("When we talk out loud", "out loud"),
     },
+    "nl": {
+        "subject_words": ("wiskunde", "fysica", "rekenkundige rij", "u₁", "5e jaar", "belgi", "vlaanderen", "federatie"),
+        "gender": r"\b(?:hij|zij|hem|haar)\b",
+        "to_check": "Na te kijken punten",
+        "lesson": "**Les.**",
+        "off_topic": "Buiten het onderwerp",
+        "voice_titles": ("Wanneer we hardop praten", "hardop"),
+    },
 }
 MARKERS = (
     "<!-- SUBJECT -->",
@@ -47,7 +55,22 @@ MARKERS = (
     "<!-- MODE -->",
     "<!-- MODE_OPENING -->",
 )
-LANGUAGES = list(COURSE_LANGUAGES)
+
+
+def written_in(*names: str) -> list[str]:
+    """The course languages whose prompt files `names` (with `{l}` for the language) all exist: a language
+    joins a check when its files do (spec 017: the Dutch set is written over phases 4 and 5)."""
+    return [lang for lang in COURSE_LANGUAGES if all((PROMPTS / n.format(l=lang)).exists() for n in names)]
+
+
+LANGUAGES = written_in("tutor.{l}.md", "modes/parcours.{l}.md", "subjects/mathematics.{l}.md")
+TRANSCRIPTION_LANGUAGES = written_in("transcription/transcribe.{l}.md", "transcription/verify.{l}.md")
+WORK_LANGUAGES = written_in("transcription/work.{l}.md")
+
+
+def test_every_course_language_is_in_every_gated_check() -> None:
+    """The gating above is for building a language up; once built, a missing file must fail, not drop out."""
+    assert LANGUAGES == TRANSCRIPTION_LANGUAGES == WORK_LANGUAGES == list(COURSE_LANGUAGES)
 
 
 def read(name: str, language: str) -> str:
@@ -55,8 +78,12 @@ def read(name: str, language: str) -> str:
     return (PROMPTS / f"{base}.{language}.{ext}").read_text(encoding="utf-8")
 
 
+# « zijn of haar », « hij of zij »: the inclusive forms say both, they presume no gender.
+INCLUSIVE = re.compile(r"\b(?:zijn of haar|hem of haar|hij of zij)\b")
+
+
 def neutral(text: str, where: str, language: str) -> None:
-    lowered = text.lower()
+    lowered = INCLUSIVE.sub(" ", text.lower())
     for word in WORDS[language]["subject_words"]:
         assert word not in lowered, f"{where}: {word}"
     assert not re.search(WORDS[language]["gender"], lowered), where
@@ -116,24 +143,34 @@ def test_the_tutor_prompts_voice_block_is_the_only_one_and_text_mode_drops_it() 
 TRANSCRIPTION = {
     "fr": ("--- page N ---", "[manuscrit]", "[incertain:", "[illisible]", "[figure :", "[barré:", "[page vide]"),
     "en": ("--- page N ---", "[handwritten]", "[uncertain:", "[illegible]", "[figure:", "[crossed out:", "[empty page]"),
+    "nl": ("--- page N ---", "[handgeschreven]", "[onzeker:", "[onleesbaar]", "[figuur:", "[doorgestreept:", "[lege pagina]"),
 }
 
 
-@pytest.mark.parametrize("language", LANGUAGES)
+@pytest.mark.parametrize("language", TRANSCRIPTION_LANGUAGES)
 def test_the_transcription_prompt_demands_doubt_and_page_markers(language: str) -> None:
     text = read("transcription/transcribe.md", language)
     for convention in TRANSCRIPTION[language]:
         assert convention in text, convention
-    # The marks of the other language are not taught.
-    other = TRANSCRIPTION["en" if language == "fr" else "fr"]
-    for convention in other[1:]:
-        assert convention not in text, convention
-    assert "[uncertain:" in read("transcription/verify.md", language) or language == "fr"
+    # The marks of the other languages are not taught.
+    for other_language, other in TRANSCRIPTION.items():
+        if other_language == language:
+            continue
+        for convention in other[1:]:
+            assert convention not in text, convention
+    assert TRANSCRIPTION[language][2] in read("transcription/verify.md", language) or language == "fr"
 
 
 def test_the_english_transcription_prompt_never_translates() -> None:
     assert "never translate" in read("transcription/transcribe.md", "en").lower()
     assert "never translate" in read("transcription/verify.md", "en").lower()
+
+
+@pytest.mark.parametrize("language", [lang for lang in TRANSCRIPTION_LANGUAGES if lang == "nl"])
+def test_the_dutch_transcription_prompts_never_translate(language: str) -> None:
+    """Spec 017 R4.1: the pages are transcribed in the page's own language."""
+    for name in ("transcription/transcribe.md", "transcription/verify.md"):
+        assert "vertaal nooit" in read(name, language).lower(), name
 
 
 def test_the_english_authoring_prompt_reads_a_transcription_of_pages() -> None:
@@ -194,11 +231,78 @@ def test_an_english_file_carries_no_french(twin: str) -> None:
     assert "«" not in text and "»" not in text, twin
 
 
+# --- spec 017: the Dutch files, against their French twins -----------------------------------------------------
+# A Dutch file joins these checks when it exists (the set is written over phases 4 and 5); the test below fails
+# when a Dutch file has no French twin, and phase 7 requires every one of the 31 to exist.
+
+DUTCH_TWINS = [t for t in TWINS if (PROMPTS / f"{t}.nl.md").exists()]
+
+# Function words that no Dutch sentence needs: if one is in a Dutch file it is French or English prose left in.
+# (« les », « pas », « ton », « is » are Dutch words too, so they are not in the lists.)
+_FRENCH_STOPWORDS = re.compile(
+    r"\b(?:le|la|est|pour|une|avec|des|du|dans|que|qui|mais|donc|nous|vous|sont|cette|ces|elle|ils|aux|sur|ou|"
+    r"tu|ta|tes|ne|au|chaque|toujours|jamais|sans)\b",
+    re.IGNORECASE,
+)
+_ENGLISH_STOPWORDS = re.compile(
+    r"\b(?:the|and|are|with|from|that|this|which|your|you|do|does|not|only|never|always|must|should|will|have|has|"
+    r"for|each|every|before|after|then|when|if)\b"
+)
+# What a Dutch file may quote: the tool names, the tags, the marks and the product name are not prose.
+_QUOTED = re.compile(r"`[^`]*`|<[^>]*>|\[[^\]]*\]|\"[^\"]*\"|“[^”]*”")
+
+
+def test_every_dutch_file_has_a_french_twin() -> None:
+    dutch = sorted(str(p.relative_to(PROMPTS)).replace(".nl.md", "") for p in PROMPTS.glob("**/*.nl.md"))
+    assert set(dutch) <= set(TWINS), sorted(set(dutch) - set(TWINS))
+
+
+@pytest.mark.parametrize("twin", DUTCH_TWINS)
+def test_a_dutch_file_has_the_skeleton_of_its_french_twin(twin: str) -> None:
+    fr, nl = read(f"{twin}.md", "fr"), read(f"{twin}.md", "nl")
+    assert outline(nl) == outline(fr), twin
+    for marker in (*MARKERS, VOICE_START.strip(), VOICE_END.strip()):
+        assert nl.count(marker) == fr.count(marker), (twin, marker)
+    assert names(nl) == names(fr), (twin, names(nl) ^ names(fr))
+
+
+@pytest.mark.parametrize("twin", [t for t in DUTCH_TWINS if t.startswith("templates/")])
+def test_a_dutch_template_keeps_the_positions_of_the_french_one(twin: str) -> None:
+    subject = twin.split("/")[1].split(".")[0]
+    french, dutch = LIBRARY.template(subject, "fr"), LIBRARY.template(subject, "nl")  # type: ignore[arg-type]
+    assert [n for n, _ in dutch.headings] == [n for n, _ in french.headings]
+    assert dutch.exercises_section == french.exercises_section
+    assert dutch.text.count("###") == french.text.count("###")
+    assert dutch.headings[-1][1] == WORDS["nl"]["to_check"]
+
+
+@pytest.mark.parametrize("twin", DUTCH_TWINS)
+def test_a_dutch_file_carries_no_french_or_english_prose(twin: str) -> None:
+    prose = _QUOTED.sub(" ", read(f"{twin}.md", "nl").replace("Célestin", "Celestin"))
+    assert "«" not in prose and "»" not in prose, twin
+    for name, words in (("French", _FRENCH_STOPWORDS), ("English", _ENGLISH_STOPWORDS)):
+        found = words.findall(prose)
+        assert not found, (twin, name, sorted(set(found)))
+
+
+@pytest.mark.parametrize("language", [lang for lang in written_in("authoring/pack.{l}.md") if lang == "nl"])
+def test_the_dutch_authoring_prompt_reads_a_transcription_of_pages(language: str) -> None:
+    pack = read("authoring/pack.md", language)
+    assert "Als het materiaal een transcriptie van pagina's is" in pack and "p. 5" in pack
+    for mark in ("[handgeschreven]", "[onzeker: a | b]", "[onleesbaar]", "[figuur: …]", "[doorgestreept: …]"):
+        assert mark in pack, mark
+    assert "herstructureer, voeg nooit toe" in pack.lower()
+    assert "<materiel>" in pack  # the tag that wraps the material is not language
+    curriculum = read("authoring/curriculum.md", language)
+    assert "<chapitre>" in curriculum and "Na te kijken punten" in curriculum
+
+
 # What the interface sends to the model for the learner (frontend `lib/tutor/prompts.ts`, pinned
 # there per language) is quoted by the path-mode prompt, so Célestin recognises it.
 CITED = {
     "fr": ("« Étape suivante »", "« Section suivante »", "On commence la section …", "Ma réponse à la question : …"),
     "en": ("“Next step”", "“Next section”", "Shall we start the section", "My answer to the question: …"),
+    "nl": ("“Volgende stap”", "“Volgende sectie”", "Beginnen we met de sectie", "Mijn antwoord op de vraag: …"),
 }
 
 
@@ -209,7 +313,7 @@ def test_the_path_prompt_quotes_the_sentences_the_interface_sends(language: str)
         assert sentence in parcours, sentence
 
 
-@pytest.mark.parametrize("language", LANGUAGES)
+@pytest.mark.parametrize("language", WORK_LANGUAGES)
 def test_the_work_reading_prompt_keeps_the_transcription_conventions(language: str) -> None:
     """The student's photo is read with the marks of the course transcription: a doubt is marked, an
     illegible word is not guessed, nothing is corrected, and a photo with no writing says so in one fixed
@@ -218,9 +322,13 @@ def test_the_work_reading_prompt_keeps_the_transcription_conventions(language: s
     doubt, illegible, nothing = {
         "fr": ("[incertain:", "[illisible]", "[rien de lisible]"),
         "en": ("[uncertain:", "[illegible]", "[nothing legible]"),
+        "nl": ("[onzeker:", "[onleesbaar]", "[niets leesbaar]"),
     }[language]
     for mark in (doubt, illegible, nothing, "$…$"):
         assert mark in text
-    assert "```" not in text.split("## La réponse" if language == "fr" else "## The answer")[0]
+    answer = {"fr": "## La réponse", "en": "## The answer", "nl": "## Het antwoord"}[language]
+    assert "```" not in text.split(answer)[0]
     if language == "en":
         assert "never translate" in text.lower()
+    if language == "nl":
+        assert "vertaal nooit" in text.lower()

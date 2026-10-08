@@ -49,7 +49,8 @@ class Script:
             await asyncio.sleep(3600)
 
 
-LIMITS = StreamLimits(first_event_s=0.15, idle_s=0.05)
+LIMITS = StreamLimits(first_event_s=0.15, idle_s=0.05)  # the tests of the limits themselves
+ROOMY = StreamLimits(first_event_s=5, idle_s=5)  # every other test: a loaded machine must not cut a stream
 
 
 async def run(script: Script, handle=None, *, limits: StreamLimits = LIMITS, on_progress=None, every: float = 1.0):
@@ -68,7 +69,7 @@ async def run(script: Script, handle=None, *, limits: StreamLimits = LIMITS, on_
 
 async def test_a_stream_is_read_to_its_end_and_closed() -> None:
     script = Script("a", "b", "c")
-    stats, seen = await run(script)
+    stats, seen = await run(script, limits=ROOMY)
     assert seen == ["a", "b", "c"] and stats.events == 3 and script.closed
 
 
@@ -95,20 +96,20 @@ async def test_a_stream_that_goes_quiet_after_events_fails_the_idle_limit() -> N
 
 async def test_a_slow_but_flowing_stream_is_not_cut() -> None:
     """Longer in total than the idle limit, never quiet for as long as it."""
-    script = Script(*["x", 0.03] * 8)
-    stats, seen = await run(script)
-    assert len(seen) == 8 and stats.elapsed_ms > 50
+    script = Script(*["x", 0.06] * 8)
+    stats, seen = await run(script, limits=StreamLimits(first_event_s=1, idle_s=0.25))
+    assert len(seen) == 8 and stats.elapsed_ms > 250
 
 
 async def test_the_first_event_may_take_longer_than_a_pause_between_events() -> None:
     script = Script(0.1, "late")  # 100 ms of silence: over the idle limit, inside the first-event allowance
-    _, seen = await run(script)
+    _, seen = await run(script, limits=StreamLimits(first_event_s=1, idle_s=0.05))
     assert seen == ["late"]
 
 
 async def test_any_event_is_activity_including_ones_the_handler_ignores() -> None:
-    script = Script(*["reasoning.delta", 0.03] * 6, "response.completed")
-    stats, _ = await run(script, handle=lambda event: None)
+    script = Script(*["reasoning.delta", 0.06] * 6, "response.completed")
+    stats, _ = await run(script, handle=lambda event: None, limits=StreamLimits(first_event_s=1, idle_s=0.25))
     assert stats.events == 7
 
 
@@ -121,7 +122,7 @@ async def test_progress_is_throttled_to_the_interval_plus_one_final_snapshot() -
 
     script = Script("aaaa", 0.03, "bb", 0.03, "c", 0.03, "d")
     await consume(
-        script.open, handle, limits=LIMITS, stats=stats, on_progress=snapshots.append, progress_every_s=0.05
+        script.open, handle, limits=ROOMY, stats=stats, on_progress=snapshots.append, progress_every_s=0.05
     )
     assert 2 <= len(snapshots) <= 4
     assert snapshots[-1].received_chars == 8 and snapshots[-1].events == 4
@@ -130,7 +131,7 @@ async def test_progress_is_throttled_to_the_interval_plus_one_final_snapshot() -
 
 async def test_without_a_callback_nothing_is_emitted_and_a_short_call_still_ends_with_one() -> None:
     snapshots: list[ProgressSnapshot] = []
-    await run(Script("a"), on_progress=snapshots.append)
+    await run(Script("a"), on_progress=snapshots.append, limits=ROOMY)
     assert len(snapshots) == 1  # no interval elapsed: only the final one
 
 
@@ -139,7 +140,7 @@ async def test_a_raising_callback_does_not_break_the_stream(caplog: pytest.LogCa
         raise RuntimeError("SECRET-CALLBACK-MESSAGE")
 
     with caplog.at_level(logging.WARNING):
-        stats, seen = await run(Script("a", 0.02, "b"), on_progress=boom, every=0.0)
+        stats, seen = await run(Script("a", 0.02, "b"), on_progress=boom, every=0.0, limits=ROOMY)
     assert seen == ["a", "b"] and stats.events == 2
     dump = " ".join(str(r.__dict__) for r in caplog.records)
     assert "progress_callback_failed" in dump and "RuntimeError" in dump and "SECRET-CALLBACK-MESSAGE" not in dump
@@ -152,7 +153,7 @@ async def test_a_handler_may_break_the_stream_and_the_stream_is_closed() -> None
 
     script = Script("ok", "bad", "never")
     with pytest.raises(StreamBroken):
-        await run(script, handle=handle)
+        await run(script, handle=handle, limits=ROOMY)
     assert script.closed
 
 

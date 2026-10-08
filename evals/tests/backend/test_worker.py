@@ -58,6 +58,14 @@ def test_the_probes_mechanical_judges_become_booleans():
     assert record["out_of_pack"] is False and len(record["flags"]) == 2
 
 
+def test_a_dutch_courses_language_leak_counts_as_french_in_the_record():
+    def judge(turn):
+        return [f"{probe.FOREIGN_LEAK} : « bonjour »"]
+
+    record = trial(FakeLLM([[TextDelta("dag"), Completed(usage={})]]), judge=judge)
+    assert record["french"] is True and record["leaked"] is False
+
+
 def test_a_timeout_is_recorded_as_one():
     class Slow:
         model = "slow"

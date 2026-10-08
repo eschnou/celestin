@@ -20,7 +20,13 @@ describe("matchLocale", () => {
 
   it("falls back to French", () => {
     expect(matchLocale([])).toBe("fr");
-    expect(matchLocale(["nl-BE"])).toBe("fr");
+    expect(matchLocale(["de-DE"])).toBe("fr");
+  });
+
+  it("reads Flemish and Dutch browsers as Dutch (spec 017)", () => {
+    expect(matchLocale(["nl-BE", "fr-BE"])).toBe("nl");
+    expect(matchLocale(["nl-NL"])).toBe("nl");
+    expect(matchLocale(["fr-BE", "nl-BE"])).toBe("fr");
   });
 });
 

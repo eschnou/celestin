@@ -39,10 +39,10 @@ class SubjectInfo:
 SUBJECTS: dict[Subject, SubjectInfo] = {
     info.id: info
     for info in (
-        SubjectInfo("mathematics", True, ("fr", "en")),
-        SubjectInfo("sciences", True, ("fr", "en")),
-        SubjectInfo("languages", True, ("fr", "en")),
-        SubjectInfo("general", True, ("fr", "en")),
+        SubjectInfo("mathematics", True, ("fr", "en", "nl")),
+        SubjectInfo("sciences", True, ("fr", "en", "nl")),
+        SubjectInfo("languages", True, ("fr", "en", "nl")),
+        SubjectInfo("general", True, ("fr", "en", "nl")),
     )
 }
 
