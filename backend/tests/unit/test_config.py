@@ -81,7 +81,7 @@ def test_document_defaults() -> None:
     s = Settings(openai_api_key="k", _env_file=None)
     assert (s.document_max_bytes, s.document_max_pages, s.document_min_pixels) == (26_214_400, 50, 800)
     assert (s.transcription_dpi, s.transcription_max_side_px, s.transcription_batch_pages) == (150, 1800, 2)
-    assert s.transcription_detail == "high" and s.authoring_timeout_s == 900
+    assert s.transcription_detail == "high" and s.authoring_timeout_s == 1800
 
 
 def test_content_limits_defaults() -> None:
@@ -186,3 +186,23 @@ def test_migration_backups_kept_defaults_to_five_and_needs_one(monkeypatch: pyte
     monkeypatch.setenv("MIGRATION_BACKUPS_KEPT", "0")
     with pytest.raises(ValueError):
         Settings(_env_file=None)
+
+
+def test_the_streamed_call_limits_and_their_bounds() -> None:
+    """Spec 016 R3."""
+    s = Settings(openai_api_key="k", _env_file=None)
+    assert (s.authoring_first_event_timeout_s, s.authoring_idle_timeout_s, s.authoring_progress_log_s) == (180, 60, 30)
+    assert s.authoring_call_timeout_s is None
+    for name, floor in (
+        ("authoring_first_event_timeout_s", 10),
+        ("authoring_idle_timeout_s", 5),
+        ("authoring_progress_log_s", 5),
+    ):
+        assert getattr(Settings(openai_api_key="k", _env_file=None, **{name: floor}), name) == floor
+        with pytest.raises(ValueError):
+            Settings(openai_api_key="k", _env_file=None, **{name: floor - 1})
+
+
+def test_the_old_per_call_timeout_is_still_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AUTHORING_CALL_TIMEOUT_S", "300")
+    assert Settings(openai_api_key="k", _env_file=None).authoring_call_timeout_s == 300

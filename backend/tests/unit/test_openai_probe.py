@@ -65,7 +65,7 @@ async def test_an_accepted_key_is_ok_and_the_client_is_closed(monkeypatch) -> No
     result = await probe_with(monkeypatch, FakeModels()).check(CONNECTION)
     assert (result.status, result.limited, result.models) == ("ok", False, [])
     (client,) = FakeClient.instances
-    assert client.closed and client.kwargs == {"connection": CONNECTION, "timeout_s": 3, "max_retries": 0}
+    assert client.closed and client.kwargs == {"connection": CONNECTION, "timeout_s": 3}
 
 
 async def test_a_401_is_rejected(monkeypatch) -> None:

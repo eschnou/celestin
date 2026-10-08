@@ -125,16 +125,28 @@ attempt. Tokens, attempts and milliseconds accumulate in a `RunUsage` the caller
 cancelled run still records what it cost.
 
 **Failures** (`AuthoringFailed.code`): `unstructured` (repairs exhausted), `provider` (unavailable,
-rate limited, call timeout), `truncated` (the output limit was hit; no repair),
+rate limited, refused), `timeout` (the provider went quiet: `ProviderTimeout`), `truncated` (the output limit was hit; no repair),
 `transcription_failed` (a batch invalid twice), `too_long` (the transcription is longer than a
 chapter may be).
 
 The provider call is `complete(role=…)` of the role's client: `OpenAIResponsesClient` (`app/providers/openai_responses.py`,
-one non-streamed Responses call, the instructions joined into a developer message with a cache breakpoint on OpenAI,
-`store=False`, optional strict schema) or `OpenAIChatClient` for a Chat Completions server. The role (`authoring` or
+one **streamed** Responses call, the instructions joined into a developer message with a cache breakpoint on OpenAI,
+`store=False`, optional strict schema) or `OpenAIChatClient` for a Chat Completions server (also streamed, with
+`include_usage`). The text is assembled from the events and judged as a whole response was, so a pack or a path is
+byte-identical to what a non-streamed call gave; nothing the stream carries is stored or shown. The role (`authoring` or
 `transcription`) picks the client, which owns the model, the reasoning effort, the connection and the structured-output
 mode (`schema`, or `json` for a model that cannot be held to a schema: the repair loop absorbs a wrong answer). See
 [ai-providers.md](./ai-providers.md).
+
+**Nothing is retried by the transport** (spec 016): every SDK client has `max_retries=0`, so a generation is never
+silently restarted and billed again. The student's « Réessayer » is the only retry; the agent's own repairs (a
+second call with the issues) and the transcription batch retry are separate, logged calls, each its own ledger row.
+
+**A call is abandoned when the provider goes quiet**, not after a total time (`providers/streaming.py`): no event for
+`AUTHORING_FIRST_EVENT_TIMEOUT_S` (180, the connection and a reasoning model's first output) or, afterwards, for
+`AUTHORING_IDLE_TIMEOUT_S` (60) raises `ProviderTimeout`, which is the run code `timeout`. Any event resets the clock,
+reasoning and unknown events included. A healthy generation of any length finishes; a dead connection fails in about
+a minute. The SDK drops SSE comment lines, so a gateway that only pings needs a higher idle limit.
 
 ## The runner
 
@@ -145,8 +157,9 @@ mode (`schema`, or `json` for a model that cannot be held to a schema: the repai
   `AUTHORING_RUNS_PER_DAY` (20) started in 24 hours → `429 authoring_quota` with the time it frees
   up; a chapter already generating → `409 authoring_running`. Runs of deleted chapters still count.
 - **Provider load**: a process-wide semaphore of `AUTHORING_MAX_CONCURRENT` (4).
-- **Timeouts**: `AUTHORING_TIMEOUT_S` (900) for the whole run, transcription included,
-  `AUTHORING_CALL_TIMEOUT_S` (300) per provider call.
+- **Timeouts**: `AUTHORING_TIMEOUT_S` (1800) is the absolute ceiling of a whole run, transcription included, so a
+  stream that trickles forever cannot hold a worker. A call's own limits are the idle limits above.
+  `AUTHORING_CALL_TIMEOUT_S` is gone: still accepted, ignored, with one `setting_ignored` warning at startup.
 - **Progress**: the chapter row carries `authoring_stage` (`transcription`, `pack`, `curriculum`),
   `pages_done` and `page_count`, written by the agent's callbacks (`set_progress`,
   `store_transcription`). A failure keeps that stage (`finish_failed` reads it from the row), so the
@@ -166,7 +179,8 @@ mode (`schema`, or `json` for a model that cannot be held to a schema: the repai
 | `authoring_state` | Ready? | Course page | Lesson URL |
 |---|---|---|---|
 | `generating`, stage `transcription` | no | « Lecture des pages… (n/N) », polled | the preparation card, same count |
-| `generating`, stage `pack`/`curriculum` | no | « En préparation… », polled | the preparation card |
+| `generating`, stage `pack` | no | « Rédaction du chapitre… 12 400 caractères reçus », polled | the preparation card, same line |
+| `generating`, stage `curriculum` | no | « Construction du parcours… 3 200 caractères reçus », polled | the preparation card, same line |
 | `failed`, stage `transcription` | no | « échec de la préparation », message, « Redéposer le document » | the card with « Redéposer le document » |
 | `failed`, later stage | no | « échec de la préparation », message, « Réessayer » | the card with « Réessayer » |
 | `idle` | yes | progress state, « Commencer / Reprendre / Revoir » | the lesson |
@@ -225,18 +239,39 @@ What to read for: formulas copied from the material and not rewritten; the wrong
 given and listed under « Points à vérifier »; nothing added that the material does not contain; the
 injected instruction neither followed nor turned into content.
 
+## Live progress
+
+While the pack or the path is written, the chapter row carries `authoring_received_chars` (characters of the
+streamed answer so far, never the text) and `authoring_progress_at` (when anything last moved). The agent hands each
+call a callback (`LiveProgress.for_call`, `services/authoring/progress.py`); a coalescing writer keeps only the latest
+value and stores it off the event loop (at most one write in flight, at most one snapshot a second per call); a write
+that fails is logged (`authoring_progress_not_stored`, class only) and ignored. The count goes back to zero when a
+stage starts and when a repair attempt starts; page batches only mark the run alive (their progress is the page
+count). `GET /api/courses/{id}` serves `authoring_received_chars` (0 outside the pack and path stages) and
+`authoring_quiet_s` (seconds since `authoring_progress_at`, computed by the server; `null` unless generating). The
+card adds « Toujours en cours, le service est lent. » from 45 s of quiet, in the same `aria-live="polite"` region. No
+percentage and no estimate: the total is unknown. Adoption, failure and the startup sweep clear both columns.
+
 ## Logs
 
 Every `authoring_*` line carries `run_id`, `user_id`, `course_id`, `chapter_id`.
 `document_received` (kind, files, bytes, pages, render ms) and `document_refused` (code, reason),
 never file names; `authoring_started` (trigger, subject, source length or pages, model),
 `authoring_stage` (stage, attempt, ok, issue count, ms, tokens; for transcription the batch's
-pages, retry, split), `transcription_done` (pages, characters, marks, verified pages, ms), `authoring_succeeded` (sections, exercises, points à vérifier, total
+pages, retry, split), `provider_call_progress` (INFO, every `AUTHORING_PROGRESS_LOG_S`, 30, while a call runs: stage,
+attempt, `received_chars`, `elapsed_ms`, `idle_ms`), `provider_call_done` (INFO, per call: role, model, host,
+`elapsed_ms`, `time_to_first_event_ms`, `received_chars`, events, tokens), `provider_call_failed` (WARNING, per failed
+call, authoring and tutor alike: role, model, host, `error_class`, a fixed `reason` — `first_event_timeout`,
+`idle_timeout`, `transport_timeout`, `connection`, `http_status`, `stream_unsupported`, `error_event`, `stream_ended`,
+`truncated`, `invalid_output`, `other` —, `status_code`, the provider's error code and `provider_request_id`,
+`elapsed_ms`, `idle_ms`, `received_chars`, events, and the user, course and chapter of the call's usage scope), `transcription_done` (pages, characters, marks, verified pages, ms), `authoring_succeeded` (sections, exercises, points à vérifier, total
 and per-stage ms, attempts, tokens, cost), `authoring_failed` (code, stage, issue locations only,
-attempts, tokens, cost), `authoring_internal_error` (the exception type only: a database error's
+attempts, tokens, cost, and for a provider failure its `error_class`, `reason`, `status_code`, `idle_ms`,
+`received_chars`, `provider_request_id`; `reason=run_ceiling` when the whole-run limit fired), `authoring_internal_error` (the exception type only: a database error's
 message would carry the content), `authoring_refused` (busy,
 quota, running), `authoring_discarded`, `authoring_orphans_failed`. Never the transcription or the
-source text, the pack, the curriculum, file names, course names or chapter titles.
+source text, the pack, the curriculum, file names, course names or chapter titles, nor an exception's message (it can
+quote the request): a failure is a class name and a reason.
 
 ## Tests
 
@@ -248,5 +283,7 @@ stages, repairs, normalisation, source isolation, failures), `test_authoring_run
 progress per batch, the transcription stored before the pack, retry from the pack, `document_needed`,
 replacement; adoption, failure keeping content, limits, timeout, cancellation, orphans, deletion
 mid-run, no content in logs), `test_middleware.py` (streamed and declared body caps),
-`test_openai_adapter.py` (request shape, strict schema, truncation), and the authoring cases of
+`test_openai_adapter.py` (request shape, strict schema, truncation, the streamed `complete`), `test_streaming.py`
+(the idle and first-event limits, throttled progress, closing on every exit), `test_live_progress.py`,
+`test_authoring_agent_progress.py`, and the authoring cases of
 `tests/integration/test_courses_endpoint.py` (`use_fake_authoring` in `conftest.py`).

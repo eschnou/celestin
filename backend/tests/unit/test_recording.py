@@ -19,6 +19,7 @@ from app.providers.recording import (
 )
 from tests.fixtures.fake_completion import FakeCompletion, text
 from tests.fixtures.fake_llm import ExplodingLLM, FakeLLM
+from tests.fixtures.fake_stream import RawStream, delta
 from tests.fixtures.fake_transcriber import ExplodingTranscriber, FakeTranscriber
 
 SCOPE = UsageScope("u1", "tutor_turn", "c1", "ch1", "turn1")
@@ -412,3 +413,41 @@ async def test_a_row_can_be_handed_over_by_a_task_being_cancelled() -> None:
         await task
     await recorder.drain()
     assert len(written) == 1
+
+
+# --- spec 016: streamed calls ---------------------------------------------------------------------------------
+
+
+async def test_the_progress_callback_is_forwarded_untouched() -> None:
+    client, fake = completion([text("hi", USAGE)])
+    seen: list = []
+    with usage_scope(UsageScope("u1", "authoring")):
+        await client.complete(
+            role="authoring", instructions=[], input=[], max_output_tokens=1, on_progress=seen.append
+        )
+    assert fake.calls and seen == []  # the fake emitted nothing; what matters is the keyword was accepted
+
+
+async def test_a_stream_cut_before_its_final_event_records_failed_with_no_tokens() -> None:
+    """R2.7: nothing is estimated for a stream that never reported its usage."""
+    from types import SimpleNamespace
+
+    from app.domain.ai_config import OPENAI_BASE_URL, Connection
+    from app.providers.base import StreamLimits
+    from app.providers.openai_responses import OpenAIResponsesClient
+
+    inner = OpenAIResponsesClient(
+        Connection(OPENAI_BASE_URL, "k"), "m", 1, limits=StreamLimits(first_event_s=0.2, idle_s=0.03)
+    )
+
+    async def create(**_: Any) -> RawStream:
+        return RawStream([delta("half an answ")], stall=True)
+
+    inner._client = SimpleNamespace(responses=SimpleNamespace(create=create))  # type: ignore[assignment]
+    sink = ListSink()
+    client = RecordingCompletion(inner, role="authoring", model="m", host="api.test", sink=sink)
+    with usage_scope(SCOPE), pytest.raises(ProviderTimeout):
+        await call(client)
+    entry = sink.one
+    assert (entry.status, entry.error_code) == ("failed", "provider_timeout")
+    assert (entry.input_tokens, entry.output_tokens, entry.cost_usd) == (None, None, None)

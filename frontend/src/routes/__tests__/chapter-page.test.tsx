@@ -64,6 +64,8 @@ const COURSE = {
       authoring_stage: "pack",
       pages_done: 12,
       page_count: 12,
+      authoring_received_chars: 0,
+      authoring_quiet_s: null,
     },
   ],
 };

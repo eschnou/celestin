@@ -373,6 +373,9 @@ def _course(row: CourseRow) -> CourseRecord:
     )
 
 
+# A chapter that is no longer being prepared has no progress to show (spec 016).
+_PROGRESS_CLEARED = {"authoring_received_chars": 0, "authoring_progress_at": None}
+
 # The light columns: what lists and pages read. Content stays in the table.
 _CHAPTER_LIGHT = (
     ChapterRow.id,
@@ -390,6 +393,8 @@ _CHAPTER_LIGHT = (
     ChapterRow.authoring_stage,
     ChapterRow.pages_done,
     ChapterRow.page_count,
+    ChapterRow.authoring_received_chars,
+    ChapterRow.authoring_progress_at,
 )
 
 
@@ -410,6 +415,8 @@ def _chapter_light(values) -> ChapterRecord:  # noqa: ANN001 - a Row of _CHAPTER
         authoring_stage=values.authoring_stage,
         pages_done=values.pages_done,
         page_count=values.page_count,
+        authoring_received_chars=values.authoring_received_chars,
+        authoring_progress_at=as_utc(values.authoring_progress_at) if values.authoring_progress_at else None,
     )
 
 
@@ -616,7 +623,7 @@ class ChapterRepository(_Repo):
             "updated_at": now,
         }
         if idle:
-            values.update(authoring_state="idle", authoring_error=None, authoring_stage=None)
+            values.update(authoring_state="idle", authoring_error=None, authoring_stage=None, **_PROGRESS_CLEARED)
         course_id = s.scalar(update(ChapterRow).where(*condition).values(**values).returning(ChapterRow.course_id))
         if course_id is None:
             return False
@@ -661,11 +668,14 @@ class ChapterRepository(_Repo):
                 row.source_kind = source_kind
                 row.authoring_stage = stage
                 row.pages_done, row.page_count = 0, page_count
+                row.authoring_received_chars, row.authoring_progress_at = 0, now
             else:
                 values: dict[str, object] = {
                     "authoring_state": "generating",
                     "authoring_error": None,
                     "authoring_stage": stage,
+                    "authoring_received_chars": 0,
+                    "authoring_progress_at": now,
                     "updated_at": now,
                 }
                 if source_kind == "document":  # a text run keeps the pages of the chapter's document
@@ -726,7 +736,7 @@ class ChapterRepository(_Repo):
             s.execute(
                 update(ChapterRow)
                 .where(ChapterRow.id == chapter_id, ChapterRow.authoring_state == "generating")
-                .values(authoring_state="failed", authoring_error=code, updated_at=now)
+                .values(authoring_state="failed", authoring_error=code, updated_at=now, **_PROGRESS_CLEARED)
             )
             s.commit()
             return stage
@@ -736,10 +746,27 @@ class ChapterRepository(_Repo):
             return s.scalar(select(func.count(ChapterRow.id)).where(ChapterRow.course_id == course_id)) or 0
 
     def set_progress(self, chapter_id: str, stage: str, pages_done: int | None = None) -> None:
-        """Where a run is: its stage, and while transcribing the pages read so far."""
-        values: dict[str, object] = {"authoring_stage": stage}
+        """Where a run is: its stage, and while transcribing the pages read so far. A stage starting also
+        restarts the count of characters received and the clock of the last movement (spec 016)."""
+        values: dict[str, object] = {
+            "authoring_stage": stage, "authoring_received_chars": 0, "authoring_progress_at": utcnow(),
+        }
         if pages_done is not None:
             values["pages_done"] = pages_done
+        with self._factory() as s:
+            s.execute(
+                update(ChapterRow)
+                .where(ChapterRow.id == chapter_id, ChapterRow.authoring_state == "generating")
+                .values(**values)
+            )
+            s.commit()
+
+    def set_received(self, chapter_id: str, chars: int | None) -> None:
+        """The pack or path being written has moved (spec 016): when it last did and, if known, how many
+        characters have arrived. Only while the chapter is generating: a late write changes nothing."""
+        values: dict[str, object] = {"authoring_progress_at": utcnow()}
+        if chars is not None:
+            values["authoring_received_chars"] = chars
         with self._factory() as s:
             s.execute(
                 update(ChapterRow)
@@ -761,7 +788,8 @@ class ChapterRepository(_Repo):
                 update(ChapterRow)
                 .where(ChapterRow.id == chapter_id)
                 .values(source_text=text, source_kind="document", authoring_stage="pack",
-                        pages_done=page_count, page_count=page_count, updated_at=now)
+                        pages_done=page_count, page_count=page_count, authoring_received_chars=0,
+                        authoring_progress_at=now, updated_at=now)
             )
             if not result.rowcount:
                 return  # deleted meanwhile: the run will be discarded
@@ -838,7 +866,7 @@ class AuthoringRunRepository(_Repo):
             s.execute(
                 update(ChapterRow)
                 .where(ChapterRow.authoring_state == "generating")
-                .values(authoring_state="failed", authoring_error="interrupted", updated_at=now)
+                .values(authoring_state="failed", authoring_error="interrupted", updated_at=now, **_PROGRESS_CLEARED)
             )
             s.commit()
             return result.rowcount or 0

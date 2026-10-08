@@ -6,6 +6,9 @@ import json
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+
+from app.db.models import CourseRow
 
 from tests.conftest import CHAPTER_ID, COURSE_ID, LESSON, seed_progress, sign_in
 
@@ -620,3 +623,67 @@ async def test_the_language_cannot_be_changed(client: AsyncClient) -> None:
     r = await client.patch(f"/api/courses/{COURSE_ID}", json={"name": "M", "language": "en"})
     assert r.status_code == 422
     assert (await client.get(f"/api/courses/{COURSE_ID}")).json()["language"] == "fr"
+
+
+# --- spec 016: the live progress of a preparation -----------------------------------------------------------------
+
+
+async def _generating_chapter(client: AsyncClient, stage: str = "pack", chars: int = 12_400) -> str:
+    """A chapter the way a running preparation leaves it, without running one."""
+    repos = client.app.state.repos
+    with repos.courses._factory() as session:
+        user_id = session.scalar(select(CourseRow.user_id).where(CourseRow.id == COURSE_ID))
+    chapter, _ = repos.chapters.begin_authoring(
+        user_id=user_id, course_id=COURSE_ID, chapter_id=None, source_text="x" * 400, trigger="create",
+        model="m", max_chapters=40,
+    )
+    repos.chapters.set_progress(chapter.id, stage)
+    repos.chapters.set_received(chapter.id, chars)
+    return chapter.id
+
+
+def _row(detail: dict, chapter_id: str) -> dict:
+    return next(c for c in detail["chapters"] if c["id"] == chapter_id)
+
+
+@pytest.mark.parametrize("stage", ["pack", "curriculum"])
+async def test_a_running_pack_or_path_shows_its_characters_and_quiet_time(client: AsyncClient, stage: str) -> None:
+    chapter_id = await _generating_chapter(client, stage)
+    row = _row((await client.get(f"/api/courses/{COURSE_ID}")).json(), chapter_id)
+    assert row["authoring_received_chars"] == 12_400 and row["authoring_stage"] == stage
+    assert isinstance(row["authoring_quiet_s"], int) and 0 <= row["authoring_quiet_s"] < 5
+
+
+async def test_the_quiet_time_grows_when_nothing_moves(client: AsyncClient) -> None:
+    from datetime import timedelta
+
+    from sqlalchemy import update
+
+    from app.db.base import utcnow
+    from app.db.models import ChapterRow
+
+    chapter_id = await _generating_chapter(client)
+    with client.app.state.repos.chapters._factory() as s:
+        s.execute(update(ChapterRow).where(ChapterRow.id == chapter_id).values(authoring_progress_at=utcnow() - timedelta(seconds=50)))
+        s.commit()
+    row = _row((await client.get(f"/api/courses/{COURSE_ID}")).json(), chapter_id)
+    assert 49 <= row["authoring_quiet_s"] <= 55
+
+
+async def test_while_pages_are_read_there_is_no_character_count(client: AsyncClient) -> None:
+    chapter_id = await _generating_chapter(client, stage="transcription", chars=77)
+    row = _row((await client.get(f"/api/courses/{COURSE_ID}")).json(), chapter_id)
+    assert row["authoring_received_chars"] == 0 and row["authoring_stage"] == "transcription"
+    assert row["authoring_quiet_s"] is not None
+
+
+async def test_a_chapter_that_is_not_running_shows_neither(client: AsyncClient) -> None:
+    detail = (await client.get(f"/api/courses/{COURSE_ID}")).json()
+    row = _row(detail, CHAPTER_ID)
+    assert row["authoring_received_chars"] == 0 and row["authoring_quiet_s"] is None
+
+
+async def test_another_students_progress_is_not_readable(client: AsyncClient) -> None:
+    await _generating_chapter(client)
+    _, other = sign_in(client.app, email="zoe@example.be", name="Zoé", lesson=False)
+    assert (await client.get(f"/api/courses/{COURSE_ID}", headers=other)).status_code == 404

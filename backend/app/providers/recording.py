@@ -36,6 +36,7 @@ from app.providers.base import (
     CompletionResult,
     Failed,
     LLMClient,
+    ProgressCallback,
     ProviderEvent,
     TextDelta,
     Transcript,
@@ -245,6 +246,7 @@ class RecordingCompletion(_Recording):
         schema: type[BaseModel] | None = None,
         schema_name: str | None = None,
         max_output_tokens: int,
+        on_progress: ProgressCallback | None = None,
     ) -> CompletionResult:
         call = self._begin()
         try:
@@ -255,6 +257,7 @@ class RecordingCompletion(_Recording):
                 schema=schema,
                 schema_name=schema_name,
                 max_output_tokens=max_output_tokens,
+                on_progress=on_progress,
             )
         except asyncio.CancelledError:
             self._emit(call, "cancelled")

@@ -55,6 +55,8 @@ const row = (over: Record<string, unknown> = {}) => ({
   authoring_stage: null,
   pages_done: 0,
   page_count: 0,
+  authoring_received_chars: 0,
+  authoring_quiet_s: null,
   ...over,
 });
 
@@ -74,6 +76,8 @@ const DETAIL = {
       authoring_stage: "transcription",
       pages_done: 3,
       page_count: 16,
+      authoring_received_chars: 0,
+      authoring_quiet_s: null,
     }),
     row({
       id: "h3",
@@ -132,6 +136,8 @@ const CONTENT = {
   source_kind: "document",
   language: "fr",
   page_count: 2,
+  authoring_received_chars: 0,
+  authoring_quiet_s: null,
   authoring_state: "idle",
   authoring_message: null,
   has_progress: true,

@@ -14,3 +14,11 @@ async def test_scripted_results_in_order_and_recorded_calls():
         await fake.complete(role="authoring", instructions=[], input=[], max_output_tokens=1)
     with pytest.raises(AssertionError):
         await fake.complete(role="authoring", instructions=[], input=[], max_output_tokens=1)
+
+
+async def test_the_fake_accepts_the_progress_callback_of_the_protocol():
+    fake = FakeCompletion([text("# T")])
+    result = await fake.complete(
+        role="authoring", instructions=[], input=[], max_output_tokens=1, on_progress=lambda snapshot: None
+    )
+    assert result.text == "# T"

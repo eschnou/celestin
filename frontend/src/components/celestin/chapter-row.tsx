@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCourseLanguage } from "@/lib/course-language";
+import { formatCount } from "@/lib/i18n-format";
 import type { ChapterRow as Row, ChapterState } from "@/lib/tutor/types";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -44,11 +45,42 @@ export function chapterName(chapter: { position: number; title: string | null })
     : m.chapter_untitled({ position: chapter.position });
 }
 
-/** What a running preparation is doing: reading pages, then preparing (006 R3.1). */
+/** What a running preparation is doing, by stage: reading the pages (006 R3.1), writing the chapter, building
+ *  the path (016 R5.3). No number of steps: a text edit or a retry starts at the pack. */
 export function preparingLabel(row: Row): string {
-  return row.authoring_stage === "transcription"
-    ? m.chapter_reading_pages({ done: row.pages_done, total: row.page_count })
-    : m.chapter_preparing();
+  switch (row.authoring_stage) {
+    case "transcription":
+      return m.chapter_reading_pages({ done: row.pages_done, total: row.page_count });
+    case "pack":
+      return m.chapter_writing_pack();
+    case "curriculum":
+      return m.chapter_building_path();
+    default:
+      return m.chapter_preparing();
+  }
+}
+
+/** The label with, while the pack or the path is being written, how much has arrived: « Rédaction du chapitre…
+ *  12 400 caractères reçus ». A count, in the interface's number format; no percentage, the total is unknown. */
+export function preparingDetail(row: Row): string {
+  const label = preparingLabel(row);
+  const counted = row.authoring_stage === "pack" || row.authoring_stage === "curriculum";
+  return counted && row.authoring_received_chars > 0
+    ? `${label} ${m.chapter_received_chars({ count: row.authoring_received_chars, shown: formatCount(row.authoring_received_chars) })}`
+    : label;
+}
+
+/** Seconds without any movement before the card says the service is slow (016 R5.5). */
+export const SLOW_AFTER_S = 45;
+
+/** A preparation that is running but has not moved for a while: the provider is slow, not dead (it would have
+ *  failed by now). The server counts the seconds, so the browser's clock is never compared with ours. */
+export function isSlow(row: Row): boolean {
+  return (
+    row.authoring_state === "generating" &&
+    row.authoring_quiet_s !== null &&
+    row.authoring_quiet_s >= SLOW_AFTER_S
+  );
 }
 
 /** A run that failed before its transcription was stored cannot be retried: the

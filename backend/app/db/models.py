@@ -117,6 +117,9 @@ class ChapterRow(Base):
     authoring_stage: Mapped[str | None] = mapped_column(String(16), nullable=True)
     pages_done: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     page_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    # Spec 016: how far the pack or path being written has got, and when it last moved. Counts and a time.
+    authoring_received_chars: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    authoring_progress_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     content_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

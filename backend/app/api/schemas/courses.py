@@ -73,6 +73,10 @@ class ChapterRow(_Model):
     authoring_stage: Stage | None
     pages_done: int
     page_count: int
+    # Spec 016: while the pack or the path is being written, how many characters have arrived, and how many seconds
+    # since anything last moved (computed by the server: the browser's clock is not compared with ours).
+    authoring_received_chars: int
+    authoring_quiet_s: int | None
 
 
 class CourseSummary(_Model):

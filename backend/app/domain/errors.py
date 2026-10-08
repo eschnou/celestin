@@ -10,6 +10,7 @@ Internals stay in the logs (NFR 4.3.6).
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from app.domain.locale import DEFAULT_LOCALE, Locale
@@ -22,6 +23,8 @@ class TutorError(Exception):
     code = "internal"
     status = 500
     params: Mapping[str, Any] = {}
+    # Set by `providers.streaming.failure` on a provider error: why the call failed (spec 016). Not part of the wire.
+    diagnostics: CallDiagnostics | None = None
 
     @property
     def message_key(self) -> str:
@@ -404,6 +407,7 @@ class _BilledOutput(Exception):
     def __init__(self, detail: str = "", usage: dict[str, Any] | None = None) -> None:
         super().__init__(detail)
         self.usage: dict[str, Any] = usage or {}
+        self.diagnostics: CallDiagnostics | None = None
 
 
 class ProviderOutputTruncated(_BilledOutput):
@@ -414,6 +418,21 @@ class ProviderOutputInvalid(_BilledOutput):
     """A schema-constrained call returned text that is not JSON."""
 
     code = "provider_output_invalid"  # what the usage ledger records for it
+
+
+@dataclass(frozen=True)
+class CallDiagnostics:
+    """Why a provider call failed and how far it had got (spec 016 R6): class names, a fixed reason token and
+    numbers. Never an exception's message, which can quote a request."""
+
+    error_class: str
+    reason: str
+    status_code: int | None
+    elapsed_ms: int = 0
+    idle_ms: int = 0
+    received_chars: int = 0
+    provider_code: str | None = None
+    request_id: str | None = None
 
 
 class PromptInvalid(RuntimeError):

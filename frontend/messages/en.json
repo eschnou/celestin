@@ -105,6 +105,19 @@
   "chapter_name": "Chapter {position} — {title}",
   "chapter_reading_pages": "Reading the pages… ({done}/{total})",
   "chapter_preparing": "Preparing…",
+  "chapter_writing_pack": "Writing the chapter…",
+  "chapter_building_path": "Building the path…",
+  "chapter_received_chars": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{shown} character received",
+        "countPlural=other": "{shown} characters received"
+      }
+    }
+  ],
+  "chapter_slow": "Still working, the service is slow.",
   "chapter_redeposit": "Upload the document again",
   "chapter_discuss": "Discuss",
   "chapter_content": "Chapter content",

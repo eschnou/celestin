@@ -28,6 +28,7 @@ from app.domain.content import ValidContent, validate_curriculum
 from app.domain.curriculum import Curriculum
 from app.domain.errors import (
     AiNotConfigured,
+    CallDiagnostics,
     ProviderOutputInvalid,
     ProviderOutputTruncated,
     ProviderRateLimited,
@@ -48,6 +49,7 @@ from app.domain.transcription import (
     validate_batch,
 )
 from app.providers.base import AiConfigSource, CompletionClient, CompletionResult
+from app.services.authoring.progress import LiveProgress
 from app.services.authoring.schemas import CurriculumDraft, draft_to_data
 from app.services.authoring.words import AGENT_WORDS
 from app.services.documents import Document, PageImage
@@ -55,7 +57,7 @@ from app.services.prompts import PromptLibrary
 
 log = logging.getLogger(__name__)
 
-FailureCode = Literal["unstructured", "provider", "truncated", "transcription_failed", "too_long"]
+FailureCode = Literal["unstructured", "provider", "timeout", "truncated", "transcription_failed", "too_long"]
 OnProgress = Callable[[Stage, int | None], Awaitable[None]]  # stage, pages read so far
 OnTranscribed = Callable[[str, MarkerCounts], Awaitable[None]]
 
@@ -85,12 +87,27 @@ class AuthoringOutput:
 
 
 class AuthoringFailed(Exception):
-    def __init__(self, code: FailureCode, stage: Stage, usage: RunUsage, detail: str) -> None:
+    def __init__(
+        self,
+        code: FailureCode,
+        stage: Stage,
+        usage: RunUsage,
+        detail: str,
+        diagnostics: CallDiagnostics | None = None,
+    ) -> None:
         super().__init__(f"{code} at {stage}: {detail}")
         self.code = code
         self.stage = stage
         self.usage = usage
         self.detail = detail
+        self.diagnostics = diagnostics  # why the provider call behind it failed, when one did (spec 016)
+
+
+def provider_failure(stage: Stage, usage: RunUsage, exc: Exception) -> AuthoringFailed:
+    """A provider that went quiet is a `timeout` (the preparation took too long); any other provider failure is
+    `provider`. It carries the call's diagnostics for the run's log (spec 016)."""
+    code: FailureCode = "timeout" if isinstance(exc, ProviderTimeout) else "provider"
+    return AuthoringFailed(code, stage, usage, type(exc).__name__, getattr(exc, "diagnostics", None))
 
 
 def wrap(tag: str, text: str) -> str:
@@ -183,6 +200,7 @@ class AuthoringAgent:
         log_extra: dict[str, Any] | None = None,
         on_progress: OnProgress | None = None,
         on_transcribed: OnTranscribed | None = None,
+        progress: LiveProgress | None = None,
     ) -> AuthoringOutput:
         """From a text, or from a document read first. `usage` is filled as the run
         goes, so the caller keeps it when the run fails or is cancelled."""
@@ -192,36 +210,49 @@ class AuthoringAgent:
         extra = log_extra or {}
         try:
             if document is not None:
-                source_text, counts = await self._transcription_stage(document, usage, extra, on_progress, language)
+                source_text, counts = await self._transcription_stage(document, usage, extra, on_progress, language, progress)
                 document = None  # the page images are not needed any more
                 if on_transcribed is not None:
                     await on_transcribed(source_text, counts)
             assert source_text is not None
-            pack, index = await self._pack_stage(subject, source_text, usage, extra, language)
+            pack, index = await self._pack_stage(subject, source_text, usage, extra, language, progress)
             if on_progress is not None:
                 await on_progress("curriculum", None)
-            curriculum = await self._curriculum_stage(chapter_id, subject, pack, index, usage, extra, language)
+            curriculum = await self._curriculum_stage(chapter_id, subject, pack, index, usage, extra, language, progress)
         finally:
             usage.cost_estimate_usd = estimate_cost(usage, self._settings, self._ai.config)
         return AuthoringOutput(content=ValidContent(pack=pack, index=index, curriculum=curriculum), usage=usage)
 
     async def _call(
-        self, stage: Stage, instructions: list[str], convo: list[dict[str, Any]], usage: RunUsage, schema: type | None
+        self,
+        stage: Stage,
+        instructions: list[str],
+        convo: list[dict[str, Any]],
+        usage: RunUsage,
+        schema: type | None,
+        attempt: int,
+        progress: LiveProgress | None,
     ) -> CompletionResult:
         started = time.monotonic()
+        if progress is not None and attempt > 1:
+            await progress.restart_count()
         try:
-            return await self._llm.complete(
+            result = await self._llm.complete(
                 role="authoring",
                 instructions=instructions,
                 input=convo,
                 schema=schema,
                 schema_name="parcours" if schema else None,
                 max_output_tokens=self._settings.authoring_max_output_tokens,
+                on_progress=progress.for_call(stage, attempt) if progress is not None else None,
             )
+            if progress is not None:
+                await progress.settle()  # the last count lands before the stage's log line
+            return result
         except ProviderOutputTruncated as exc:
-            raise AuthoringFailed("truncated", stage, usage, str(exc)) from exc
+            raise AuthoringFailed("truncated", stage, usage, str(exc), exc.diagnostics) from exc
         except PROVIDER_ERRORS as exc:
-            raise AuthoringFailed("provider", stage, usage, type(exc).__name__) from exc
+            raise provider_failure(stage, usage, exc) from exc
         finally:
             elapsed = round((time.monotonic() - started) * 1000)
             if stage == "pack":
@@ -262,6 +293,7 @@ class AuthoringAgent:
         extra: dict[str, Any],
         on_progress: OnProgress | None,
         language: CourseLanguage = DEFAULT_COURSE_LANGUAGE,
+        progress: LiveProgress | None = None,
     ) -> tuple[str, MarkerCounts]:
         s = self._settings
         started = time.monotonic()
@@ -276,7 +308,7 @@ class AuthoringAgent:
         async def one(pages: list[PageImage]) -> None:
             nonlocal done
             async with semaphore:
-                texts[pages[0].number] = await self._transcribe(pages, instructions, usage, extra, language)
+                texts[pages[0].number] = await self._transcribe(pages, instructions, usage, extra, language, progress)
             done += len(pages)
             if on_progress is not None:
                 async with reported:
@@ -311,6 +343,7 @@ class AuthoringAgent:
         usage: RunUsage,
         extra: dict[str, Any],
         language: CourseLanguage = DEFAULT_COURSE_LANGUAGE,
+        progress: LiveProgress | None = None,
     ) -> str:
         """One batch, retried once; a batch cut short by the output limit is read
         again page by page."""
@@ -334,10 +367,13 @@ class AuthoringAgent:
                     instructions=instructions,
                     input=[{"role": "user", "content": content}],
                     max_output_tokens=self._settings.transcription_max_output_tokens,
+                    on_progress=progress.for_call("transcription", attempt) if progress is not None else None,
                 )
             except ProviderOutputTruncated as exc:
                 if len(pages) > 1:
-                    parts = [await self._transcribe([page], instructions, usage, extra, language) for page in pages]
+                    parts = [
+                        await self._transcribe([page], instructions, usage, extra, language, progress) for page in pages
+                    ]
                     return "\n\n".join(parts)
                 issues = [ContentIssue(f"page {numbers[0]}", words.truncated)]
                 self._log_stage("transcription", attempt, issues, None, extra, started, pages=numbers)
@@ -345,7 +381,7 @@ class AuthoringAgent:
                     raise AuthoringFailed("transcription_failed", "transcription", usage, str(exc)) from exc
                 continue
             except PROVIDER_ERRORS as exc:
-                raise AuthoringFailed("provider", "transcription", usage, type(exc).__name__) from exc
+                raise provider_failure("transcription", usage, exc) from exc
             usage.add_transcription_tokens(result.usage)
             text, issues = validate_batch(result.text, numbers, language)
             self._log_stage("transcription", attempt, issues, result, extra, started, pages=numbers)
@@ -419,6 +455,7 @@ class AuthoringAgent:
         usage: RunUsage,
         extra: dict[str, Any],
         language: CourseLanguage = DEFAULT_COURSE_LANGUAGE,
+        progress: LiveProgress | None = None,
     ) -> tuple[str, PackIndex]:
         template = self._prompts.template(subject, language)
         alternatives = self._prompts.other_templates(subject, language)
@@ -430,7 +467,7 @@ class AuthoringAgent:
         for attempt in range(1, self._settings.authoring_max_repairs + 2):
             usage.attempts_pack = attempt
             started = time.monotonic()
-            result = await self._call("pack", instructions, convo, usage, None)
+            result = await self._call("pack", instructions, convo, usage, None, attempt, progress)
             usage.add_tokens(result.usage)
             pack = normalise_pack(result.text)
             index, issues = index_pack(pack, template, self._settings.pack_max_chars, alternatives)
@@ -452,6 +489,7 @@ class AuthoringAgent:
         usage: RunUsage,
         extra: dict[str, Any],
         language: CourseLanguage = DEFAULT_COURSE_LANGUAGE,
+        progress: LiveProgress | None = None,
     ) -> Curriculum:
         words = AGENT_WORDS[language]
         instructions = [self._prompts.authoring_curriculum(language), self._prompts.subject(subject, language)]
@@ -464,7 +502,7 @@ class AuthoringAgent:
             started = time.monotonic()
             try:
                 result: CompletionResult | None = await self._call(
-                    "curriculum", instructions, convo, usage, CurriculumDraft
+                    "curriculum", instructions, convo, usage, CurriculumDraft, attempt, progress
                 )
             except ProviderOutputInvalid:
                 result = None

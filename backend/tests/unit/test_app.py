@@ -57,6 +57,15 @@ def test_app_starts_without_a_key_and_says_so() -> None:
     assert app.state.hub.configured is False
 
 
+def test_the_deprecated_call_timeout_is_ignored_with_one_warning(caplog: pytest.LogCaptureFixture) -> None:
+    """Spec 016 R3.3."""
+    with caplog.at_level("WARNING"):
+        create_app(_settings(authoring_call_timeout_s=300), engine=_engine())
+        create_app(_settings(), engine=_engine())
+    ignored = [r for r in caplog.records if r.getMessage() == "setting_ignored"]
+    assert len(ignored) == 1 and ignored[0].setting == "AUTHORING_CALL_TIMEOUT_S"  # type: ignore[attr-defined]
+
+
 def test_app_refuses_to_start_without_session_secret() -> None:
     from app.config import MissingSessionSecret
 

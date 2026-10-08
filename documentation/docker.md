@@ -22,7 +22,9 @@ docker run -d --name celestin -p 8080:8080 -v ./data:/data celestin
    (`REGISTRATION_MODE=open`, the default) and start lessons.
 
 `docker-compose.yml` is the same thing as a compose file. The data lives in the volume or folder mounted at
-`/data`.
+`/data`. `PORT=8100 docker compose up` publishes the single port on 8100 instead of 8080 (the container still listens
+on 8080; `PORT` is read by Compose only and does not reach the application). `docker compose up --build` builds this
+checkout instead of pulling the published image.
 
 ## What is inside
 
@@ -82,7 +84,9 @@ a trusted network.
 ## Operating it
 
 ```sh
-docker logs -f celestin        # one JSON line per event; no prompt text unless DEBUG_LOG_PROMPTS=true
+docker logs -f celestin        # one JSON line per event, each with a UTC `ts`; no prompt text unless DEBUG_LOG_PROMPTS=true
+                               # a preparation: authoring_started, provider_call_progress (every 30 s), provider_call_done,
+                               # authoring_stage, authoring_succeeded; on failure provider_call_failed (reason) and authoring_failed
 docker exec -it celestin python -m scripts.create_admin --email admin@example.be   # another admin, or a lost password
 docker exec celestin python -c "import urllib.request as u; print(u.urlopen('http://127.0.0.1:8000/api/health').read())"
 ```

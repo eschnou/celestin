@@ -135,8 +135,17 @@ class Settings(BaseSettings):
     authoring_reasoning_effort: EffortSetting = "medium"
     authoring_max_output_tokens: Annotated[int, Field(ge=1000)] = 32_000
     authoring_max_repairs: Annotated[int, Field(ge=0, le=5)] = 2
-    authoring_timeout_s: Annotated[float, Field(ge=10)] = 900.0
-    authoring_call_timeout_s: Annotated[float, Field(ge=10)] = 300.0
+    # The absolute ceiling of a whole run, transcription included, so that a stream that trickles forever cannot
+    # hold a worker (spec 016 R3.4).
+    authoring_timeout_s: Annotated[float, Field(ge=10)] = 1800.0
+    # A streamed call is abandoned when the provider is quiet, not when a total elapses (spec 016 R3): before the
+    # first event (the connection, a reasoning model thinking), then between events.
+    authoring_first_event_timeout_s: Annotated[float, Field(ge=10)] = 180.0
+    authoring_idle_timeout_s: Annotated[float, Field(ge=5)] = 60.0
+    # How often a running call logs `provider_call_progress`.
+    authoring_progress_log_s: Annotated[float, Field(ge=5)] = 30.0
+    # Deprecated (spec 016 R3.3): it no longer bounds a call. Accepted and ignored, with one warning at startup.
+    authoring_call_timeout_s: float | None = None
     authoring_concurrent_per_student: Annotated[int, Field(ge=1)] = 2
     authoring_runs_per_day: Annotated[int, Field(ge=1)] = 20
     authoring_max_concurrent: Annotated[int, Field(ge=1)] = 4

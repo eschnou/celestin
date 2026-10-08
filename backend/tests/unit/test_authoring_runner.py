@@ -385,3 +385,98 @@ async def test_a_timeout_after_the_transcription_is_stored_keeps_it_retryable(wo
     owned = repos.chapters.get_owned(user.id, course.id, chapter.id, source=True)
     assert owned.chapter.authoring_error == "timeout" and owned.chapter.authoring_stage == "pack"
     assert not owned.chapter.needs_document and runs(db_engine)[0].stage == "pack"
+
+
+# ---------------------------------------------------------------- spec 016: progress and why a run failed
+
+from app.domain.errors import CallDiagnostics, ProviderTimeout  # noqa: E402
+from tests.fixtures.fake_completion import streamed  # noqa: E402
+
+
+def quiet_provider() -> ProviderTimeout:
+    error = ProviderTimeout()
+    error.diagnostics = CallDiagnostics("StreamTimeout", "idle_timeout", None, 61_000, 60_000, 4200, None, "req_9")
+    return error
+
+
+async def test_a_provider_that_went_quiet_fails_the_run_as_a_timeout_and_the_log_says_why(world, db_engine, caplog):
+    repos, user, course = world
+    r, _ = runner(repos, [read(), quiet_provider()])
+    with caplog.at_level("INFO"):
+        chapter = await new_chapter(r, user, course)
+        await r.wait_idle()
+    owned = repos.chapters.get_owned(user.id, course.id, chapter.id)
+    assert owned.chapter.authoring_error == "timeout" and runs(db_engine)[0].error_code == "timeout"
+    (line,) = [rec for rec in caplog.records if rec.getMessage() == "authoring_failed"]
+    assert (line.code, line.stage, line.error_class, line.reason) == ("timeout", "pack", "StreamTimeout", "idle_timeout")
+    assert (line.idle_ms, line.received_chars, line.provider_request_id) == (60_000, 4200, "req_9")
+
+
+async def test_another_provider_failure_stays_a_provider_failure(world, caplog):
+    repos, user, course = world
+    r, _ = runner(repos, [read(), ProviderUnavailable()])
+    with caplog.at_level("INFO"):
+        chapter = await new_chapter(r, user, course)
+        await r.wait_idle()
+    assert repos.chapters.get_owned(user.id, course.id, chapter.id).chapter.authoring_error == "provider"
+    (line,) = [rec for rec in caplog.records if rec.getMessage() == "authoring_failed"]
+    assert line.code == "provider" and not hasattr(line, "reason")  # a bare exception carries no diagnostics
+
+
+async def test_the_run_ceiling_is_logged_as_such(world, caplog):
+    repos, user, course = world
+    r, _ = runner(repos, GOOD, delay_s=0.2, authoring_timeout_s=10)
+    r._settings.authoring_timeout_s = 0.05
+    with caplog.at_level("INFO"):
+        await new_chapter(r, user, course)
+        await r.wait_idle()
+    (line,) = [rec for rec in caplog.records if rec.getMessage() == "authoring_failed"]
+    assert (line.code, line.reason) == ("timeout", "run_ceiling")
+
+
+async def test_the_chapter_row_shows_the_pack_arriving_while_it_is_written(world, db_engine):
+    repos, user, course = world
+    r, _ = runner(repos, [read(), streamed(text(PACK), 5000, hold_s=0.3), streamed(data(CURRICULUM), 10)])
+    chapter = await new_chapter(r, user, course)
+    seen: list[tuple[str | None, int]] = []
+    for _ in range(40):
+        await asyncio.sleep(0.02)
+        row = repos.chapters.get_owned(user.id, course.id, chapter.id).chapter
+        seen.append((row.authoring_stage, row.authoring_received_chars))
+    await r.wait_idle()
+    assert ("pack", 5000) in seen
+    done = repos.chapters.get_owned(user.id, course.id, chapter.id).chapter
+    assert done.authoring_state == "idle" and done.authoring_received_chars == 0 and done.authoring_progress_at is None
+
+
+async def test_a_failed_run_leaves_no_count_behind(world):
+    repos, user, course = world
+    r, _ = runner(repos, [read(), streamed(ProviderUnavailable(), 800)])
+    chapter = await new_chapter(r, user, course)
+    await r.wait_idle()
+    row = repos.chapters.get_owned(user.id, course.id, chapter.id).chapter
+    assert row.authoring_state == "failed" and row.authoring_received_chars == 0 and row.authoring_progress_at is None
+
+
+async def test_a_cancelled_run_is_interrupted_and_its_writer_is_closed(world, db_engine):
+    repos, user, course = world
+    r, _ = runner(repos, [read(), streamed(text(PACK), 100)], delay_s=60)
+    chapter = await new_chapter(r, user, course)
+    await asyncio.sleep(0.05)
+    await r.shutdown()
+    row = repos.chapters.get_owned(user.id, course.id, chapter.id).chapter
+    assert row.authoring_error == "interrupted" and runs(db_engine)[0].error_code == "interrupted"
+    assert row.authoring_received_chars == 0
+
+
+async def test_the_progress_lines_never_carry_content(world, caplog):
+    repos, user, course = world
+    broken = PACK.replace("## 5. Vocabulaire", "## 5. SECRET-CONTENT")
+    r, _ = runner(repos, [read("matériel SECRET-SOURCE"), streamed(text(broken), 99), *[text(broken)] * 2])
+    r._settings.authoring_progress_log_s = 0  # every snapshot is « due »
+    with caplog.at_level("DEBUG"):
+        await new_chapter(r, user, course)
+        await r.wait_idle()
+    assert [rec for rec in caplog.records if rec.getMessage() == "provider_call_progress"]
+    dump = " ".join(str(rec.__dict__) for rec in caplog.records)
+    assert "SECRET-SOURCE" not in dump and "SECRET-CONTENT" not in dump

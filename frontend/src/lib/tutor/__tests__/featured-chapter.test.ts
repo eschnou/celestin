@@ -16,6 +16,8 @@ const row = (over: Partial<ChapterRow>): ChapterRow => ({
   authoring_stage: null,
   pages_done: 0,
   page_count: 0,
+  authoring_received_chars: 0,
+  authoring_quiet_s: null,
   ...over,
 });
 

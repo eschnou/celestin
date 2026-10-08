@@ -88,6 +88,23 @@ is one such a server accepts:
 - The Responses stream is read as raw events (`responses.create(stream=True)`), not through the SDK's
   `responses.stream()` helper, which folds events into a snapshot and raised on a server whose events arrive in
   another order.
+- **No call is retried by the transport** (spec 016): `make_client` builds every SDK client with `max_retries=0` and has
+  no parameter to raise it. A retried generation restarts from zero, is billed again and nobody sees it; the student
+  (« Réessayer », resend) is the one who retries.
+- **`complete()` is streamed on both adapters** (Responses: raw events with `stream=True`; Chat:
+  `stream=True, stream_options={"include_usage": true}`), through one helper, `providers/streaming.py`. The text is
+  assembled from the deltas and judged as a whole response was (`completion_result`, `chat_finish`: truncation, JSON,
+  `strip_think`), so callers get the same `CompletionResult` as before. The helper applies two limits per one-shot
+  role, `AUTHORING_FIRST_EVENT_TIMEOUT_S` (180) before the first event (the headers count) and
+  `AUTHORING_IDLE_TIMEOUT_S` (60) between events, any event counting, and hands throttled `ProgressSnapshot`s
+  (characters received, events, times, never text) to an optional `on_progress`. A server that refuses `stream` is a
+  `ProviderRejectedRequest` with the log reason `stream_unsupported`; there is no silent fallback to a non-streamed
+  call. The tutor's own stream keeps the SDK's read timeout (`REQUEST_TIMEOUT_S`, 120) between chunks.
+- **Every failure is logged once** as `provider_call_failed` (WARNING) with the exception's class, a fixed reason,
+  the HTTP status, the provider's error code and request id, the elapsed and idle milliseconds and the characters
+  received, and the call's user, course and chapter; the same diagnostics ride on the domain error
+  (`error.diagnostics`) for the authoring log. The exception's message is never logged. A successful call logs
+  `provider_call_done` (time to first event, characters, tokens). See [authoring.md](./authoring.md) for the fields.
 - The Chat adapter assembles tool calls from their fragments by index and emits them when the stream ends, strips
   `<think>…</think>` text (a model's visible thinking never reaches the student), reads usage into the Responses
   shape, learns once whether the server wants `max_completion_tokens` or `max_tokens`, and treats a missing or

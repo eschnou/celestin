@@ -25,8 +25,10 @@ from app.providers.base import (
     CompletionClient,
     CompletionResult,
     LLMClient,
+    ProgressCallback,
     ProviderEvent,
     RealtimeClient,
+    StreamLimits,
     Transcript,
     TranscriptionClient,
 )
@@ -53,11 +55,12 @@ class Clients:
 ClientFactory = Callable[[Settings, AiConfig], Clients]
 
 
-def _role_client(role: RoleConfig, timeout_s: float) -> Any:
-    """The adapter for the role's API style: Responses (OpenAI and the servers that copy it) or Chat Completions."""
+def _role_client(role: RoleConfig, timeout_s: float, limits: StreamLimits | None = None) -> Any:
+    """The adapter for the role's API style: Responses (OpenAI and the servers that copy it) or Chat Completions.
+    `limits` is how long a one-shot call may be quiet (spec 016); the tutor's stream has the SDK's read timeout."""
     connection = role.connection
     adapter = OpenAIChatClient if connection.api_style == "chat" else OpenAIResponsesClient
-    return adapter(connection, role.model, timeout_s, reasoning_effort=role.reasoning_effort)
+    return adapter(connection, role.model, timeout_s, reasoning_effort=role.reasoning_effort, limits=limits)
 
 
 def build_clients(settings: Settings, config: AiConfig) -> Clients:
@@ -65,11 +68,14 @@ def build_clients(settings: Settings, config: AiConfig) -> Clients:
     the authoring and transcription clients (the latter reads documents) and, when voice is on, the Realtime
     client."""
     voice = config.voice
+    # The one-shot roles stream and are abandoned when the provider goes quiet (spec 016 R3): the first-event
+    # allowance is also the SDK's own timeout, a backstop at least as large as both deadlines.
+    limits = StreamLimits(settings.authoring_first_event_timeout_s, settings.authoring_idle_timeout_s)
     return Clients(
         config=config,
         tutor=_role_client(config.tutor, settings.request_timeout_s),
-        authoring=_role_client(config.authoring, settings.authoring_call_timeout_s),
-        transcription=_role_client(config.transcription, settings.authoring_call_timeout_s),
+        authoring=_role_client(config.authoring, settings.authoring_first_event_timeout_s, limits),
+        transcription=_role_client(config.transcription, settings.authoring_first_event_timeout_s, limits),
         realtime=OpenAIRealtimeClient(voice.connection, settings.request_timeout_s) if voice else None,
         transcriber=(
             OpenAITranscriptionClient(dictation.connection, dictation.model, settings.request_timeout_s)
@@ -107,6 +113,7 @@ class _CompletionProxy:
         schema: type[BaseModel] | None = None,
         schema_name: str | None = None,
         max_output_tokens: int,
+        on_progress: ProgressCallback | None = None,
     ) -> CompletionResult:
         clients = self._hub.current()
         client = clients.transcription if role == "transcription" else clients.authoring
@@ -117,6 +124,7 @@ class _CompletionProxy:
             schema=schema,
             schema_name=schema_name,
             max_output_tokens=max_output_tokens,
+            on_progress=on_progress,
         )
 
 

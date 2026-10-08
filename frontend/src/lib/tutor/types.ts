@@ -314,6 +314,8 @@ export type ChapterRow = {
   authoring_stage: AuthoringStage | null;
   pages_done: number;
   page_count: number;
+  authoring_received_chars: number;
+  authoring_quiet_s: number | null;
 };
 
 export type CourseSummary = {

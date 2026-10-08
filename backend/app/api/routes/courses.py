@@ -48,6 +48,7 @@ from app.api.schemas.courses import (
     SubjectsResponse,
 )
 from app.config import Settings
+from app.db.base import utcnow
 from app.db.repositories import ProgressRecord, Repositories
 from app.domain.chapter import ChapterRecord, CourseRecord, CourseWithChapters, OwnedChapter
 from app.domain.content import validate_content
@@ -96,6 +97,7 @@ def _rows(
     """Chapter states from stored progress. No repair against the curriculum is
     needed here: every content change deletes the chapter's progress (005 R5.5)."""
     last_id = max(records, key=lambda cid: records[cid].updated_at) if records else None
+    now = utcnow()
     rows = []
     for chapter in chapters:
         record = records.get(chapter.id)
@@ -116,9 +118,12 @@ def _rows(
                 authoring_stage=chapter.authoring_stage,  # kept on failure: where it stopped
                 pages_done=chapter.pages_done,
                 page_count=chapter.page_count,
+                authoring_received_chars=chapter.live_received_chars,
+                authoring_quiet_s=chapter.quiet_seconds(now),
             )
         )
     return rows
+
 
 
 def _state(chapter: ChapterRecord, record: ProgressRecord | None, done: int) -> ChapterState:

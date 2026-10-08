@@ -13,6 +13,9 @@ from app.domain.subject import Subject
 
 AuthoringState = Literal["idle", "generating", "failed"]
 Stage = Literal["transcription", "pack", "curriculum"]
+# The two stages whose output is one long generation the student waits for (spec 016). A transcription is many short
+# calls in parallel: its progress is the page count.
+COUNTED_STAGES: tuple[Stage, ...] = ("pack", "curriculum")
 SourceKind = Literal["text", "document"]
 
 
@@ -62,6 +65,8 @@ class ChapterRecord:
     authoring_stage: Stage | None = None
     pages_done: int = 0
     page_count: int = 0
+    authoring_received_chars: int = 0
+    authoring_progress_at: datetime | None = None
     source_text: str | None = None
     pack: str | None = None
     curriculum: dict[str, Any] | None = None
@@ -69,6 +74,19 @@ class ChapterRecord:
     @property
     def ready(self) -> bool:
         return self.content_version > 0
+
+    @property
+    def live_received_chars(self) -> int:
+        """Characters of the pack or path received so far; 0 outside those two stages of a running preparation
+        (spec 016)."""
+        running = self.authoring_state == "generating" and self.authoring_stage in COUNTED_STAGES
+        return self.authoring_received_chars if running else 0
+
+    def quiet_seconds(self, now: datetime) -> int | None:
+        """Seconds since the running preparation last moved; None when it is not running or has not reported."""
+        if self.authoring_state != "generating" or self.authoring_progress_at is None:
+            return None
+        return max(0, int((now - self.authoring_progress_at).total_seconds()))
 
     @property
     def needs_document(self) -> bool:

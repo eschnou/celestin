@@ -32,6 +32,7 @@ from app.services.ai_test import (
 from tests.conftest import CARD, tool_call
 from tests.fixtures.fake_completion import FakeCompletion, data, text
 from tests.fixtures.fake_llm import ExplodingLLM, FakeLLM
+from tests.fixtures.fake_stream import RawStream, delta, done
 from tests.fixtures.fake_realtime import ExplodingRealtime, FakeRealtime
 
 CONN = Connection(OPENAI_BASE_URL, "k")
@@ -211,3 +212,27 @@ async def test_the_log_carries_the_outcome_and_nothing_the_provider_said(caplog:
     records = [r for r in caplog.records if r.message == "ai_test"]
     assert [(r.role, r.live) for r in records] == [("authoring", "other"), ("tutor", "ok")]  # type: ignore[attr-defined]
     assert secret_text not in caplog.text and all(isinstance(r.ms, int) for r in records)  # type: ignore[attr-defined]
+
+
+# ------------------------------------------------------------------ spec 016: the checks over a streamed call
+
+
+def _streamed(answer: str):
+    """A real Responses adapter whose connection answers with one scripted stream."""
+    from types import SimpleNamespace
+
+    from app.providers.openai_responses import OpenAIResponsesClient
+
+    client = OpenAIResponsesClient(CONN, "m", 1)
+
+    async def create(**_):  # noqa: ANN003, ANN202
+        return RawStream([delta(answer), done()])
+
+    client._client = SimpleNamespace(responses=SimpleNamespace(create=create))  # type: ignore[assignment]
+    return client
+
+
+async def test_the_authoring_and_transcription_checks_run_over_a_streamed_call() -> None:
+    c = clients(authoring=_streamed('{"ok": true, "word": "bonjour"}'), transcription=_streamed(f"It is {EXPECTED_NUMBER}"))
+    assert await run_check("authoring", c) is None
+    assert await run_check("transcription", c) is None

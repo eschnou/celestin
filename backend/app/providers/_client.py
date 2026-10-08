@@ -10,13 +10,14 @@ from app.domain.ai_config import Connection
 PLACEHOLDER_KEY = "no-key"
 
 
-def make_client(connection: Connection, timeout_s: float, *, max_retries: int = 2) -> AsyncOpenAI:
+def make_client(connection: Connection, timeout_s: float) -> AsyncOpenAI:
     """A client for one connection. Redirects are not followed: the bearer key must go to the host the
-    administrator named, and nowhere a server decides to send it."""
+    administrator named, and nowhere a server decides to send it. Nothing is retried by the SDK (spec 016 R1):
+    a retried generation restarts from zero, is billed again and nobody sees it; the student retries."""
     return AsyncOpenAI(
         api_key=connection.api_key or PLACEHOLDER_KEY,
         base_url=connection.base_url,
         timeout=timeout_s,
-        max_retries=max_retries,
+        max_retries=0,
         http_client=DefaultAsyncHttpxClient(timeout=timeout_s, follow_redirects=False),
     )

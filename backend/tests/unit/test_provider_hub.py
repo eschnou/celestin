@@ -161,6 +161,45 @@ def test_the_real_factory_picks_the_adapter_of_each_roles_api_style(settings: Se
     assert isinstance(clients.authoring, OpenAIResponsesClient)  # the others keep their own style
 
 
+def test_the_one_shot_roles_get_the_streaming_limits_and_the_tutor_does_not(settings: Settings) -> None:
+    """Spec 016 R3: the first-event allowance is the backstop of the SDK's own timeout."""
+    from app.providers.base import StreamLimits
+
+    s = settings.model_copy(update={"authoring_first_event_timeout_s": 77.0, "authoring_idle_timeout_s": 7.0})
+    clients = build_clients(s, config())
+    for one_shot in (clients.authoring, clients.transcription):
+        assert one_shot._limits == StreamLimits(77.0, 7.0) and one_shot._client.timeout == 77.0  # type: ignore[attr-defined]
+    assert clients.tutor._client.timeout == s.request_timeout_s  # type: ignore[attr-defined]
+
+
+async def test_the_proxy_forwards_the_progress_callback(hub: ProviderHub, factory: Factory) -> None:
+    hub.apply(config())
+    seen: list = []
+    await hub.authoring_llm.complete(
+        role="authoring", instructions=[], input=[], max_output_tokens=1, on_progress=seen.append
+    )
+    assert hub.current().authoring.calls[-1]["on_progress"] == seen.append  # type: ignore[attr-defined]
+
+
+def test_no_client_the_hub_builds_retries_by_itself(settings: Settings) -> None:
+    """Spec 016 R1.6: every style, voice and dictation on."""
+    from app.domain.ai_config import DictationConfig
+
+    chat = Connection("http://localhost:11434/v1", None, "chat")
+    base = config()
+    cfg = AiConfig(
+        RoleConfig("tutor", "m", None, chat),
+        base.authoring,
+        RoleConfig("transcription", "v", "low", chat),
+        base.voice,
+        DictationConfig("whisper", OPENAI),
+    )
+    clients = build_clients(settings, cfg)
+    sdk = [clients.tutor, clients.authoring, clients.transcription, clients.realtime, clients.transcriber]
+    assert all(c is not None for c in sdk)
+    assert [c._client.max_retries for c in sdk] == [0] * 5  # type: ignore[union-attr]
+
+
 def test_tagged_completion_is_exported() -> None:
     assert TaggedCompletion("r", "m").role == "r"
 

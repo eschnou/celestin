@@ -6,7 +6,7 @@ vendor. That is what lets the turn loop be tested offline against a scripted fak
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
@@ -56,12 +56,52 @@ class LLMClient(Protocol):
 
 @dataclass(frozen=True)
 class CompletionResult:
-    """One non-streamed answer (005 design 3.7). `data` is the parsed JSON when a
-    schema was asked for; its shape is not validated here."""
+    """One answer of a one-shot call (005 design 3.7), streamed or not (spec 016). `data` is the parsed JSON
+    when a schema was asked for; its shape is not validated here."""
 
     text: str
     data: dict[str, Any] | None = None
     usage: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ProgressSnapshot:
+    """How far a streamed call has got (spec 016 R4.1): counts and times, never text."""
+
+    received_chars: int
+    events: int
+    elapsed_ms: int
+    idle_ms: int
+
+
+# Synchronous, cheap, and never allowed to raise into the stream (the caller of the stream swallows and logs it).
+ProgressCallback = Callable[[ProgressSnapshot], None]
+
+
+@dataclass(frozen=True)
+class StreamLimits:
+    """How long a streamed one-shot call may be silent: before its first event, then between events."""
+
+    first_event_s: float
+    idle_s: float
+
+
+class StreamTimeout(Exception):
+    """A streamed call went quiet for longer than its limit. Translated to `ProviderTimeout`."""
+
+    def __init__(self, reason: Literal["first_event_timeout", "idle_timeout"]) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+class StreamBroken(Exception):
+    """A streamed call ended badly on the provider's side: an error event, or no completion event.
+    `code` is the code of the domain error it becomes (`ProviderUnavailable` unless the event says otherwise)."""
+
+    def __init__(self, reason: Literal["stream_ended", "error_event"], code: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+        self.code = code
 
 
 class CompletionClient(Protocol):
@@ -77,6 +117,7 @@ class CompletionClient(Protocol):
         schema: type[BaseModel] | None = None,
         schema_name: str | None = None,
         max_output_tokens: int,
+        on_progress: ProgressCallback | None = None,
     ) -> CompletionResult: ...
 
 

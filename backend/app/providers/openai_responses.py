@@ -24,16 +24,19 @@ from app.domain.errors import (
     ProviderUnavailable,
 )
 from app.providers._client import make_client
-from app.providers._errors import translate as _translate
 from app.providers.base import (
     Completed,
     CompletionResult,
     Failed,
+    ProgressCallback,
     ProviderEvent,
+    StreamBroken,
+    StreamLimits,
     TextDelta,
     ToolCallRequested,
 )
 from app.providers.chat_translate import extract_json, json_instruction
+from app.providers.streaming import CallStats, consume, fail, log_done
 
 log = logging.getLogger(__name__)
 
@@ -92,8 +95,11 @@ class OpenAIResponsesClient:
         model: str,
         timeout_s: float,
         reasoning_effort: Effort | None = None,
+        limits: StreamLimits | None = None,
     ) -> None:
         self._client = make_client(connection, timeout_s)
+        # How long a one-shot call may be quiet (spec 016 R3). Without limits, `timeout_s` is both.
+        self._limits = limits or StreamLimits(timeout_s, timeout_s)
         self._connection = connection
         self._model = model
         self._effort = reasoning_effort
@@ -110,6 +116,7 @@ class OpenAIResponsesClient:
         input: list[dict[str, Any]],
         tools: list[dict[str, Any]],
     ) -> AsyncIterator[AsyncIterator[ProviderEvent]]:
+        stats = CallStats.begin()
         try:
             # store=False: nothing is retained upstream (design 10.6).
             extra: dict[str, Any] = {"reasoning": {"effort": self._effort}} if self._effort else {}
@@ -126,9 +133,8 @@ class OpenAIResponsesClient:
             )
             async with raw:
                 yield _map_events(raw)
-        except Exception as exc:  # noqa: BLE001 - translated, then re-raised
-            raise _translate(exc) from exc
-
+        except Exception as exc:  # noqa: BLE001 - translated, logged with its class and duration, re-raised
+            fail(exc, role="tutor", model=self._model, host=self._connection.host, stats=stats, only_provider=True)
 
     async def complete(
         self,
@@ -139,10 +145,12 @@ class OpenAIResponsesClient:
         schema: type[BaseModel] | None = None,
         schema_name: str | None = None,
         max_output_tokens: int,
+        on_progress: ProgressCallback | None = None,
     ) -> CompletionResult:
-        """One non-streamed call (005 design 3.7). The instructions form one
-        developer message ending, for OpenAI, in a cache breakpoint, so a repair call and the
-        next run of the same subject reuse the prefix. `role` was used to pick this client."""
+        """One call, streamed (005 design 3.7, spec 016): the answer is assembled from the events, so a live
+        generation can be told from a dead connection, and the result is what a whole response gave. The
+        instructions form one developer message ending, for OpenAI, in a cache breakpoint, so a repair call
+        and the next run of the same subject reuse the prefix. `role` was used to pick this client."""
         request = completion_request(
             model=self._model,
             instructions=instructions,
@@ -154,11 +162,39 @@ class OpenAIResponsesClient:
             openai=self._connection.is_openai,
             structured=self._structured,
         )
+        stats = CallStats.begin()
+        deltas: list[str] = []
+        final: Any = None
+
+        def handle(event: Any) -> None:
+            nonlocal final
+            kind = getattr(event, "type", "")
+            if kind == "response.output_text.delta":
+                delta = getattr(event, "delta", "") or ""
+                deltas.append(delta)
+                stats.received_chars += len(delta)
+            elif kind in ("response.completed", "response.incomplete"):
+                final = getattr(event, "response", None)
+            elif kind in ("response.failed", "error"):
+                raise StreamBroken("error_event", _failure_code(event))
+
         try:
-            response = await self._client.responses.create(**request)
-        except Exception as exc:  # noqa: BLE001 - translated, then re-raised
-            raise _translate(exc) from exc
-        return completion_result(response, parse_json=schema is not None, extract=self._structured == "json")
+            await consume(
+                lambda: self._client.responses.create(**request, stream=True),
+                handle,
+                limits=self._limits,
+                stats=stats,
+                on_progress=on_progress,
+            )
+            if final is None:
+                raise StreamBroken("stream_ended", ProviderUnavailable.code)
+            result = completion_result(
+                final, parse_json=schema is not None, extract=self._structured == "json", streamed_text="".join(deltas)
+            )
+        except Exception as exc:  # noqa: BLE001 - translated, logged with its class and duration, re-raised
+            fail(exc, role=role, model=self._model, host=self._connection.host, stats=stats)
+        log_done(role=role, model=self._model, host=self._connection.host, stats=stats, usage=result.usage)
+        return result
 
 
 def completion_request(
@@ -203,7 +239,11 @@ def completion_request(
     return request
 
 
-def completion_result(response: Any, *, parse_json: bool, extract: bool = False) -> CompletionResult:
+def completion_result(
+    response: Any, *, parse_json: bool, extract: bool = False, streamed_text: str = ""
+) -> CompletionResult:
+    """`streamed_text` is what the deltas added up to: the answer the student's progress counted. The final
+    response's own text is the fallback for a server that sends none as deltas."""
     status = getattr(response, "status", None)
     raw_usage = getattr(response, "usage", None)
     usage = raw_usage.model_dump() if raw_usage else {}
@@ -211,7 +251,7 @@ def completion_result(response: Any, *, parse_json: bool, extract: bool = False)
         raise ProviderOutputTruncated(str(getattr(response, "incomplete_details", "") or "incomplete"), usage)
     if status == "failed":
         raise ProviderUnavailable()
-    text = getattr(response, "output_text", "") or ""
+    text = streamed_text or getattr(response, "output_text", "") or ""
     data = None
     if parse_json:
         try:

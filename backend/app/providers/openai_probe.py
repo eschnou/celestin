@@ -29,7 +29,7 @@ class OpenAIConnectionProbe:
         self._timeout_s = timeout_s
 
     async def check(self, connection: Connection, models: Sequence[str] = ()) -> ProbeResult:
-        client = make_client(connection, self._timeout_s, max_retries=0)
+        client = make_client(connection, self._timeout_s)
         wanted = list(models)
         try:
             available: list[str] = []

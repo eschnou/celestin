@@ -102,6 +102,8 @@ def create_app(
     # The session secret and the encryption key: from the environment or generated on first boot
     # (spec 013). Stops the start, naming the file, when one cannot be used.
     secrets = load_secrets(settings)
+    if settings.authoring_call_timeout_s is not None:
+        log.warning("setting_ignored", extra={"setting": "AUTHORING_CALL_TIMEOUT_S"})
 
     app = FastAPI(
         title="Professor Célestin",

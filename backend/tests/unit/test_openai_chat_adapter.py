@@ -23,6 +23,7 @@ from app.domain.errors import (
 )
 from app.providers.base import Completed, Failed, TextDelta, ToolCallRequested
 from app.providers.openai_chat import OpenAIChatClient, _map_chunks, chat_result
+from tests.fixtures.fake_stream import RawStream
 
 LOCAL = Connection("http://localhost:11434/v1", None, "chat")
 OPENAI = Connection(OPENAI_BASE_URL, "k", "chat")
@@ -218,6 +219,30 @@ def completion(text: str | None, finish: str = "stop", usage: Any = USAGE) -> An
     return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=text), finish_reason=finish)], usage=usage)
 
 
+class Raw:
+    """What `chat.completions.create(stream=True)` returns: an async iterator that is also a context manager."""
+
+    def __init__(self, chunks: list[Any]) -> None:
+        self._chunks = chunks
+        self.closed = False
+
+    async def __aenter__(self) -> Raw:
+        return self
+
+    async def __aexit__(self, *_: object) -> None:
+        self.closed = True
+
+    def __aiter__(self) -> AsyncIterator[Any]:
+        return aiter(self._chunks)
+
+
+def answer(text: str | None, finish: str | None = "stop", usage: Any = USAGE) -> Raw:
+    """A streamed answer in three chunks, the last carrying usage, as `include_usage` sends it."""
+    half = len(text or "") // 2
+    parts = [(text or "")[:half], (text or "")[half:]] if text else []
+    return Raw([*[chunk(part) for part in parts if part], *([chunk(finish=finish)] if finish else []), chunk(usage=usage)])
+
+
 def with_create(client: OpenAIChatClient, outcomes: list[Any]) -> list[dict[str, Any]]:
     calls: list[dict[str, Any]] = []
 
@@ -234,12 +259,13 @@ def with_create(client: OpenAIChatClient, outcomes: list[Any]) -> list[dict[str,
 
 async def test_a_plain_completion() -> None:
     client = OpenAIChatClient(LOCAL, "m", 5.0, reasoning_effort="medium")
-    calls = with_create(client, [completion("# Titre")])
+    calls = with_create(client, [answer("# Titre")])
     result = await client.complete(role="authoring", instructions=["A", "B"], input=[{"role": "user", "content": "x"}], max_output_tokens=100)
     assert result.text == "# Titre" and result.data is None and result.usage["input_tokens"] == 10
     (request,) = calls
     assert request["messages"] == [{"role": "system", "content": "A\n\nB"}, {"role": "user", "content": "x"}]
     assert request["max_completion_tokens"] == 100 and "max_tokens" not in request
+    assert request["stream"] is True and request["stream_options"] == {"include_usage": True}
     assert request["reasoning_effort"] == "medium" and "response_format" not in request
 
 
@@ -247,7 +273,7 @@ async def test_schema_mode_sends_a_strict_json_schema() -> None:
     from app.services.authoring.schemas import CurriculumDraft
 
     client = OpenAIChatClient(LOCAL, "m", 5.0)
-    calls = with_create(client, [completion('{"title": "T", "sections": []}')])
+    calls = with_create(client, [answer('{"title": "T", "sections": []}')])
     result = await client.complete(role="authoring", instructions=["A"], input=[], schema=CurriculumDraft, schema_name="c", max_output_tokens=10)
     assert result.data == {"title": "T", "sections": []}
     fmt = calls[0]["response_format"]
@@ -260,7 +286,7 @@ async def test_json_mode_asks_for_an_object_and_reads_it_out_of_prose() -> None:
     from app.services.authoring.schemas import CurriculumDraft
 
     client = OpenAIChatClient(Connection(LOCAL.base_url, None, "chat", "json"), "m", 5.0)
-    calls = with_create(client, [completion('<think>x</think>Voici :\n```json\n{"title": "T", "sections": []}\n```')])
+    calls = with_create(client, [answer('<think>x</think>Voici :\n```json\n{"title": "T", "sections": []}\n```')])
     result = await client.complete(role="authoring", instructions=["A"], input=[], schema=CurriculumDraft, max_output_tokens=10)
     assert result.data == {"title": "T", "sections": []}
     assert calls[0]["response_format"] == {"type": "json_object"}
@@ -270,7 +296,7 @@ async def test_json_mode_asks_for_an_object_and_reads_it_out_of_prose() -> None:
 async def test_a_server_that_only_knows_max_tokens_is_asked_again_and_remembered() -> None:
     client = OpenAIChatClient(LOCAL, "m", 5.0)
     refusal = status_error(openai.BadRequestError, 400, "Unsupported parameter: 'max_completion_tokens'")
-    calls = with_create(client, [refusal, completion("a"), completion("b")])
+    calls = with_create(client, [refusal, answer("a"), answer("b")])
     assert (await client.complete(role="authoring", instructions=[], input=[], max_output_tokens=7)).text == "a"
     assert "max_completion_tokens" in calls[0] and calls[1]["max_tokens"] == 7 and "max_completion_tokens" not in calls[1]
     assert (await client.complete(role="authoring", instructions=[], input=[], max_output_tokens=7)).text == "b"
@@ -333,3 +359,82 @@ def test_chat_results() -> None:
         chat_result(completion(None), parse_json=True)  # a model that only reasoned
     with pytest.raises(ProviderUnavailable):
         chat_result(SimpleNamespace(choices=[], usage=None), parse_json=False)
+
+
+# --- spec 016: complete() is streamed --------------------------------------------------------------------------
+
+CALL: dict[str, Any] = {"role": "authoring", "instructions": ["A"], "input": [], "max_output_tokens": 10}
+
+
+@pytest.mark.parametrize(
+    "text, finish, parse_json",
+    [("# Titre\n\nUn long texte", "stop", False), ("<think>hm</think>Réponse", "stop", False), ("# Tit", "length", False),
+     ('{"title": "T", "sections": []}', "stop", True), ("{not json", "stop", True)],
+)
+async def test_a_streamed_answer_is_judged_as_the_whole_response_was(text: str, finish: str, parse_json: bool) -> None:
+    from app.services.authoring.schemas import CurriculumDraft
+
+    def outcome(run) -> Any:  # noqa: ANN001
+        try:
+            return ("ok", run())
+        except (ProviderOutputTruncated, ProviderOutputInvalid) as exc:
+            return (type(exc).__name__, exc.usage)
+
+    whole = outcome(lambda: chat_result(completion(text, finish=finish), parse_json=parse_json))
+    client = OpenAIChatClient(LOCAL, "m", 5.0)
+    with_create(client, [answer(text, finish)])
+    schema = {"schema": CurriculumDraft} if parse_json else {}
+    try:
+        streamed: Any = ("ok", await client.complete(**CALL, **schema))
+    except (ProviderOutputTruncated, ProviderOutputInvalid) as exc:
+        streamed = (type(exc).__name__, exc.usage)
+    assert streamed == whole
+
+
+async def test_the_streams_reasoning_chunks_are_activity_and_not_characters() -> None:
+    client = OpenAIChatClient(LOCAL, "m", 5.0)
+    thinking = SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=None, reasoning_content="hmm"), finish_reason=None)], usage=None)
+    with_create(client, [Raw([thinking, thinking, chunk("ok"), chunk(finish="stop"), chunk(usage=USAGE)])])
+    snapshots: list[Any] = []
+    result = await client.complete(**CALL, on_progress=snapshots.append)
+    assert result.text == "ok" and snapshots[-1].received_chars == 2 and snapshots[-1].events == 5
+
+
+async def test_a_stream_with_no_finish_reason_is_unavailable() -> None:
+    client = OpenAIChatClient(LOCAL, "m", 5.0)
+    with_create(client, [Raw([chunk("half an answ")])])
+    with pytest.raises(ProviderUnavailable) as raised:
+        await client.complete(**CALL)
+    assert raised.value.diagnostics is not None and raised.value.diagnostics.reason == "stream_ended"
+
+
+async def test_the_fallback_to_max_tokens_is_one_call_to_the_log(caplog: pytest.LogCaptureFixture) -> None:
+    client = OpenAIChatClient(LOCAL, "m", 5.0)
+    refusal = status_error(openai.BadRequestError, 400, "Unsupported parameter: 'max_completion_tokens'")
+    with_create(client, [refusal, answer("a")])
+    with caplog.at_level("INFO"):
+        await client.complete(**CALL)
+    assert len([r for r in caplog.records if r.getMessage() == "provider_call_done"]) == 1
+    assert not [r for r in caplog.records if r.getMessage() == "provider_call_failed"]
+
+
+async def test_a_quiet_server_is_given_up_on() -> None:
+    from app.providers.base import StreamLimits
+
+    client = OpenAIChatClient(LOCAL, "m", 5.0, limits=StreamLimits(first_event_s=0.2, idle_s=0.03))
+
+    raw = RawStream([chunk("a")], stall=True)
+    with_create(client, [raw])
+    with pytest.raises(ProviderTimeout) as raised:
+        await client.complete(**CALL)
+    assert raised.value.diagnostics is not None and raised.value.diagnostics.reason == "idle_timeout" and raw.closed
+
+
+async def test_a_chat_tutor_failure_is_logged_with_its_class(caplog: pytest.LogCaptureFixture) -> None:
+    client = OpenAIChatClient(LOCAL, "m", 5.0)
+    with_create(client, [status_error(openai.InternalServerError, 503)])
+    with caplog.at_level("WARNING"), pytest.raises(ProviderUnavailable):
+        async with client.stream(input=[], tools=[]):
+            pass
+    (line,) = [r for r in caplog.records if r.getMessage() == "provider_call_failed"]
+    assert (line.role, line.reason, line.status_code) == ("tutor", "http_status", 503)  # type: ignore[attr-defined]

@@ -83,7 +83,10 @@ wins if both exist, and both are gitignored.
 | `TRANSCRIPTION_PRICE_IN`, `_CACHED`, `_OUT` | `2.0`, `0.10`, `10.0` | USD per million tokens (`gpt-6.1-sol`'s). |
 | `AUTHORING_MODEL`, `AUTHORING_REASONING_EFFORT` | `gpt-6.1-sol`, `medium` | The authoring agent, independent of the tutor model. |
 | `AUTHORING_MAX_OUTPUT_TOKENS`, `AUTHORING_MAX_REPAIRS` | `32000`, `2` | Per call; repairs per stage. |
-| `AUTHORING_TIMEOUT_S`, `AUTHORING_CALL_TIMEOUT_S` | `900`, `300` | Whole run, transcription included; one provider call. |
+| `AUTHORING_TIMEOUT_S` | `1800` | The ceiling of a whole run, transcription included. |
+| `AUTHORING_FIRST_EVENT_TIMEOUT_S`, `AUTHORING_IDLE_TIMEOUT_S` | `180`, `60` | A provider call is abandoned when nothing arrives for this long: before its first event (min 10), then between events (min 5). A long healthy generation is never cut. |
+| `AUTHORING_PROGRESS_LOG_S` | `30` | How often a running call logs `provider_call_progress` (min 5). |
+| `AUTHORING_CALL_TIMEOUT_S` | – | Removed (spec 016): accepted, ignored, one `setting_ignored` warning at startup. |
 | `AUTHORING_CONCURRENT_PER_STUDENT`, `AUTHORING_RUNS_PER_DAY`, `AUTHORING_MAX_CONCURRENT` | `2`, `20`, `4` | Per-student limits; process-wide provider load. |
 | `AUTHORING_PRICE_IN`, `_CACHED`, `_OUT` | `2.0`, `0.10`, `10.0` | USD per million tokens (`gpt-6.1-sol`'s), for the stored cost estimate. |
 | `VOICE_ENABLED` | `true` | Voice mode (spec 003). When false the mic stays inert and `/api/voice/session` answers 503. |

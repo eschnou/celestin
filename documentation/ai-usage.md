@@ -144,6 +144,10 @@ The SDK's own retries are invisible: one application call is one row, its latenc
 - A call in flight when its course or chapter is deleted is stored without them (`IntegrityError` → retried with the ids
   nulled); one whose user is gone is refused and logged.
 - `error_code` is only ever one of our own errors' codes (`TutorError`, `provider_output_invalid`), else `unknown`.
+- A streamed one-shot call (authoring, transcription, work reading, the admin test; spec 016) is one row like any
+  other. One cut before its final event (the provider went quiet, the connection dropped) is `failed` with the
+  domain code (`provider_timeout`…) and **null tokens**: only the final event carries usage, and nothing is estimated
+  from the characters received. A stream that ends `incomplete` is `truncated` with its usage.
 - A streamed round cut at the output limit is `failed/provider_unavailable` with no tokens: only `Completed` carries usage,
   so `truncated` exists for one-shot calls only.
 - The screen's rolling periods are measured from an anchor that moves when a period is chosen (again too) and every five

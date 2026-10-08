@@ -22,6 +22,7 @@ from app.domain.errors import (
     AuthoringBusy,
     AuthoringQuota,
     AuthoringRunning,
+    CallDiagnostics,
     ChapterLimit,
     DocumentNeeded,
     NothingToRetry,
@@ -33,6 +34,7 @@ from app.domain.usage import UsageScope, usage_scope
 from app.domain.user import User
 from app.providers.base import AiConfigSource
 from app.services.authoring.agent import AuthoringAgent, AuthoringFailed, AuthoringOutput
+from app.services.authoring.progress import LiveProgress
 from app.services.documents import Document
 
 log = logging.getLogger(__name__)
@@ -200,10 +202,11 @@ class AuthoringRunner:
                 (counts.handwritten, counts.uncertain, counts.illegible),
             )
 
+        live = LiveProgress(chapters, chapter_id, self._settings, extra)
         run = self._agent.run(
             chapter_id=chapter_id, subject=subject, language=language, source_text=source_text,
             document=document,
-            usage=usage, log_extra=extra, on_progress=on_progress, on_transcribed=on_transcribed,
+            usage=usage, log_extra=extra, on_progress=on_progress, on_transcribed=on_transcribed, progress=live,
         )
         del document  # the agent drops the page images once they are read
         try:
@@ -212,9 +215,9 @@ class AuthoringRunner:
                     output = await run
             await asyncio.to_thread(self._adopt, run_id, chapter_id, output, extra)
         except AuthoringFailed as exc:
-            self._fail(run_id, chapter_id, exc.code, usage, extra, exc.detail)
+            self._fail(run_id, chapter_id, exc.code, usage, extra, exc.detail, diagnostics=exc.diagnostics)
         except TimeoutError:
-            self._fail(run_id, chapter_id, "timeout", usage, extra, "run timeout")
+            self._fail(run_id, chapter_id, "timeout", usage, extra, "run timeout", reason="run_ceiling")
         except asyncio.CancelledError:
             # Written synchronously: a cancelled task must not await again.
             self._fail(run_id, chapter_id, "interrupted", usage, extra, "cancelled")
@@ -225,6 +228,7 @@ class AuthoringRunner:
             log.error("authoring_internal_error", extra={**extra, "error": type(exc).__name__})
             self._fail(run_id, chapter_id, "internal", usage, extra, type(exc).__name__)
         finally:
+            live.close()
             run.close()  # never awaited when the task is cancelled while waiting for the semaphore
 
     def _adopt(self, run_id: str, chapter_id: str, output: AuthoringOutput, extra: dict) -> None:
@@ -245,7 +249,18 @@ class AuthoringRunner:
             },
         )
 
-    def _fail(self, run_id: str, chapter_id: str, code: str, usage: RunUsage, extra: dict, detail: str) -> None:
+    def _fail(
+        self,
+        run_id: str,
+        chapter_id: str,
+        code: str,
+        usage: RunUsage,
+        extra: dict,
+        detail: str,
+        *,
+        diagnostics: CallDiagnostics | None = None,
+        reason: str | None = None,
+    ) -> None:
         stage = None
         try:
             stage = self._repos.chapters.finish_failed(chapter_id, run_id, code, usage)
@@ -253,7 +268,10 @@ class AuthoringRunner:
             log.error("authoring_fail_not_stored", extra={**extra, "error": type(exc).__name__})
         log.warning(
             "authoring_failed",
-            extra={**extra, "code": code, "stage": stage, "detail": detail[:300], **_usage_log(usage)},
+            extra={
+                **extra, "code": code, "stage": stage, "detail": detail[:300],
+                **_diagnostics_log(diagnostics, reason), **_usage_log(usage),
+            },
         )
 
     # -------------------------------------------------------------- lifecycle
@@ -280,6 +298,21 @@ class AuthoringRunner:
         for task in list(self._tasks):
             task.cancel()
         await asyncio.gather(*list(self._tasks), return_exceptions=True)
+
+
+def _diagnostics_log(diagnostics: CallDiagnostics | None, reason: str | None) -> dict[str, object]:
+    """Why the run failed, from the provider call that failed (spec 016 R6.4): a class name, a fixed reason and
+    numbers. Never the exception's message."""
+    if diagnostics is None:
+        return {"reason": reason} if reason else {}
+    return {
+        "error_class": diagnostics.error_class,
+        "reason": diagnostics.reason,
+        "status_code": diagnostics.status_code,
+        "idle_ms": diagnostics.idle_ms,
+        "received_chars": diagnostics.received_chars,
+        "provider_request_id": diagnostics.request_id,
+    }
 
 
 def _usage_log(usage: RunUsage) -> dict[str, object]:

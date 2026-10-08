@@ -4,11 +4,14 @@ from collections.abc import AsyncIterator
 from types import SimpleNamespace
 from typing import Any
 
+import httpx2
 import openai
 import pytest
 
 from app.domain.ai_config import OPENAI_BASE_URL, Connection
 from app.domain.errors import (
+    ProviderOutputInvalid,
+    ProviderOutputTruncated,
     ProviderAuthRejected,
     ProviderModelNotFound,
     ProviderRateLimited,
@@ -17,7 +20,9 @@ from app.domain.errors import (
     ProviderUnavailable,
 )
 from app.providers.base import Completed, Failed, TextDelta, ToolCallRequested
-from app.providers.openai_responses import OpenAIResponsesClient, _map_events, _translate, wire_input
+from app.providers._errors import translate as _translate
+from app.providers.openai_responses import OpenAIResponsesClient, _map_events, wire_input
+from tests.fixtures.fake_stream import RawStream
 
 
 OPENAI = Connection(OPENAI_BASE_URL, "k")
@@ -245,13 +250,13 @@ async def test_complete_sends_the_request() -> None:
     client = OpenAIResponsesClient(OPENAI, "m", timeout_s=1)
     seen: dict[str, Any] = {}
 
-    async def create(**kwargs: Any) -> SimpleNamespace:
+    async def create(**kwargs: Any) -> _RawStream:
         seen.update(kwargs)
-        return _response("# T")
+        return _RawStream([_done("# T")])
 
     client._client = SimpleNamespace(responses=SimpleNamespace(create=create))  # type: ignore[assignment]
     result = await client.complete(role="authoring", instructions=["A"], input=[], max_output_tokens=10)
-    assert result.text == "# T" and seen["model"] == "m" and seen["store"] is False
+    assert result.text == "# T" and seen["model"] == "m" and seen["store"] is False and seen["stream"] is True
 
 
 # --- spec 014: any server that speaks the Responses API ------------------------------------------
@@ -404,9 +409,9 @@ async def test_complete_uses_the_clients_own_model_effort_and_mode() -> None:
     )
     seen: dict[str, Any] = {}
 
-    async def create(**kwargs: Any) -> SimpleNamespace:
+    async def create(**kwargs: Any) -> _RawStream:
         seen.update(kwargs)
-        return _response('{"title": "T", "sections": []}')
+        return _RawStream([_done('{"title": "T", "sections": []}')])
 
     client._client = SimpleNamespace(responses=SimpleNamespace(create=create))  # type: ignore[assignment]
     result = await client.complete(
@@ -416,3 +421,201 @@ async def test_complete_uses_the_clients_own_model_effort_and_mode() -> None:
     assert result.data == {"title": "T", "sections": []}
     assert seen["model"] == "oss" and seen["reasoning"] == {"effort": "high"} and seen["text"] == {"format": {"type": "json_object"}}
     assert "prompt_cache_breakpoint" not in str(seen["input"])
+
+
+# --- spec 016: complete() is streamed --------------------------------------------------------------------------
+
+
+def _delta(text: str) -> SimpleNamespace:
+    return SimpleNamespace(type="response.output_text.delta", delta=text)
+
+
+def _done(text: str = "", status: str = "completed", usage: dict[str, Any] | None = None) -> SimpleNamespace:
+    kind = "response.incomplete" if status == "incomplete" else "response.completed"
+    return SimpleNamespace(type=kind, response=_response(text, status, usage))
+
+
+def _scripted(client: OpenAIResponsesClient, *events: Any, seen: dict[str, Any] | None = None) -> _RawStream:
+    raw = _RawStream(list(events))
+
+    async def create(**kwargs: Any) -> _RawStream:
+        if seen is not None:
+            seen.update(kwargs)
+        return raw
+
+    client._client = SimpleNamespace(responses=SimpleNamespace(create=create))  # type: ignore[assignment]
+    return raw
+
+
+CALL: dict[str, Any] = {"role": "authoring", "instructions": ["A"], "input": [], "max_output_tokens": 10}
+
+
+async def test_the_request_is_todays_plus_the_stream_flag() -> None:
+    """R2.5: nothing else about the request moved."""
+    client = OpenAIResponsesClient(OPENAI, "m", 1)
+    seen: dict[str, Any] = {}
+    _scripted(client, _done("x"), seen=seen)
+    await client.complete(**CALL)
+    expected = completion_request(
+        model="m", instructions=["A"], input=[], schema=None, schema_name=None, reasoning_effort=None,
+        max_output_tokens=10,
+    )
+    assert seen == {**expected, "stream": True}
+
+
+async def test_the_text_is_assembled_from_the_deltas() -> None:
+    client = OpenAIResponsesClient(OPENAI, "m", 1)
+    raw = _scripted(client, _delta("# Ti"), _delta("tre"), _done("", usage={"input_tokens": 7}))
+    result = await client.complete(**CALL)
+    assert result.text == "# Titre" and result.usage == {"input_tokens": 7} and raw.closed
+
+
+async def test_the_deltas_are_the_answer_and_the_final_text_is_only_a_fallback() -> None:
+    client = OpenAIResponsesClient(OPENAI, "m", 1)
+    _scripted(client, _delta("# Ti"), _delta("tre"), _done("something else"))
+    assert (await client.complete(**CALL)).text == "# Titre"
+    _scripted(client, _done("# Titre"))  # a server that streams no text deltas
+    assert (await client.complete(**CALL)).text == "# Titre"
+
+
+async def test_json_is_parsed_from_a_streamed_answer() -> None:
+    from app.services.authoring.schemas import CurriculumDraft
+
+    client = OpenAIResponsesClient(OPENAI, "m", 1)
+    _scripted(client, _delta('{"title": "T", '), _delta('"sections": []}'), _done(""))
+    result = await client.complete(**CALL, schema=CurriculumDraft)
+    assert result.data == {"title": "T", "sections": []}
+
+
+async def test_an_incomplete_stream_is_truncated_and_carries_its_usage() -> None:
+    client = OpenAIResponsesClient(OPENAI, "m", 1)
+    _scripted(client, _delta("# Tit"), _done("# Tit", status="incomplete", usage={"output_tokens": 40}))
+    with pytest.raises(ProviderOutputTruncated) as raised:
+        await client.complete(**CALL)
+    assert raised.value.usage == {"output_tokens": 40}
+    assert raised.value.diagnostics is not None and raised.value.diagnostics.reason == "truncated"
+
+
+async def test_a_failed_event_is_unavailable_with_its_reason(caplog: pytest.LogCaptureFixture) -> None:
+    client = OpenAIResponsesClient(OPENAI, "m", 1)
+    raw = _scripted(client, _delta("x"), SimpleNamespace(type="response.failed", response=SimpleNamespace(error=None)))
+    with caplog.at_level("WARNING"), pytest.raises(ProviderUnavailable) as raised:
+        await client.complete(**CALL)
+    assert raised.value.diagnostics is not None and raised.value.diagnostics.reason == "error_event" and raw.closed
+    (line,) = [r for r in caplog.records if r.getMessage() == "provider_call_failed"]
+    assert line.reason == "error_event" and line.role == "authoring" and line.received_chars == 1  # type: ignore[attr-defined]
+
+
+async def test_an_error_event_naming_a_rate_limit_is_rate_limited() -> None:
+    client = OpenAIResponsesClient(OPENAI, "m", 1)
+    _scripted(client, SimpleNamespace(type="error", error=SimpleNamespace(code="rate_limit_exceeded", message="x")))
+    with pytest.raises(ProviderRateLimited):
+        await client.complete(**CALL)
+
+
+async def test_a_stream_that_ends_without_a_completion_event_is_unavailable() -> None:
+    client = OpenAIResponsesClient(OPENAI, "m", 1)
+    _scripted(client, _delta("a half answer"))
+    with pytest.raises(ProviderUnavailable) as raised:
+        await client.complete(**CALL)
+    assert raised.value.diagnostics is not None and raised.value.diagnostics.reason == "stream_ended"
+
+
+async def test_unparseable_json_is_invalid_with_its_usage() -> None:
+    from app.services.authoring.schemas import CurriculumDraft
+
+    client = OpenAIResponsesClient(OPENAI, "m", 1)
+    _scripted(client, _delta("{not json"), _done("", usage={"output_tokens": 9}))
+    with pytest.raises(ProviderOutputInvalid) as raised:
+        await client.complete(**CALL, schema=CurriculumDraft)
+    assert raised.value.usage == {"output_tokens": 9}
+
+
+async def test_a_quiet_provider_is_given_up_on_and_the_stream_closed() -> None:
+    from app.providers.base import StreamLimits
+
+    client = OpenAIResponsesClient(OPENAI, "m", 1, limits=StreamLimits(first_event_s=0.2, idle_s=0.03))
+
+    raw = RawStream([_delta("a")], stall=True)
+
+    async def create(**_: Any) -> _RawStream:
+        return raw
+
+    client._client = SimpleNamespace(responses=SimpleNamespace(create=create))  # type: ignore[assignment]
+    with pytest.raises(ProviderTimeout) as raised:
+        await client.complete(**CALL)
+    assert raised.value.diagnostics is not None and raised.value.diagnostics.reason == "idle_timeout" and raw.closed
+
+
+async def test_progress_snapshots_reach_the_callback_with_counts_only() -> None:
+    client = OpenAIResponsesClient(OPENAI, "m", 1)
+    _scripted(client, _delta("abc"), _delta("de"), _done("abcde"))
+    snapshots: list[Any] = []
+    await client.complete(**CALL, on_progress=snapshots.append)
+    assert snapshots and snapshots[-1].received_chars == 5 and snapshots[-1].events == 3
+
+
+async def test_a_successful_call_logs_one_done_line(caplog: pytest.LogCaptureFixture) -> None:
+    client = OpenAIResponsesClient(OPENAI, "m", 1)
+    _scripted(client, _delta("abc"), _done("abc", usage={"input_tokens": 3, "output_tokens": 1}))
+    with caplog.at_level("INFO"):
+        await client.complete(**CALL)
+    (line,) = [r for r in caplog.records if r.getMessage() == "provider_call_done"]
+    assert (line.received_chars, line.input_tokens, line.provider_host) == (3, 3, "api.openai.com")  # type: ignore[attr-defined]
+
+
+async def test_a_server_that_refuses_streaming_is_a_rejected_request_not_a_silent_fallback() -> None:
+    client = OpenAIResponsesClient(OPENAI, "m", 1)
+    calls: list[dict[str, Any]] = []
+
+    async def refuse(**kwargs: Any) -> None:
+        calls.append(kwargs)
+        request = httpx2.Request("POST", "https://x/v1/responses")
+        raise openai.BadRequestError(
+            "stream is not supported", response=httpx2.Response(400, request=request), body=None
+        )
+
+    client._client = SimpleNamespace(responses=SimpleNamespace(create=refuse))  # type: ignore[assignment]
+    with pytest.raises(ProviderRejectedRequest) as raised:
+        await client.complete(**CALL)
+    assert len(calls) == 1 and raised.value.diagnostics is not None
+    assert raised.value.diagnostics.reason == "stream_unsupported"
+
+
+async def test_a_tutor_stream_failure_is_logged_with_its_class(caplog: pytest.LogCaptureFixture) -> None:
+    client = OpenAIResponsesClient(OPENAI, "m", 1)
+
+    async def boom(**_: Any) -> None:
+        raise openai.APITimeoutError(request=SimpleNamespace())  # type: ignore[arg-type]
+
+    client._client = SimpleNamespace(responses=SimpleNamespace(create=boom))  # type: ignore[assignment]
+    with caplog.at_level("WARNING"), pytest.raises(ProviderTimeout):
+        async with client.stream(input=[], tools=[]):
+            pass
+    (line,) = [r for r in caplog.records if r.getMessage() == "provider_call_failed"]
+    assert (line.role, line.error_class, line.reason) == ("tutor", "APITimeoutError", "transport_timeout")  # type: ignore[attr-defined]
+
+
+async def test_an_error_of_the_tutors_consumer_is_not_logged_as_a_provider_failure(caplog: pytest.LogCaptureFixture) -> None:
+    client = OpenAIResponsesClient(OPENAI, "m", 1)
+    _scripted(client, _delta("x"))
+    with caplog.at_level("WARNING"), pytest.raises(ValueError):
+        async with client.stream(input=[], tools=[]):
+            raise ValueError("the consumer's own")
+    assert not [r for r in caplog.records if r.getMessage() == "provider_call_failed"]
+
+
+async def test_no_log_line_of_a_streamed_call_carries_the_text_or_an_error_message(caplog: pytest.LogCaptureFixture) -> None:
+    """Spec 016 NFR 4.3: counts, durations and class names only."""
+    client = OpenAIResponsesClient(OPENAI, "m", 1)
+    with caplog.at_level("DEBUG"):
+        _scripted(client, _delta("SECRET-ANSWER-TEXT"), _done("SECRET-ANSWER-TEXT"))
+        await client.complete(**CALL, on_progress=lambda snapshot: None)
+        _scripted(
+            client, _delta("SECRET-PARTIAL"),
+            SimpleNamespace(type="error", error=SimpleNamespace(code="server_error", message="SECRET-ERROR-MESSAGE")),
+        )
+        with pytest.raises(ProviderUnavailable):
+            await client.complete(**CALL)
+    dump = " ".join(str(r.__dict__) for r in caplog.records)
+    assert "SECRET" not in dump and "provider_call_done" in dump and "provider_call_failed" in dump
