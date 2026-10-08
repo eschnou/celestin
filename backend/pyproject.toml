@@ -1,6 +1,6 @@
 [project]
 name = "schooled-backend"
-version = "0.3.0"
+version = "0.3.1"
 description = "Professor Célestin tutor backend"
 requires-python = ">=3.12"
 dependencies = [
