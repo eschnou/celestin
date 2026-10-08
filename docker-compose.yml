@@ -1,12 +1,14 @@
-# A starting point for self-hosting. Nothing is required: open http://localhost:8080, create the administrator,
+# A starting point for self-hosting. Nothing is required: open http://localhost:8080 (PORT=8100 docker compose up
+# publishes another port), create the administrator,
 # choose the AI provider and paste its key in the settings (OpenAI, Groq, a local model server: see
 # documentation/ai-providers.md). Any variable of documentation/running-locally.md can go under
 # `environment` as an override (OPENAI_API_KEY there wins over the key entered in the browser).
 services:
   celestin:
-    image: ghcr.io/eschnou/celestin:latest # the published image (pin a version tag); or `build: .` to build it here
+    image: ghcr.io/eschnou/celestin:latest # the published image (pin a version tag)
+    build: . # `docker compose up --build` builds this checkout instead of pulling the image
     ports:
-      - "8080:8080"
+      - "${PORT:-8080}:8080" # the one published port: Caddy, which routes /api to the backend and the rest to the web app
     volumes:
       - celestin-data:/data # or ./data:/data to keep everything in a folder
     restart: unless-stopped

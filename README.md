@@ -131,7 +131,7 @@ services:
   celestin:
     image: ghcr.io/eschnou/celestin:latest # pin a version tag
     ports:
-      - "8080:8080"
+      - "${PORT:-8080}:8080" # PORT=8100 docker compose up -> http://localhost:8100
     volumes:
       - celestin-data:/data
     restart: unless-stopped
