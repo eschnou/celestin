@@ -31,6 +31,11 @@ MODEL_FACING = [
     APP / "services" / "history.py",
     APP / "services" / "path.py",
     APP / "services" / "tutor_service.py",
+    # Spec 018: what a parcours turn reads is built here, and so is the reprise note's data.
+    APP / "services" / "seance.py",
+    APP / "services" / "conversations.py",
+    # Spec 020: what a révision turn reads (its scope, what was noted) is built here.
+    APP / "services" / "revision.py",
     *sorted((APP / "services" / "tools").glob("*.py")),
 ]
 FORBIDDEN = {"app.domain.messages", "app.domain.messages.fr", "app.domain.messages.en"}
@@ -69,7 +74,7 @@ async def _run(make_client, locale: str, language: str = "fr") -> list:
     client, _ = make_client(llm, email=f"{locale}-{language}@example.be", locale=locale, language=language)
     async with client:
         lesson = {"course_id": client.course_id, "chapter_id": client.chapter_id}  # type: ignore[attr-defined]
-        r = await client.post("/api/chat", json={**lesson, "history": []})
+        r = await client.post("/api/chat", json={**lesson, "message": None})
         assert r.status_code == 200
     return llm.calls
 

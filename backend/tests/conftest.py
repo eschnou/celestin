@@ -25,7 +25,7 @@ def _isolate_env(monkeypatch: pytest.MonkeyPatch) -> None:
         if name.startswith((
             "OPENAI_", "TUTOR_", "COURSE_", "MAX_", "CORS_", "DEBUG_", "VOICE_", "TRUST_",
             "DATABASE_", "SESSION_", "COOKIE_", "ARGON2_", "AUTH_", "PROMPTS_", "CHAPTER_", "PACK_",
-            "AUTHORING_", "DOCUMENT_", "TRANSCRIPTION_", "DISCUSSION_", "AI_",
+            "AUTHORING_", "DOCUMENT_", "TRANSCRIPTION_", "DISCUSSION_", "AI_", "REVISION_",
         )):
             monkeypatch.delenv(name, raising=False)
 
@@ -141,10 +141,48 @@ def _free(repos, course_id: str) -> bool:
         return s.scalar(select(CourseRow.id).where(CourseRow.id == course_id)) is None
 
 
-def seed_progress(app, user_id: str, chapter_id: str, done: list[str], active: str | None) -> None:
+def seed_progress(
+    app, user_id: str, chapter_id: str, done: list[str], active: str | None, skipped: list[str] | None = None
+) -> None:
     from app.domain.progress import Progress
 
-    app.state.repos.progress.save(user_id, chapter_id, Progress(done=frozenset(done), active=active))
+    app.state.repos.progress.save(
+        user_id,
+        chapter_id,
+        Progress(done=frozenset(done), active=active, skipped=frozenset(skipped or [])),
+    )
+
+
+def seed_seance(
+    app,
+    user_id: str,
+    entries: list[dict],
+    section_id: str | None = None,
+    chapter_id: str = CHAPTER_ID,
+    closed_reason: str | None = None,
+):
+    """A parcours séance stored for the student at the chapter's current version (spec 018), live unless a
+    closing reason is given. Returns what was stored (ids and counts)."""
+    from sqlalchemy import select
+
+    from pydantic import TypeAdapter
+
+    from app.api.schemas.chat import Entry
+    from app.db.models import ChapterRow
+    from app.db.repositories import SeanceSegment
+    from app.services import conversations
+
+    repos = app.state.repos
+    with repos.chapters._factory() as s:
+        version = s.scalar(select(ChapterRow.content_version).where(ChapterRow.id == chapter_id))
+    (record,) = repos.conversations.store_seance(
+        user_id, chapter_id, version, live_id=None, expected_count=0,
+        segments=[SeanceSegment(
+            section_id, entries, conversations.card_count([TypeAdapter(Entry).validate_python(e) for e in entries]),
+            closed_reason,
+        )],
+    )
+    return record
 
 
 def iter_api_routes(app):
@@ -319,6 +357,21 @@ def snapshot_declarations() -> str:
         )
     return path.read_text(encoding="utf-8")
 
+
+
+@pytest.fixture
+def snapshot_path_declarations() -> str:
+    """The declarations after the board tools (section tools, `propose_next_step`, `skip_section`), as spec 019
+    left them. Delete the file and rerun to regenerate after an intended change."""
+    from app.services.tools import registry
+
+    path = FIXTURES / "path_declarations.json"
+    if not path.exists():
+        path.write_text(
+            json.dumps(registry.declarations()[2:], ensure_ascii=False, sort_keys=True),
+            encoding="utf-8",
+        )
+    return path.read_text(encoding="utf-8")
 
 
 @pytest.fixture

@@ -19,6 +19,7 @@ from app.domain.errors import PromptUnavailable
 from app.domain.language import DEFAULT_COURSE_LANGUAGE, CourseLanguage
 from app.domain.mode import DEFAULT_MODE, Mode
 from app.domain.progress import Progress
+from app.domain.revision import RevisionScope, Tally
 from app.services import curriculum_render
 
 SUBJECT_MARKER = "<!-- SUBJECT -->"
@@ -78,6 +79,17 @@ def render_system_text(
     return _MARKERS.sub(lambda match: values[match.group(0)], text)
 
 
+def _assemble(system_text: str, history_items: list[dict[str, Any]], state_text: str) -> list[dict[str, Any]]:
+    """The developer message carrying the prefix and the cache breakpoint, the transcript, then the trailing
+    state message: the order every mode's input keeps."""
+    developer: dict[str, Any] = {
+        "role": "developer",
+        "content": [{"type": "input_text", "text": system_text, "prompt_cache_breakpoint": {"mode": "explicit"}}],
+    }
+    state: dict[str, Any] = {"role": "developer", "content": [{"type": "input_text", "text": state_text}]}
+    return [developer, *history_items, state]
+
+
 def build(
     tutor_text: str,
     subject_text: str,
@@ -93,30 +105,52 @@ def build(
 ) -> list[dict[str, Any]]:
     """Developer message first, then the mapped transcript, then the state of the
     path and the time (002 design 3.7). Both change every turn, so they go last."""
-    developer: dict[str, Any] = {
-        "role": "developer",
-        "content": [
-            {
-                "type": "input_text",
-                "text": render_system_text(
-                    tutor_text,
-                    subject_text,
-                    pack_text,
-                    curriculum_render.overview(curriculum, mode, language),
-                    mode_text,
-                    opening_text,
-                ),
-                "prompt_cache_breakpoint": {"mode": "explicit"},
-            }
-        ],
-    }
-    state: dict[str, Any] = {
-        "role": "developer",
-        "content": [
-            {
-                "type": "input_text",
-                "text": curriculum_render.state_message(curriculum, progress, now, mode, language),
-            }
-        ],
-    }
-    return [developer, *history_items, state]
+    system_text = render_system_text(
+        tutor_text,
+        subject_text,
+        pack_text,
+        curriculum_render.overview(curriculum, mode, language),
+        mode_text,
+        opening_text,
+    )
+    state_text = curriculum_render.state_message(curriculum, progress, now, mode, language)
+    return _assemble(system_text, history_items, state_text)
+
+
+def revision_system_text(
+    tutor_text: str,
+    subject_text: str,
+    scope: RevisionScope,
+    mode_text: str,
+    opening_text: str,
+    language: CourseLanguage = DEFAULT_COURSE_LANGUAGE,
+) -> str:
+    """A révision's prefix (spec 020): the chosen packs in course order under their headers at the pack marker,
+    one overview per chapter at the curriculum marker. It depends on the selection only, so a selection is one
+    cached prefix."""
+    return render_system_text(
+        tutor_text,
+        subject_text,
+        curriculum_render.revision_packs(scope.chapters, language),
+        curriculum_render.revision_overview(scope.chapters, language),
+        mode_text,
+        opening_text,
+    )
+
+
+def build_revision(
+    tutor_text: str,
+    subject_text: str,
+    scope: RevisionScope,
+    tally: Tally,
+    history_items: list[dict[str, Any]],
+    mode_text: str,
+    opening_text: str,
+    now: datetime | None = None,
+    language: CourseLanguage = DEFAULT_COURSE_LANGUAGE,
+) -> list[dict[str, Any]]:
+    """A révision turn's input, in the order every mode keeps: the prefix, the transcript, then the state of the
+    chosen chapters, what was noted before and this révision's tally."""
+    system_text = revision_system_text(tutor_text, subject_text, scope, mode_text, opening_text, language)
+    state_text = curriculum_render.revision_state(scope.chapters, scope.earlier, tally, now, language)
+    return _assemble(system_text, history_items, state_text)

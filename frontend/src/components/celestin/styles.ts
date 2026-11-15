@@ -20,3 +20,10 @@ export const warningBox = `${box} border-warning bg-warning/10`;
 /** A borderless icon button, as in the tutor column's header. */
 export const iconButton =
   "inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50";
+/** A status chip's colours: the word carries the meaning, the tone repeats it. The board's
+ *  strip, the course page's chapter state and a révision's self-assessments share them. */
+export const tone = {
+  success: "bg-success/15 text-success",
+  warning: "bg-warning/20 text-warning-foreground",
+  danger: "bg-destructive/10 text-destructive",
+} as const;

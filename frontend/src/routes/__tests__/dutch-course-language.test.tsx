@@ -76,7 +76,7 @@ const chapter = (language: CourseLanguage) => ({
     { id: "s2", index: 2, kind: "practise", title: "Een term berekenen", goal: "g2" },
     { id: "s3", index: 3, kind: "synthesis", title: "Samenvatting", goal: "g3" },
   ],
-  progress: { done: ["s1"], active: "s2" },
+  progress: { done: ["s1"], active: "s2", skipped: [] },
 });
 
 afterEach(() => {

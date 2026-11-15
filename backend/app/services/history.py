@@ -42,18 +42,43 @@ def _split_turns(entries: list[Entry]) -> list[list[Entry]]:
     return turns
 
 
+def _latest_start(entries: list[Entry]) -> ToolEntry | None:
+    for entry in reversed(entries):
+        if isinstance(entry, ToolEntry) and entry.ok and entry.name == "start_section":
+            return entry
+    return None
+
+
 def trim(
-    entries: list[Entry], token_budget: int, language: CourseLanguage = DEFAULT_COURSE_LANGUAGE
+    entries: list[Entry],
+    token_budget: int,
+    language: CourseLanguage = DEFAULT_COURSE_LANGUAGE,
+    keep_brief: bool = False,
 ) -> list[Entry]:
-    """Drop whole turns oldest-first. The most recent turn always survives."""
+    """Drop whole turns oldest-first. The most recent turn always survives.
+
+    `keep_brief` is the parcours (spec 018 D10): a séance is one section's work and
+    outlives a reload, so a long one would otherwise lose the call whose replayed output
+    is the section's brief (its beats, its end criterion, the reprise note) long before
+    the row rolls over. The latest ok `start_section` among the dropped turns is then
+    carried at the head of what is kept, unless what is kept already holds one; the
+    total stays within the budget plus that one call."""
     turns = _split_turns(entries)
     costs = [estimate_tokens(turn, language) for turn in turns]
     total = sum(costs)
+    dropped: list[Entry] = []
     while len(turns) > 1 and total > token_budget:
-        dropped = turns.pop(0)
+        oldest = turns.pop(0)
         total -= costs.pop(0)
-        log.info("history_trimmed", extra={"dropped_entries": len(dropped)})
-    return [entry for turn in turns for entry in turn]
+        dropped.extend(oldest)
+        log.info("history_trimmed", extra={"dropped_entries": len(oldest)})
+    kept = [entry for turn in turns for entry in turn]
+    if keep_brief and dropped and _latest_start(kept) is None:
+        brief = _latest_start(dropped)
+        if brief is not None:
+            log.info("history_brief_kept", extra={"kept_entries": len(kept)})
+            kept = [brief, *kept]
+    return kept
 
 
 def to_provider_input(
@@ -66,10 +91,12 @@ def to_provider_input(
     transcript provider-neutral.
 
     A replayed section tool answers with its brief again (design 3.8), so the model
-    keeps the beats in front of it on every later turn.
+    keeps the beats in front of it on every later turn; in the parcours the trim keeps
+    that call even when it drops the turn it was made in (spec 018 D10).
     """
     items: list[dict[str, Any]] = []
-    for index, entry in enumerate(trim(entries, token_budget, ctx.language)):
+    kept = trim(entries, token_budget, ctx.language, keep_brief=ctx.mode == "parcours")
+    for index, entry in enumerate(kept):
         if isinstance(entry, LearnerEntry):
             items.append({"role": "user", "content": entry.text})
         elif isinstance(entry, TutorEntry):
@@ -92,7 +119,7 @@ def to_provider_input(
                     "type": "function_call_output",
                     "call_id": call_id,
                     "output": json.dumps(
-                        registry.replay_output(entry.name, entry.arguments, ctx)
+                        registry.replay_output(entry, ctx)
                         if entry.ok
                         else {"ok": False, "error": entry.error},
                         ensure_ascii=False,

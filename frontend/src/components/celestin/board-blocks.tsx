@@ -117,20 +117,64 @@ export function markTerm(parts: MathPart[], term: string): MathPart[] {
   return [...parts.slice(0, at), ...split, ...parts.slice(at + 1)];
 }
 
+/**
+ * Sets in bold the prose between pairs of `**`, as Célestin writes emphasis in the chat.
+ *
+ * Runs on the parts `splitInlineMath` made, so a `**` inside maths is never read, and a
+ * bold span may hold a formula (which stays maths). The delimiters pair in order; an odd
+ * last one stays literal, as a pair still streaming does until its close arrives. Nothing
+ * else of Markdown is read: no lists, no headings, no links.
+ */
+export function markBold(parts: MathPart[]): MathPart[] {
+  const total = parts.reduce((n, p) => (p.math ? n : n + p.value.split("**").length - 1), 0);
+  const usable = total - (total % 2);
+  if (usable === 0) return parts;
+  const out: MathPart[] = [];
+  let seen = 0;
+  let strong = false;
+  for (const part of parts) {
+    if (part.math) {
+      out.push(part);
+      continue;
+    }
+    let text = "";
+    const emit = () => {
+      if (text) out.push({ math: false, value: text, ...(strong ? { strong: true } : {}) });
+      text = "";
+    };
+    part.value.split("**").forEach((piece, i) => {
+      if (i > 0) {
+        if (seen < usable) {
+          emit();
+          strong = !strong;
+          seen += 1;
+        } else text += "**";
+      }
+      text += piece;
+    });
+    emit();
+  }
+  return out;
+}
+
 export function RichText({
   text,
   className,
   term,
+  bold,
   mathOutput,
 }: {
   text: string;
   className?: string;
   /** Set in bold where it first appears: the word a definition defines. */
   term?: string;
+  /** Read `**…**` as bold (`markBold`): Célestin's chat text, never the learner's. */
+  bold?: boolean;
   /** "mathml" inside screen-reader-only text: KaTeX's html output is aria-hidden. */
   mathOutput?: "html" | "mathml";
 }) {
-  const parts = splitInlineMath(text);
+  const split = splitInlineMath(text);
+  const parts = bold ? markBold(split) : split;
   return (
     <span className={className}>
       {(term ? markTerm(parts, term) : parts).map((part, i) =>

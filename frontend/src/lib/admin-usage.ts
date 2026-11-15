@@ -11,6 +11,7 @@ export const USAGE_ROLES = MODEL_ROLES;
 export const USAGE_FEATURES = [
   "tutor_turn",
   "discussion_turn",
+  "revision_turn",
   "authoring",
   "document_reading",
   "work_reading",

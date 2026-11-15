@@ -14,6 +14,7 @@ from app.domain.content import ValidContent, validate_content
 from app.domain.curriculum import parse_curriculum
 from app.domain.language import DEFAULT_COURSE_LANGUAGE, CourseLanguage, by_language
 from app.domain.pack import ContentIssue
+from app.domain.revision import RevisionChapter, RevisionScope
 from app.domain.subject import Subject
 from app.services.prompts import PromptLibrary
 
@@ -32,6 +33,17 @@ DEFAULT_CHAPTER_DIRS = by_language(
 
 def default_chapter_dir(language: CourseLanguage = DEFAULT_COURSE_LANGUAGE) -> Path:
     return DEFAULT_CHAPTER_DIRS[language]
+
+
+_FIXTURES = BACKEND_DIR / "tests" / "fixtures" / "chapters"
+# A révision of two chapters (spec 020): sequences then statistics, in each course language. What the révision
+# pins, the smoke and the révision probes run on. They are mathematics chapters, whatever subject a script was given.
+REVISION_SUBJECT: Subject = "mathematics"
+REVISION_CHAPTER_DIRS = by_language(
+    fr=(_FIXTURES / "suites", _FIXTURES / "statistique"),
+    en=(_FIXTURES / "sequences_en", _FIXTURES / "statistics_en"),
+    nl=(_FIXTURES / "rijen_nl", _FIXTURES / "statistiek_nl"),
+)
 
 
 class ChapterFilesInvalid(RuntimeError):
@@ -79,3 +91,36 @@ def load_chapter_dir(
         pack=content.pack,
         curriculum=content.curriculum,
     )
+
+
+def revision_scope(
+    chapters: list[LessonChapter], revision_id: str = "revision", course_id: str = "course"
+) -> RevisionScope:
+    """Chapters loaded from files as a révision's scope, numbered 1, 2, … in the order given; no progress, nothing
+    noted before (spec 020)."""
+    return RevisionScope(
+        id=revision_id,
+        course_id=course_id,
+        chapters=tuple(
+            RevisionChapter(
+                number=number,
+                id=chapter.id,
+                title=chapter.title,
+                version=chapter.version,
+                pack=chapter.pack,
+                curriculum=chapter.curriculum,
+            )
+            for number, chapter in enumerate(chapters, start=1)
+        ),
+    )
+
+
+def load_revision(
+    subject: Subject,
+    prompts: PromptLibrary,
+    language: CourseLanguage = DEFAULT_COURSE_LANGUAGE,
+    directories: tuple[Path, ...] | None = None,
+) -> RevisionScope:
+    """The fixture révision of `language` (or the chapters of `directories`) as a scope."""
+    chosen = directories or REVISION_CHAPTER_DIRS[language]
+    return revision_scope([load_chapter_dir(d, subject, prompts, language=language) for d in chosen])

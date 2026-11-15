@@ -79,6 +79,8 @@ def test_an_offered_language_requires_its_whole_set(root: Path) -> None:
         "modes/parcours.opening.en.md",
         "modes/discussion.en.md",
         "modes/discussion.opening.en.md",
+        "modes/revision.en.md",
+        "modes/revision.opening.en.md",
         "subjects/mathematics.en.md",
         "templates/mathematics.pack.en.md",
         "subjects/sciences.en.md",

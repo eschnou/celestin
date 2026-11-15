@@ -118,6 +118,23 @@ async def test_create_session_hands_config_and_ttl_to_the_provider() -> None:
     assert len(res.session_id) == 12
 
 
+async def test_the_seed_is_built_off_the_event_loop() -> None:
+    """Replaying a parcours `start_section` reads earlier séances from the database (spec 018 D5)."""
+    import threading
+
+    service, _ = _service()
+    threads: list[threading.Thread] = []
+    real = service.seed
+
+    def seed(entries, ctx, now=None):  # noqa: ANN001, ANN202
+        threads.append(threading.current_thread())
+        return real(entries, ctx, now=now)
+
+    service.seed = seed  # type: ignore[method-assign]
+    await service.create_session(CH, [], _ctx())
+    assert threads and threads[0] is not threading.main_thread()
+
+
 async def test_create_session_opening_false_with_history() -> None:
     service, _ = _service()
     res = await service.create_session(CH, [LearnerEntry(kind="learner", text="hi")], _ctx())

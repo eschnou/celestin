@@ -9,7 +9,9 @@ from typing import Any
 
 import pytest
 
+from app.api.schemas.chat import ToolEntry
 from app.domain.errors import ToolValidationError
+from app.domain.progress import Progress
 from app.services.tools import registry
 from app.domain.board import marker_for
 from app.services.tools.board import BoardCleared, BoardSet, DisplayBoardArgs
@@ -36,6 +38,7 @@ def test_declaration_order_is_stable() -> None:
         "start_section",
         "complete_section",
         "propose_next_step",
+        "skip_section",  # spec 019: last, so the declarations before it keep their bytes
     ]
     assert [t["name"] for t in registry.declarations()] == names
 
@@ -46,7 +49,25 @@ def test_declarations_carry_strict_flags() -> None:
     assert by_name["clear_board"]["strict"] is True
     assert by_name["start_section"]["strict"] is True
     assert by_name["complete_section"]["strict"] is True
+    assert by_name["skip_section"]["strict"] is True
     assert by_name["display_board"]["type"] == "function"
+
+
+def test_the_path_declarations_are_pinned(snapshot_path_declarations) -> None:
+    """Everything after the board tools, in the cached prefix too. Spec 019 moved it once, on
+    purpose (`start_section` lost « Refusée si la section n'est pas encore ouverte », `skip_section`
+    was added last); a later change must be as deliberate."""
+    current = registry.declarations()[2:]
+    assert json.dumps(current, ensure_ascii=False, sort_keys=True) == snapshot_path_declarations
+
+
+def test_start_section_says_any_section_can_be_opened_and_skip_section_is_only_on_request() -> None:
+    by_name = {t["name"]: t for t in registry.declarations()}
+    assert "pas encore ouverte" not in by_name["start_section"]["description"]
+    assert "N'importe quelle section" in by_name["start_section"]["description"]
+    assert "Seulement à sa demande" in by_name["skip_section"]["description"]
+    assert by_name["skip_section"]["parameters"]["required"] == ["section_id"]
+    assert by_name["skip_section"]["parameters"]["additionalProperties"] is False
 
 
 def test_board_declarations_did_not_move(snapshot_declarations) -> None:
@@ -508,24 +529,37 @@ def test_every_card_kind_declares_a_marker() -> None:
 
 
 def test_replay_output_is_bare_for_board_tools() -> None:
-    assert registry.replay_output("display_board", {"card": CARD}, CTX) == {"ok": True}
-    assert registry.replay_output("clear_board", {}, CTX) == {"ok": True}
+    assert registry.replay_output(ToolEntry(kind="tool", name="display_board", arguments={"card": CARD}), CTX) == {"ok": True}
+    assert registry.replay_output(ToolEntry(kind="tool", name="clear_board", arguments={}), CTX) == {"ok": True}
 
 
 def test_replay_output_recomputes_a_section_brief() -> None:
-    out = registry.replay_output("start_section", {"section_id": "intro"}, CTX)
+    out = registry.replay_output(ToolEntry(kind="tool", name="start_section", arguments={"section_id": "intro"}), CTX)
     assert out["ok"] is True
     assert "Déroulé" in out["result"]
 
 
 def test_replay_output_never_raises() -> None:
-    assert "inconnue" in registry.replay_output("start_section", {"nope": 1}, CTX)["result"]
-    assert registry.replay_output("teleport", {}, CTX) == {"ok": True}
+    assert "inconnue" in registry.replay_output(ToolEntry(kind="tool", name="start_section", arguments={"nope": 1}), CTX)["result"]
+    assert registry.replay_output(ToolEntry(kind="tool", name="teleport", arguments={}), CTX) == {"ok": True}
 
 
 def test_replayed_completion_needs_only_the_section_id() -> None:
-    out = registry.replay_output("complete_section", {"section_id": "intro"}, CTX)
+    out = registry.replay_output(ToolEntry(kind="tool", name="complete_section", arguments={"section_id": "intro"}), CTX)
     assert out["ok"] is True and "Section terminée" in out["result"]
+
+
+def test_a_replayed_skip_says_what_the_live_call_said() -> None:
+    """Spec 019: a stored `skip_section` replays, from the progress, the text its live call answered."""
+    from tests.fixtures.curricula import ctx_for
+
+    for before in (Progress(), Progress(active="intro"), Progress(active="exos"), Progress(done=frozenset({"exos", "bilan"}))):
+        ctx = ctx_for(before)
+        live = registry.execute("skip_section", json.dumps({"section_id": "intro"}), ctx)
+        entry = ToolEntry(kind="tool", name="skip_section", arguments={"section_id": "intro"})
+        assert registry.replay_output(entry, ctx) == registry.output_of(live) == {"ok": True, "result": live.output}
+    unknown = ToolEntry(kind="tool", name="skip_section", arguments={"section_id": "nope"})
+    assert "inconnue" in registry.replay_output(unknown, ctx_for())["result"]
 
 
 def test_realtime_declarations_are_the_same_tools_without_strict() -> None:
@@ -557,7 +591,7 @@ def test_realtime_declarations_match_per_mode(mode: str) -> None:
     assert registry.realtime_declarations(mode) == stripped
 
 
-@pytest.mark.parametrize("name", ["start_section", "complete_section", "propose_next_step"])
+@pytest.mark.parametrize("name", ["start_section", "complete_section", "propose_next_step", "skip_section"])
 def test_a_path_tool_is_refused_in_a_discussion(name: str) -> None:
     """The gate, not the prompt: `/api/voice/tool` takes a tool name from the
     browser, so this is what makes the mode a server-side fact."""

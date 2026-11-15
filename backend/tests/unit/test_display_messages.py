@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.api.routes.courses import authoring_message, display_title
-from app.api.schemas.discussion import StoredEntry
+from app.api.stored import stored_entry
 from app.domain import board
 from app.domain.board import CLEAR_MARKER, marker_for
 from app.api.schemas.chat import ToolEntry
@@ -21,7 +21,7 @@ from app.domain.subject import SUBJECTS
 from app.services.tool_events import event_of
 from app.services.tools.board import BoardCleared, BoardSet
 from app.services.tools.pace import NextStepProposed
-from app.services.tools.section import SectionCompleted, SectionStarted
+from app.services.tools.section import SectionCompleted, SectionSkipped, SectionStarted
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 STATUS = json.loads((FIXTURES / "status_messages_fr.json").read_text("utf-8"))
@@ -133,6 +133,10 @@ def test_the_event_of_an_outcome_carries_the_marker_in_the_requests_language() -
     assert event_of(started, "en").marker == "section started · 1. Introduction"
     done = SectionCompleted(section=section, next=None, summary="s", output="o", marker=Marker("marker.section_done", label="1. Introduction"))  # type: ignore[arg-type]
     assert event_of(done, "en").marker == "section completed · 1. Introduction"
+    skipped = SectionSkipped(section=section, active=None, next=None, output="o", marker=Marker("marker.section_skipped", label="1. Introduction"))  # type: ignore[arg-type]
+    assert event_of(skipped, "fr").marker == "section passée · 1. Introduction"
+    assert event_of(skipped, "en").marker == "section skipped · 1. Introduction"
+    assert event_of(skipped, "nl").marker == "sectie overgeslagen · 1. Introduction"
 
 
 def test_a_stored_call_is_marked_in_the_readers_language() -> None:
@@ -142,8 +146,8 @@ def test_a_stored_call_is_marked_in_the_readers_language() -> None:
     assert marker_for("clear_board", {}, "en") == "board cleared"
     assert marker_for("display_board", {"card": {"kind": "nonsense"}}, "en") is None
     entry = ToolEntry(kind="tool", name="clear_board", arguments={})
-    assert StoredEntry.of(entry).marker == "tableau effacé"
-    assert StoredEntry.of(entry, "en").marker == "board cleared"
+    assert stored_entry(entry).marker == "tableau effacé"
+    assert stored_entry(entry, "en").marker == "board cleared"
 
 
 def test_a_marker_survives_copy_and_pickle() -> None:

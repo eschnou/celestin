@@ -9,9 +9,10 @@ from __future__ import annotations
 import json
 from typing import Any, Literal, Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.domain.board import BoardCard
+from app.domain.revision import Outcome
 
 SSE_HEADERS = {
     "Cache-Control": "no-cache",
@@ -56,6 +57,32 @@ class SectionDoneEvent(BaseModel):
     marker: str
 
 
+class SectionSkippedEvent(BaseModel):
+    """Spec 019: a section passed at the student's request. `active_section_id` is the
+    section still being worked after the skip (null when none); `next_section_id` is where
+    the page turns when nothing is active, else null. Both null: the chapter is finished."""
+
+    event: Literal["section.skipped"] = "section.skipped"
+    section_id: str
+    next_section_id: str | None
+    active_section_id: str | None
+    marker: str
+
+
+class RevisionResultEvent(BaseModel):
+    """Spec 020: a self-assessment noted in a révision, so the student sees everything recorded about them. The
+    wire carries `chapter_id`, `section_id`, `outcome` and `marker`; `chapter` (the number the call named) and
+    `tally` (what it answered) stay server-side, for the stored entry a later turn replays."""
+
+    event: Literal["revision.result"] = "revision.result"
+    chapter_id: str
+    section_id: str
+    outcome: Outcome
+    marker: str
+    chapter: int = Field(exclude=True)
+    tally: dict[Outcome, int] = Field(exclude=True)
+
+
 class StepReadyEvent(BaseModel):
     """The tutor proposed the next step: the board's button turns green."""
 
@@ -83,6 +110,8 @@ TurnEvent = Union[
     SectionStartEvent,
     SectionDoneEvent,
     StepReadyEvent,
+    SectionSkippedEvent,
+    RevisionResultEvent,
     TurnEnd,
     ErrorEvent,
 ]

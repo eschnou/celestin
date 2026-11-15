@@ -43,23 +43,29 @@ function mockFetch(response: Record<string, unknown>) {
 
 async function collect(signal?: AbortSignal): Promise<TutorEvent[]> {
   const out: TutorEvent[] = [];
-  for await (const event of streamTurn(SCOPE, [], signal)) out.push(event);
+  for await (const event of streamTurn(SCOPE, null, signal)) out.push(event);
   return out;
 }
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("streamTurn", () => {
-  it("posts the class, the chapter and the transcript (004 R6.3)", async () => {
+  it("posts the course, the chapter and the message, never a transcript (018 D1)", async () => {
     const fetchMock = mockFetch({ body: bodyFrom([GOLDEN]) });
     const out: TutorEvent[] = [];
-    for await (const event of streamTurn(SCOPE, [{ kind: "learner", text: "salut" }]))
-      out.push(event);
+    for await (const event of streamTurn(SCOPE, "salut")) out.push(event);
     const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string);
-    expect(body).toEqual({
+    expect(body).toEqual({ course_id: "maths-5e", chapter_id: "suites", message: "salut" });
+    expect(body).not.toHaveProperty("history");
+  });
+
+  it("posts a null message for the opening turn", async () => {
+    const fetchMock = mockFetch({ body: bodyFrom([GOLDEN]) });
+    await collect();
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body as string)).toEqual({
       course_id: "maths-5e",
       chapter_id: "suites",
-      history: [{ kind: "learner", text: "salut" }],
+      message: null,
     });
   });
 
@@ -83,14 +89,15 @@ describe("streamTurn", () => {
     expect((await collect()).map((e) => e.event)).toHaveLength(5);
   });
 
-  it("posts the transcript as JSON", async () => {
+  it("posts the message as JSON to /api/chat", async () => {
     const fetchMock = mockFetch({ body: bodyFrom([GOLDEN]) });
-    for await (const _ of streamTurn(SCOPE, [{ kind: "learner", text: "salut" }])) break;
-    const [, init] = fetchMock.mock.calls[0]!;
+    for await (const _ of streamTurn(SCOPE, "salut")) break;
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/chat");
     expect(JSON.parse(init.body)).toEqual({
       course_id: "maths-5e",
       chapter_id: "suites",
-      history: [{ kind: "learner", text: "salut" }],
+      message: "salut",
     });
     expect(init.method).toBe("POST");
   });
@@ -154,7 +161,7 @@ describe("streamTurn", () => {
     // An endless stream: a closed one would make cancel() a no-op and prove nothing.
     const onCancel = vi.fn();
     mockFetch({ body: endlessBody(onCancel) });
-    for await (const _ of streamTurn(SCOPE, [])) break;
+    for await (const _ of streamTurn(SCOPE, null)) break;
     expect(onCancel).toHaveBeenCalled();
   });
 });

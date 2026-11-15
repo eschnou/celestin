@@ -258,6 +258,12 @@ class WorkRateLimited(RateLimited):
     code = "work_rate_limited"
 
 
+class SeanceReportRateLimited(RateLimited):
+    """Too many reported parcours turns in an hour (spec 018 D10): the one write without a model call."""
+
+    code = "seance_report_rate"
+
+
 class CrossOrigin(TutorError):
     code = "cross_origin"
     status = 403
@@ -554,8 +560,100 @@ class EmptyTurnExpected(TutorError):
     status = 422
 
 
+# --- stored séances (spec 018) -----------------------------------------------------
+# The parcours keeps the discussion's codes (the wire contract names them) and says them in its own words.
+
+
+class SeanceStarted(EmptyTurnExpected):
+    """An opening turn on a séance that already holds something: the lesson restores it instead."""
+
+    @property
+    def message_key(self) -> str:
+        return "seance_started"
+
+
+class SeanceBusy(ConversationBusy):
+    """Another turn (a second tab) stored first: the optimistic guard of the live séance (D11)."""
+
+    @property
+    def message_key(self) -> str:
+        return "seance_busy"
+
+
+class SeanceFull(TutorError):
+    """A reported turn on a chapter that already holds `seance_max_rows` séances for the student (spec 018 D10).
+    Model turns are not refused: only the write that costs nothing is bounded."""
+
+    code = "seance_full"
+    status = 409
+
+
+class SeanceReportInvalid(TutorError):
+    """A reported turn naming a section the chapter does not have, or a tool the parcours does not offer
+    (spec 018 D10)."""
+
+    code = "seance_report_invalid"
+    status = 422
+
+
 class DiscussionQuota(TutorError):
     code = "discussion_quota"
+    status = 429
+
+    def __init__(self, maximum: int) -> None:
+        self.params = {"maximum": maximum}
+        super().__init__()
+
+
+# --- révision (spec 020) ---------------------------------------------------------------
+# A révision keeps the discussion's codes where the wire contract names them (`conversation_closed` and its reason,
+# `conversation_full`, `conversation_busy`, `empty_conversation_expected`) and says them in its own words.
+
+
+class RevisionClosed(ConversationClosed):
+    @property
+    def message_key(self) -> str:
+        return f"revision_closed.{self.reason if self.reason in self._REASONS else 'replaced'}"
+
+
+class RevisionFull(ConversationFull):
+    @property
+    def message_key(self) -> str:
+        return "revision_full"
+
+
+class RevisionBusy(ConversationBusy):
+    @property
+    def message_key(self) -> str:
+        return "revision_busy"
+
+
+class RevisionStarted(EmptyTurnExpected):
+    """An opening turn on a révision that already holds something: the page restores it instead."""
+
+    @property
+    def message_key(self) -> str:
+        return "revision_started"
+
+
+class RevisionNoChapter(TutorError):
+    code = "revision_no_chapter"
+    status = 422
+
+
+class RevisionTooLarge(TutorError):
+    """The chosen packs together are over `revision_max_pack_chars` (D2): the student picks fewer chapters."""
+
+    code = "revision_too_large"
+    status = 422
+
+    def __init__(self, maximum: int, size: int) -> None:
+        self.params = {"maximum": maximum, "size": size}
+        super().__init__()
+
+
+class RevisionQuota(TutorError):
+    code = "revision_quota"
     status = 429
 
     def __init__(self, maximum: int) -> None:

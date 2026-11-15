@@ -1,7 +1,20 @@
-/** The card a course or chapter page shows when the API says no (005 R6.2). */
+/** What a page shows when the API says no: the card of a course or chapter page that cannot
+ *  be shown (005 R6.2), and the line of a read that failed, with « Réessayer ». */
 
 import { Link } from "@tanstack/react-router";
 import { m } from "@/paraglide/messages";
+
+/** The failure in a sentence, then « Réessayer »: phrasing, inside the caller's paragraph. */
+export function ErrorRetry({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <>
+      {message}{" "}
+      <button type="button" className="underline" onClick={onRetry}>
+        {m.error_retry()}
+      </button>
+    </>
+  );
+}
 
 export function NotFoundCard({ status }: { status: number }) {
   return (

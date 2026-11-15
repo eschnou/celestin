@@ -1,6 +1,6 @@
 ## Chapter path “Mini chapter”
 
-Sections in order, locked: a section opens only when the previous one is finished. `start_section(id)` gives you a section's plan, `complete_section(id, summary)` finishes it.
+Sections in the order you propose.
 
 1. `intro` (lesson) — Introduction. Understand what we are talking about.
 2. `exos` (practice) — Exercises. Apply it.

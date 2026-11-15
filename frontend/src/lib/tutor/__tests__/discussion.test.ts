@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { discussionTransport, recordVoiceTurn, startConversation, TURN_URL } from "../discussion";
+import { discussionTransport, startConversation, TURN_URL, VOICE_TURN_URL } from "../discussion";
+import { reportTurn } from "../voice/client";
 
 const CONVERSATION = {
   id: "c".repeat(32),
@@ -78,12 +79,17 @@ describe("discussion requests", () => {
 
   it("reports a spoken turn, and sends nothing when there is nothing to report", async () => {
     const fetchMock = stub(204);
-    await recordVoiceTurn({ courseId: "c1", chapterId: "h1", conversationId: "conv" }, []);
+    const scope = {
+      courseId: "c1",
+      chapterId: "h1",
+      mode: "discussion" as const,
+      conversationId: "conv",
+    };
+    await reportTurn(scope, []);
     expect(fetchMock).not.toHaveBeenCalled();
 
-    await recordVoiceTurn({ courseId: "c1", chapterId: "h1", conversationId: "conv" }, [
-      { kind: "learner", text: "salut" },
-    ]);
+    await reportTurn(scope, [{ kind: "learner", text: "salut" }]);
+    expect(fetchMock.mock.calls[0]![0]).toBe(VOICE_TURN_URL);
     expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toMatchObject({
       conversation_id: "conv",
       entries: [{ kind: "learner", text: "salut" }],

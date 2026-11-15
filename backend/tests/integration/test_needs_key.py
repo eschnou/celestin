@@ -25,13 +25,15 @@ CHAPTER = "{chapter_id}"
 CHAPTER_URL = f"/api/courses/{COURSE}/chapters/{CHAPTER}"
 CH = CHAPTER_URL.format(course_id=COURSE_ID, chapter_id=CHAPTER_ID)
 
-# The nine routes that call the provider (spec 013 design 3.8): method, path template, request arguments.
+# The ten routes that call the provider (spec 013 design 3.8; the révision turn since spec 020): method, path
+# template, request arguments.
 # One table: the requests are made against the template filled with the fixture's ids, and the set of
 # gated routes is read from the same templates.
 AI_ROUTES = [
-    ("POST", "/api/chat", {"json": {**LESSON, "history": []}}),
+    ("POST", "/api/chat", {"json": {**LESSON, "message": None}}),
     ("POST", "/api/discussion/turn", {"json": {**LESSON, "conversation_id": "a" * 32, "message": "salut"}}),
-    ("POST", "/api/voice/session", {"json": {**LESSON, "history": []}}),
+    ("POST", "/api/revision/turn", {"json": {"course_id": COURSE_ID, "revision_id": "a" * 32, "message": "salut"}}),
+    ("POST", "/api/voice/session", {"json": {**LESSON}}),
     ("POST", f"/api/courses/{COURSE}/work", {"files": [("photo", ("w.jpg", b"x", "image/jpeg"))]}),
     ("POST", "/api/dictation", {"files": [("audio", ("d.webm", b"x", "audio/webm"))], "data": {"language": "fr"}}),
     ("POST", f"/api/courses/{COURSE}/chapters", {"files": photos()}),
@@ -99,9 +101,9 @@ async def test_auth_comes_before_the_refusal(no_key, db_engine) -> None:
     _, parent = sign_in(app, email="p@example.be", name="Parent", role="parent", lesson=False)
     _, admin = sign_in(app, email="admin@example.be", name="Admin", role="admin", lesson=False)
     async with http_client(app) as anon:
-        assert (await anon.post("/api/chat", json={**LESSON, "history": []})).status_code == 401
-        assert (await anon.post("/api/chat", json={**LESSON, "history": []}, headers=admin)).status_code == 403
-        assert (await anon.post("/api/chat", json={**LESSON, "history": []}, headers=parent)).status_code == 403
+        assert (await anon.post("/api/chat", json={**LESSON, "message": None})).status_code == 401
+        assert (await anon.post("/api/chat", json={**LESSON, "message": None}, headers=admin)).status_code == 403
+        assert (await anon.post("/api/chat", json={**LESSON, "message": None}, headers=parent)).status_code == 403
 
 
 async def test_what_does_not_call_the_provider_still_works(no_key, db_engine) -> None:
@@ -138,10 +140,10 @@ async def test_a_configuration_applied_later_opens_the_same_routes_without_a_res
     llm = FakeLLM([[TextDelta("Bonjour"), Completed()]])
     app.dependency_overrides[get_llm] = lambda: llm
     async with _client_for(app, anonymous=False) as client:
-        refused = await client.post("/api/chat", json={**LESSON, "history": []})
+        refused = await client.post("/api/chat", json={**LESSON, "message": None})
         assert refused.status_code == 503 and llm.rounds_used == 0
         app.state.hub.apply(load_ai_config(settings))
-        opened = await client.post("/api/chat", json={**LESSON, "history": []})
+        opened = await client.post("/api/chat", json={**LESSON, "message": None})
     assert opened.status_code == 200 and "Bonjour" in opened.text and llm.rounds_used == 1
 
 
@@ -149,7 +151,7 @@ def _has_require_ai(dependant) -> bool:
     return dependant.call is require_ai or any(_has_require_ai(sub) for sub in dependant.dependencies)
 
 
-def test_exactly_the_nine_routes_are_gated(settings, db_engine) -> None:
+def test_exactly_the_ten_routes_are_gated(settings, db_engine) -> None:
     app = create_app(settings, engine=db_engine)
     gated = {(m, path) for path, route in iter_api_routes(app) if _has_require_ai(route.dependant) for m in route.methods}
     assert gated == GATED

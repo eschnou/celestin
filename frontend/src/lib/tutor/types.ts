@@ -307,6 +307,9 @@ export type ChapterRow = {
   ready: boolean;
   section_count: number;
   done_count: number;
+  /** Spec 019: how many sections were passed, apart from done ones. The server says
+   *  « done » once done and skipped cover every section; the browser never recomputes it. */
+  skipped_count: number;
   state: ChapterState;
   last: boolean;
   authoring_state: AuthoringState;
@@ -376,17 +379,31 @@ export type LessonScope = {
   courseId: string;
   chapterId: string;
   /** Discussion mode (007): which mode the voice session is for, and which stored
-   *  conversation it seeds from. Absent means the parcours. */
+   *  conversation it seeds from. Absent means the parcours. A révision (spec 020) has no
+   *  voice and no chapter scope, so it never appears here. */
   mode?: "parcours" | "discussion";
   conversationId?: string;
 };
 
-/** Where the learner is. Held by the browser, posted with every turn. */
-export type Progress = { done: string[]; active: string | null };
+/** Where the learner is. Owned by the server (004), which sends it with the chapter.
+ *  `skipped` (spec 019): the sections the student chose to pass, kept apart from done. */
+export type Progress = { done: string[]; active: string | null; skipped: string[] };
 
-export const EMPTY_PROGRESS: Progress = { done: [], active: null };
+export const EMPTY_PROGRESS: Progress = { done: [], active: null, skipped: [] };
 
-export type SectionState = "done" | "active" | "available" | "locked";
+/** A progress on the wire: `skipped` may be missing (a backend older than spec 019). */
+export type WireProgress = Omit<Progress, "skipped"> & { skipped?: string[] | null | undefined };
+
+/** A progress as the server sent it, made whole: a server older than spec 019 sends no
+ *  `skipped`. The one place a server progress enters the browser (the séance read, the
+ *  chapter view, the voice tool response), so nothing downstream checks for it. */
+export function progressFrom(raw: WireProgress): Progress {
+  return { done: raw.done, active: raw.active, skipped: raw.skipped ?? [] };
+}
+
+/** Spec 019: no section is locked. `available` is the one Célestin proposes; `open` is
+ *  every other section that is neither done, active nor skipped. */
+export type SectionState = "done" | "active" | "skipped" | "available" | "open";
 
 /** What the board's page-turn button offers: a step Célestin proposed, the next
  *  section after one closed, or nothing (greyed). */
@@ -403,28 +420,89 @@ export type TutorEvent =
   | { event: "board.clear"; marker: string }
   | { event: "section.start"; section_id: string; review: boolean; marker: string }
   | { event: "section.done"; section_id: string; next_section_id: string | null; marker: string }
+  /** Spec 019: `active_section_id` is the section still being worked after the skip (null
+   *  when none); `next_section_id` the proposed next section when nothing is active, else
+   *  null. Both null: the skip finished the chapter. */
+  | {
+      event: "section.skipped";
+      section_id: string;
+      next_section_id: string | null;
+      active_section_id: string | null;
+      marker: string;
+    }
   | { event: "step.ready"; marker: string }
+  /** Spec 020: a self-assessment Célestin noted in a révision (`record_result`). The marker
+   *  says what was noted, so the student sees everything recorded about them. */
+  | {
+      event: "revision.result";
+      chapter_id: string;
+      section_id: string;
+      outcome: RevisionOutcome;
+      marker: string;
+    }
   | { event: "turn.end"; reason: TurnEndReason; usage: Record<string, unknown> }
   | { event: "error"; code: string; message: string };
 
 /* ------------------------------ transcript ------------------------------- */
 
-/** What the browser posts back. Markers and errors are presentation only. */
+/** The model-facing view of the conversation, kept by the session: what a spoken turn
+ *  reports to the server (007 D1, 018). Markers and errors are presentation only. */
 export type HistoryEntry =
   | { kind: "learner"; text: string }
   | { kind: "tutor"; text: string }
-  | { kind: "tool"; name: string; arguments: Record<string, unknown>; ok: boolean };
+  | {
+      kind: "tool";
+      name: string;
+      arguments: Record<string, unknown>;
+      ok: boolean;
+      /** On a `start_section` entry only: whether the call was a review (spec 018). The
+       *  server keeps it with the stored séance and never sends it to the model. */
+      review?: boolean;
+      /** What a `complete_section` (`next_section_id`) or a `skip_section` (both) call
+       *  answered at the time, from its event (spec 019): the server replays the stored
+       *  call from them, never from a later progress. Never sent to the model. */
+      next_section_id?: string | null;
+      active_section_id?: string | null;
+    };
 
-/** A stored discussion entry, as the server reads it back (007 §4.3). The
- *  `marker` is the French label the transcript shows for a tool call; the backend
- *  owns its wording, so it comes over the wire rather than being rebuilt here. */
+/** A stored entry of a discussion (007 §4.3) or a parcours séance (018), as the server
+ *  reads it back. The `marker` is the label the transcript shows for a tool call, in the
+ *  account's interface language; the backend owns its wording, so it comes over the wire
+ *  rather than being rebuilt here. Only ok calls are returned. */
 export type StoredEntry = {
   kind: "learner" | "tutor" | "tool";
   text?: string | null;
   name?: string | null;
   arguments?: Record<string, unknown> | null;
   marker?: string | null;
+  /** `start_section` only: the call was a review. */
+  review?: boolean | null;
+  /** `complete_section` and `skip_section` (spec 019) only: the section the page-turn
+   *  button offers next, read from the student's current progress (null while a section
+   *  is active). */
+  next_section_id?: string | null;
+  /** `skip_section` only: the section active now, null when none. */
+  active_section_id?: string | null;
+  /** `record_result` only (spec 020): what was noted, beside the model's own `arguments`
+   *  (which name the chapter by its number). */
+  chapter_id?: string | null;
+  section_id?: string | null;
+  outcome?: RevisionOutcome | null;
 };
+
+/** The live parcours séance of one chapter (spec 018 D2): the stretch of work the lesson
+ *  view is in. The server also sends its `id` and its `section_id` (null while it holds only
+ *  a greeting); the lesson reads only the entries it folds back. */
+export type Seance = { entries: StoredEntry[] };
+
+/** One thing the cahier shows for a section: a card as it was shown, or a line said. */
+export type NotebookItem =
+  { kind: "card"; card: BoardCard } | { kind: "tutor" | "learner"; text: string };
+
+/** `GET …/notebook` (spec 018 D8): per section in path order, everything shown and said in
+ *  its stored séances, oldest first; only sections with at least one item. */
+export type NotebookSection = { section_id: string; items: NotebookItem[] };
+export type Notebook = { sections: NotebookSection[] };
 
 /** One stored discussion on one chapter (007 §4.3). */
 export type Conversation = {
@@ -433,6 +511,61 @@ export type Conversation = {
   entries: StoredEntry[];
   entry_count: number;
   created_at: string;
+};
+
+/* -------------------------------- révision -------------------------------- */
+
+/** The student's own judgement of a question (spec 020 D3): acquis, fragile, à revoir. */
+export type RevisionOutcome = "solid" | "shaky" | "todo";
+
+export const REVISION_OUTCOMES = [
+  "solid",
+  "shaky",
+  "todo",
+] as const satisfies readonly RevisionOutcome[];
+
+/** A self-assessment noted this session, as the `revision.result` event carries it. */
+export type RevisionMark = { chapter_id: string; section_id: string; outcome: RevisionOutcome };
+
+/** The latest self-assessment of a section, as `GET …/revision` returns it. */
+export type RevisionResult = RevisionMark & { at: string };
+
+/** The live révision of a course (spec 020): its chosen chapters and its stored entries. */
+export type Revision = {
+  id: string;
+  chapter_ids: string[];
+  entries: StoredEntry[];
+  entry_count: number;
+  created_at: string;
+};
+
+/** A section of a chapter as the révision page shows it: where the path stands, never its
+ *  beats or exercises. `todo` is never done nor skipped. */
+export type RevisionSection = {
+  id: string;
+  index: number;
+  kind: SectionKind;
+  title: string;
+  state: "done" | "skipped" | "todo";
+};
+
+/** Every chapter of the course; `sections` is empty for one that is not ready. */
+export type RevisionChapter = {
+  id: string;
+  position: number;
+  title: string | null;
+  ready: boolean;
+  section_count: number;
+  done_count: number;
+  skipped_count: number;
+  sections: RevisionSection[];
+};
+
+/** `GET /api/courses/{c}/revision`. */
+export type RevisionView = {
+  revision: Revision | null;
+  chapters: RevisionChapter[];
+  results: RevisionResult[];
 };
 
 /** What the browser renders. */

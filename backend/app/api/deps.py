@@ -15,13 +15,14 @@ from fastapi import Depends, Request
 
 from app.config import Settings
 from app.db.repositories import Repositories
-from app.domain.mode import DEFAULT_MODE, Mode
+from app.domain.mode import DEFAULT_MODE, ChapterMode
 from app.domain.errors import (
     AiNotConfigured,
     DictationRateLimited,
     Forbidden,
     NotAuthenticated,
     NotFound,
+    SeanceReportRateLimited,
     VoiceRateLimited,
     WorkRateLimited,
 )
@@ -35,6 +36,8 @@ from app.services.authoring.runner import AuthoringRunner
 from app.services.documents import DocumentService
 from app.services.chapters import CurriculumCache, to_lesson_chapter
 from app.services.discussion import DiscussionService
+from app.services.revision import OpenRevision, RevisionService
+from app.services.seance import SeanceService, card_loader
 from app.services.ai_settings import AiSettingsService
 from app.services.prompts import PromptLibrary
 from app.services.tools.context import TurnContext
@@ -144,6 +147,20 @@ def get_discussion_service(settings: SettingsDep, repos: ReposDep) -> Discussion
 DiscussionServiceDep = Annotated[DiscussionService, Depends(get_discussion_service)]
 
 
+def get_seance_service(settings: SettingsDep, repos: ReposDep) -> SeanceService:
+    return SeanceService(repos=repos, settings=settings)
+
+
+SeanceServiceDep = Annotated[SeanceService, Depends(get_seance_service)]
+
+
+def get_revision_service(settings: SettingsDep, repos: ReposDep, curricula: CurriculumCacheDep) -> RevisionService:
+    return RevisionService(repos=repos, settings=settings, curricula=curricula)
+
+
+RevisionServiceDep = Annotated[RevisionService, Depends(get_revision_service)]
+
+
 COOKIE_NAME = "celestin_session"
 
 
@@ -251,6 +268,16 @@ def work_budget(request: Request, user: StudentDep) -> User:
 WorkBudgetDep = Annotated[User, Depends(work_budget)]
 
 
+def seance_report_budget(request: Request, user: StudentDep) -> User:
+    """One allowance per reported parcours turn, per user (spec 018 D10): the one write without a model call."""
+    if not request.app.state.seance_report_limiter.allow(user.id):
+        raise SeanceReportRateLimited()
+    return user
+
+
+SeanceReportBudgetDep = Annotated[User, Depends(seance_report_budget)]
+
+
 def owned_course(user: User, course_id: str, repos: Repositories) -> CourseRecord:
     """The course, if the user owns it; otherwise 404, never 403 (005 design 3.3)."""
     course = repos.courses.get_owned(user.id, course_id)
@@ -278,18 +305,22 @@ def lesson_chapter(
 
 
 def load_context(
-    user: User, chapter: LessonChapter, repos: Repositories, mode: Mode = DEFAULT_MODE, course_id: str | None = None
+    user: User, chapter: LessonChapter, repos: Repositories, mode: ChapterMode = DEFAULT_MODE, course_id: str | None = None
 ) -> TurnContext:
     """The stored progress as a turn context, the store bound for the section
     tools (004 design 3.6).
 
     A discussion reads the progress and never writes it: `save` stays None, which
-    is the second lock behind not declaring the section tools (007 §3.6)."""
+    is the second lock behind not declaring the section tools (007 §3.6). The
+    parcours also gets the reader of its earlier séances, for the reprise note
+    `start_section` ends with (spec 018 D5)."""
     record = repos.progress.load(user.id, chapter.id)
     progress = record.progress if record else Progress()
     save = None
+    earlier_cards = None
     if mode == "parcours":
         save = lambda p: repos.progress.save(user.id, chapter.id, p, version=chapter.version)  # noqa: E731
+        earlier_cards = card_loader(repos, user.id, chapter.id, chapter.version)
     return TurnContext.from_progress(
         chapter.curriculum,
         list(progress.done),
@@ -302,6 +333,8 @@ def load_context(
         pack=chapter.pack,
         locale=user.locale,
         language=chapter.language,
+        earlier_cards=earlier_cards,
+        skipped=list(progress.skipped),
     )
 
 
@@ -311,9 +344,28 @@ def open_lesson(
     chapter_id: str,
     repos: Repositories,
     cache: CurriculumCache,
-    mode: Mode = DEFAULT_MODE,
+    mode: ChapterMode = DEFAULT_MODE,
 ) -> tuple[LessonChapter, TurnContext]:
     """Everything a chat or voice request needs before touching the model: the
     ownership check, the content and the stored progress, in one threadpool hop."""
     chapter = lesson_chapter(user, course_id, chapter_id, repos, cache)
     return chapter, load_context(user, chapter, repos, mode, course_id)
+
+
+def revision_context(user: User, course: CourseRecord, opened: OpenRevision) -> TurnContext:
+    """A révision turn's context (spec 020): its scope and what it noted so far, and the two locks of a discussion:
+    no section tool is offered (`registry`) and `save` stays None, so nothing here can write a progress. No store
+    either: `record_result` notes in the turn's memory, and the route writes the turn's results with its transcript
+    when it ends (D6). A definition on the board must quote one of the chosen packs."""
+    return TurnContext(
+        save=None,
+        user_id=user.id,
+        chapter_id=None,
+        course_id=course.id,
+        mode="revision",
+        pack=opened.scope.packs,
+        locale=user.locale,
+        language=course.language,
+        revision=opened.scope,
+        noted=opened.noted,
+    )

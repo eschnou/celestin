@@ -6,21 +6,22 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.api.schemas.chat import ChatRequest, Id, ProgressDTO
-from app.domain.mode import DEFAULT_MODE, Mode
+from app.api.schemas.chat import Id, ProgressDTO
+from app.domain.mode import DEFAULT_MODE, ChapterMode
 
 
 class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class VoiceSessionRequest(ChatRequest):
-    """Same shape as a chat turn: the transcript so far and where she is.
+class VoiceSessionRequest(_Model):
+    """Which chapter, in which mode. No transcript is posted in either mode (spec 018): a
+    parcours session is seeded from the stored live séance, a discussion from the
+    stored conversation its `conversation_id` names (007 §3.10)."""
 
-    In a discussion the transcript is not posted: the session is seeded from the
-    stored conversation the `conversation_id` names (007 §3.10)."""
-
-    mode: Mode = DEFAULT_MODE
+    course_id: Id
+    chapter_id: Id
+    mode: ChapterMode = DEFAULT_MODE
     conversation_id: Id | None = None
 
 
@@ -45,7 +46,7 @@ class VoiceSessionResponse(_Model):
 class VoiceToolRequest(_Model):
     # The mode the browser is in. `registry.execute` gates on it, so a section
     # tool cannot be run from a discussion whatever this request says (007 §3.5).
-    mode: Mode = DEFAULT_MODE
+    mode: ChapterMode = DEFAULT_MODE
     session_id: Annotated[str, Field(max_length=32)] = ""
     call_id: Annotated[str, Field(min_length=1, max_length=128)]
     name: Annotated[str, Field(min_length=1, max_length=64)]

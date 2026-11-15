@@ -11,6 +11,7 @@ import pytest
 
 from app.api.schemas.chat import ToolEntry
 from app.api.schemas.discussion import StoredEntry
+from app.api.stored import stored_entry
 from app.domain.board import marker_for
 from app.domain.errors import ToolValidationError
 from app.services.tools import registry
@@ -132,7 +133,7 @@ def test_a_refused_flowchart_beside_a_valid_chart_logs_no_display(caplog: pytest
 def test_an_exercise_with_a_flowchart_keeps_its_marker_and_replays() -> None:
     card = _exercise({**valid("method"), "hidden": ["sa", "sg"]})
     assert marker_for("display_board", {"card": card}) == "exercice posé"
-    stored = StoredEntry.of(ToolEntry(kind="tool", name="display_board", arguments={"card": card}))
+    stored = stored_entry(ToolEntry(kind="tool", name="display_board", arguments={"card": card}))
     assert stored.marker == "exercice posé"
     assert stored.arguments == {"card": card}
     assert StoredEntry.model_validate(stored.model_dump()) == stored

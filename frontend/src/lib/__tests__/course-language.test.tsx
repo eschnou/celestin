@@ -57,7 +57,11 @@ describe("course text is marked with the course's language", () => {
     (language) => {
       render(
         <CourseLanguageProvider language={language}>
-          <ChapterStrip chapter={chapter} progress={{ done: [], active: "s1" }} onOpen={() => {}} />
+          <ChapterStrip
+            chapter={chapter}
+            progress={{ done: [], active: "s1", skipped: [] }}
+            onOpen={() => {}}
+          />
         </CourseLanguageProvider>,
       );
       expect(document.body.querySelectorAll(`[lang="${language}"]`).length).toBeGreaterThan(0);

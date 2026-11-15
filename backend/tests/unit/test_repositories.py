@@ -79,7 +79,7 @@ def test_progress_upsert_clear_and_for_chapters(repos: Repositories) -> None:
     by_chapter = repos.progress.for_chapters(user.id, [suites, limites, "absent"])
     assert set(by_chapter) == {suites, limites}
     assert repos.progress.for_chapters(user.id, []) == {}
-    repos.progress.clear(user.id, suites)
+    assert repos.progress.reset(user.id, suites) == 0
     assert repos.progress.load(user.id, suites) is None
 
 

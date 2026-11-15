@@ -14,7 +14,9 @@ const authRoute = getRouteApi("/_auth");
 
 export const Route = createFileRoute("/_auth/courses/$courseId/chapters/$chapterId/")({
   head: () => ({ meta: [{ title: m.chapter_head_title() }] }),
-  // Progress comes with the chapter (004 R6.4); the lesson mounts once it is here.
+  // The lesson mounts once the chapter is here (004 R6.4). The séance it resumes, and the
+  // progress read with it (018 D6), are read by the lesson itself, once: prefetched here,
+  // the entry (`gcTime: 0`) was dropped before the lesson subscribed and read a second time.
   loader: ({ context, params }) =>
     context.queryClient
       .ensureQueryData(chapterQuery(params.courseId, params.chapterId))

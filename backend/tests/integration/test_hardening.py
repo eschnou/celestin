@@ -16,7 +16,7 @@ async def test_oversized_body_is_rejected_before_the_provider(make_client) -> No
     async with client:
         r = await client.post(
             "/api/chat",
-            json={**LESSON, "history": [{"kind": "learner", "text": "x" * 1_100_000}]},
+            json={**LESSON, "message": "x" * 1_100_000},
         )
     assert r.status_code == 413
     assert r.json()["code"] == "payload_too_large"
@@ -27,11 +27,13 @@ async def test_too_many_entries_is_rejected_before_the_provider(make_client) -> 
     llm = FakeLLM([[Completed()]])
     client, _ = make_client(llm)
     async with client:
+        # Spec 018: the one request that still carries entries is a reported spoken turn.
         r = await client.post(
-            "/api/chat",
-            json={**LESSON, "history": [{"kind": "learner", "text": "ok"}] * 500},
+            "/api/seance/report",
+            json={**LESSON, "entries": [{"kind": "learner", "text": "ok"}] * 500},
         )
     assert r.status_code in (413, 422)
+    assert client.app.state.repos.conversations.live(client.user["id"], LESSON["chapter_id"], mode="parcours") is None
     assert llm.rounds_used == 0
 
 
@@ -40,7 +42,7 @@ async def test_round_limit_ends_the_turn_cleanly(make_client, settings) -> None:
     llm = FakeLLM([[call("clear_board", {}), Completed()]])
     client, _ = make_client(llm)
     async with client:
-        r = await client.post("/api/chat", json={**LESSON, "history": []})
+        r = await client.post("/api/chat", json={**LESSON, "message": None})
     got = frames(r.text)
     assert got[-1][0] == "turn.end"
     assert got[-1][1]["reason"] == "max_rounds"
@@ -58,7 +60,7 @@ async def test_tool_self_correction_renders_the_corrected_board(make_client) -> 
     )
     client, _ = make_client(llm)
     async with client:
-        r = await client.post("/api/chat", json={**LESSON, "history": []})
+        r = await client.post("/api/chat", json={**LESSON, "message": None})
     names = [n for n, _ in frames(r.text)]
     assert names.count("board.set") == 1
     assert "error" not in names
@@ -76,7 +78,7 @@ async def test_turn_log_carries_the_required_fields(make_client, caplog) -> None
     client, _ = make_client(llm)
     with caplog.at_level(logging.INFO, logger="app.services.tutor_service"):
         async with client:
-            await client.post("/api/chat", json={**LESSON, "history": []})
+            await client.post("/api/chat", json={**LESSON, "message": None})
 
     matching = [r for r in caplog.records if r.message == "turn_complete"]
     assert matching, "no turn_complete log record was emitted"

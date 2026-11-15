@@ -56,6 +56,13 @@
     "fr": "section terminée · 1. Introduction"
   },
   {
+    "key": "marker.section_skipped",
+    "params": {
+      "label": "1. Introduction"
+    },
+    "fr": "section passée · 1. Introduction"
+  },
+  {
     "key": "marker.step_ready",
     "params": {},
     "fr": "étape suivante proposée"

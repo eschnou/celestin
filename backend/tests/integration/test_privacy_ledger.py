@@ -45,7 +45,7 @@ async def test_nothing_a_student_wrote_said_or_uploaded_reaches_the_ledger(make_
     async with http_client(app, headers) as client:
         with caplog.at_level("DEBUG"):
             # A turn, with the secret in the transcript and in a tool call.
-            await client.post("/api/chat", json={**LESSON, "history": []})
+            await client.post("/api/chat", json={**LESSON, "message": None})
             # A document, named after the secret, whose transcription holds it.
             course = (await client.post("/api/courses", json={"name": SECRET, "subject": "mathematics"})).json()["id"]
             files = [("files", (f"{SECRET}.jpg", page_image(text=SECRET), "image/jpeg"))]
@@ -95,7 +95,7 @@ async def test_the_other_features_hold_no_content_either(settings, db_engine, ca
                 "/api/discussion/turn", json={**LESSON, "conversation_id": conversation["id"], "message": SECRET}
             )
             assert turn.status_code == 200
-            minted = (await client.post("/api/voice/session", json={**LESSON, "history": []})).json()
+            minted = (await client.post("/api/voice/session", json={**LESSON})).json()
             await client.post(
                 "/api/voice/usage",
                 json={"session_id": minted["session_id"], "reason": "learner", "duration_s": 9, "responses": 1,

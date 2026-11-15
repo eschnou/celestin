@@ -130,7 +130,7 @@ async def test_a_dutch_turn_is_built_from_the_dutch_prompt_files(make_client) ->
     llm = FakeLLM([[TextDelta("Dag!"), Completed(usage={"input_tokens": 9})]])
     client, _ = make_client(llm, language="nl")
     async with client:
-        r = await client.post("/api/chat", json={"course_id": client.course_id, "chapter_id": client.chapter_id, "history": []})
+        r = await client.post("/api/chat", json={"course_id": client.course_id, "chapter_id": client.chapter_id, "message": None})
         assert r.status_code == 200, r.text
     system = llm.calls[0]["input"][0]["content"][0]["text"]
     assert "Je bent Célestin" in system and "Het vak: wiskunde" in system
@@ -170,7 +170,7 @@ async def test_another_students_dutch_course_is_a_404(client: AsyncClient) -> No
     url = f"/api/courses/{course_id}"
     for target in (url, f"{url}/chapters/{chapter_id}", f"{url}/chapters/{chapter_id}/content"):
         assert (await client.get(target, headers=other)).status_code == 404, target
-    turn = await client.post("/api/chat", json={"course_id": course_id, "chapter_id": chapter_id, "history": []}, headers=other)
+    turn = await client.post("/api/chat", json={"course_id": course_id, "chapter_id": chapter_id, "message": None}, headers=other)
     assert turn.status_code == 404
     assert (await client.get("/api/courses", headers=other)).json() == {"courses": []}
     assert LESSON["course_id"] == COURSE_ID  # the French fixture course is a different one

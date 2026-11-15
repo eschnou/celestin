@@ -8,7 +8,7 @@ import { LessonFrame } from "@/components/celestin/tutor-board-split";
 import { NotFoundCard } from "@/components/celestin/not-found";
 import { CourseLanguageProvider } from "@/lib/course-language";
 import { chapterQuery } from "@/lib/tutor/chapter";
-import { ApiError, apiStatus } from "@/lib/tutor/client";
+import { chapterErrorStatus } from "@/lib/tutor/client";
 import { m } from "@/paraglide/messages";
 
 const authRoute = getRouteApi("/_auth");
@@ -40,11 +40,9 @@ function DiscussionPage() {
     );
   }
   if (chapter.isError) {
-    const notReady =
-      chapter.error instanceof ApiError && chapter.error.code === "chapter_not_ready";
     return (
       <AuthPage user={user}>
-        <NotFoundCard status={notReady ? 409 : apiStatus(chapter.error)} />
+        <NotFoundCard status={chapterErrorStatus(chapter.error)} />
       </AuthPage>
     );
   }

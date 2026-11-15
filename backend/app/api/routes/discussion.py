@@ -28,27 +28,28 @@ from app.api.schemas.discussion import (
     ConversationDTO,
     ConversationResponse,
     DiscussionTurnRequest,
-    StoredEntry,
     VoiceTurnRequest,
 )
 from app.api.schemas.events import TurnEnd, TurnEvent
 from app.api.sse import turn_response
+from app.api.stored import stored_entry
+from app.domain.mode import Mode
 from app.db.repositories import ConversationRecord
-from app.services.discussion import DiscussionService, entries_from_events
+from app.domain.locale import Locale
+from app.services import conversations
+from app.services.conversations import entries_from_events
 
 log = logging.getLogger(__name__)
 router = APIRouter()
 
-MODE = "discussion"
+MODE: Mode = "discussion"
 
 
-def _dto(
-    conversation: ConversationRecord, discussions: DiscussionService, locale: Locale
-) -> ConversationDTO:
+def _dto(conversation: ConversationRecord, locale: Locale) -> ConversationDTO:
     return ConversationDTO(
         id=conversation.id,
         chapter_id=conversation.chapter_id,
-        entries=[StoredEntry.of(entry, locale) for entry in discussions.stored_entries(conversation)],
+        entries=[stored_entry(entry, locale, MODE) for entry in conversations.stored_entries(conversation)],
         entry_count=conversation.entry_count,
         created_at=conversation.created_at,
     )
@@ -72,7 +73,7 @@ async def read_discussion(
 
     conversation = await run_in_threadpool(work)
     return ConversationResponse(
-        conversation=_dto(conversation, discussions, user.locale) if conversation else None
+        conversation=_dto(conversation, user.locale) if conversation else None
     )
 
 
@@ -92,7 +93,7 @@ async def start_discussion(
         chapter = lesson_chapter(user, course_id, chapter_id, repos, curricula)
         return discussions.start(user.id, chapter)
 
-    return ConversationResponse(conversation=_dto(await run_in_threadpool(work), discussions, user.locale))
+    return ConversationResponse(conversation=_dto(await run_in_threadpool(work), user.locale))
 
 
 @router.post("/discussion/turn", dependencies=[AiReady])

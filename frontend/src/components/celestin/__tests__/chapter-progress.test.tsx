@@ -20,6 +20,7 @@ const row = (over: Partial<ChapterRow> = {}): ChapterRow => ({
   ready: false,
   section_count: 0,
   done_count: 0,
+  skipped_count: 0,
   state: "not_started",
   last: false,
   authoring_state: "generating",

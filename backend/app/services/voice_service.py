@@ -7,6 +7,7 @@ executed in a TurnContext built from the posted progress.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 import time
@@ -34,7 +35,7 @@ from app.services import curriculum_render, history, prompt_service
 from app.services.prompts import PromptLibrary
 from app.services.tool_events import event_of
 from app.services.tools import registry
-from app.domain.mode import DEFAULT_MODE, Mode
+from app.domain.mode import DEFAULT_MODE, ChapterMode
 from app.services.tools.context import TurnContext
 
 log = logging.getLogger(__name__)
@@ -109,7 +110,7 @@ class VoiceService:
 
     # ----------------------------------------------------------------- session
 
-    def instructions(self, chapter: LessonChapter, mode: Mode = DEFAULT_MODE) -> str:
+    def instructions(self, chapter: LessonChapter, mode: ChapterMode = DEFAULT_MODE) -> str:
         """The prompt as a Realtime session receives it: voice blocks kept."""
         language = chapter.language
         return prompt_service.render_system_text(
@@ -123,7 +124,7 @@ class VoiceService:
         )
 
     def session_config(
-        self, chapter: LessonChapter, mode: Mode = DEFAULT_MODE, voice: RoleConfig | None = None
+        self, chapter: LessonChapter, mode: ChapterMode = DEFAULT_MODE, voice: RoleConfig | None = None
     ) -> dict[str, Any]:
         """Byte-stable across calls given unchanged files, so the Realtime prompt
         cache hits. No audio `format` keys: WebRTC negotiates them."""
@@ -167,7 +168,7 @@ class VoiceService:
         ]
         items.append(
             _system_item(
-                curriculum_render.state_message(ctx.curriculum, ctx.progress, now, ctx.mode, ctx.language)
+                curriculum_render.state_message(ctx.chapter_path, ctx.progress, now, ctx.mode, ctx.language)
             )
         )
         return items
@@ -178,7 +179,9 @@ class VoiceService:
         # Everything that can fail on our side fails before the provider is called.
         voice = self._voice()
         config = self.session_config(chapter, ctx.mode, voice)
-        seed = self.seed(entries, ctx, now=self._settings.local_now())
+        # Off the event loop: replaying a parcours `start_section` reads the section's
+        # earlier séances from the database for its reprise note (spec 018 D5).
+        seed = await asyncio.to_thread(self.seed, entries, ctx, self._settings.local_now())
         secret = await self._realtime.create_client_secret(
             session=config, ttl_s=self._settings.voice_secret_ttl_s
         )
@@ -233,7 +236,7 @@ class VoiceService:
         # A refreshed state message whenever the call moved the path (R2.4).
         state_text = (
             curriculum_render.state_message(
-                ctx.curriculum, ctx.progress, self._settings.local_now(), ctx.mode, ctx.language
+                ctx.chapter_path, ctx.progress, self._settings.local_now(), ctx.mode, ctx.language
             )
             if ctx.progress != before
             else None

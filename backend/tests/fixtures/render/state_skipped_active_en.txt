@@ -1,0 +1,4 @@
+Path status: 0 section(s) done and 1 skipped out of 3.
+Skipped sections: “1. Introduction”.
+Current section: “2. Exercises” (practice).
+If you do not have its plan in this conversation yet, call start_section("exos").

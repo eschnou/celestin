@@ -6,6 +6,8 @@ import type { Chapter, Progress, SectionOverview, SectionState } from "./types";
 
 export type ChapterModel = {
   doneCount: number;
+  /** Spec 019: passed sections, counted apart from done ones. */
+  skippedCount: number;
   total: number;
   segments: SectionState[];
   /** What the bottom line talks about. */
@@ -17,11 +19,12 @@ export type ChapterModel = {
 
 export function chapterModel(chapter: Chapter, progress: Progress): ChapterModel {
   const states = sectionStates(chapter.sections, progress);
-  const segments = chapter.sections.map((s) => states[s.id] ?? "locked");
+  const segments = chapter.sections.map((s) => states[s.id] ?? "open");
   const active = chapter.sections.find((s) => states[s.id] === "active");
   const next = chapter.sections.find((s) => states[s.id] === "available");
   return {
     doneCount: segments.filter((s) => s === "done").length,
+    skippedCount: segments.filter((s) => s === "skipped").length,
     total: chapter.sections.length,
     segments,
     focus: active

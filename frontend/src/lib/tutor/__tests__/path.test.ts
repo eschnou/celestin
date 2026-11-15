@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { sectionStates } from "../path";
+import { nextSection, sectionStates } from "../path";
 import type { Progress } from "../types";
 import cases from "./path_cases.json";
 
-type Case = { name: string; progress: Progress; states: Record<string, string> };
+type Case = {
+  name: string;
+  progress: Progress;
+  states: Record<string, string>;
+  next: string | null;
+};
 
 const sections = (cases.sections as string[]).map((id) => ({ id }));
 
@@ -12,6 +17,13 @@ describe("sectionStates mirrors the backend path rules", () => {
   for (const c of cases.cases as Case[]) {
     it(c.name, () => {
       expect(sectionStates(sections, c.progress)).toEqual(c.states);
+      expect(nextSection(sections, c.progress)).toBe(c.next);
     });
   }
+
+  it("never calls a section locked", () => {
+    for (const c of cases.cases as Case[]) {
+      expect(Object.values(sectionStates(sections, c.progress))).not.toContain("locked");
+    }
+  });
 });

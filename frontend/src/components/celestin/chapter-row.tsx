@@ -12,12 +12,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useCourseLanguage } from "@/lib/course-language";
 import { formatCount } from "@/lib/i18n-format";
+import { doneAndSkipped } from "@/lib/tutor/labels";
 import type { ChapterRow as Row, ChapterState } from "@/lib/tutor/types";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { ConfirmDialog } from "./confirm-dialog";
 import { ProgressBar } from "./progress-bar";
-import { primary, secondary } from "./styles";
+import { primary, secondary, tone } from "./styles";
 
 /** Message functions, not strings: the language is read when the label is shown. */
 const STATE_LABEL: Record<ChapterState, () => string> = {
@@ -43,6 +44,24 @@ export function chapterName(chapter: { position: number; title: string | null })
   return chapter.title
     ? m.chapter_name({ position: chapter.position, title: chapter.title })
     : m.chapter_untitled({ position: chapter.position });
+}
+
+/** The same name as a heading in a list of the course's chapters: its number, muted, then its
+ *  title in the course's language; « Nouveau chapitre 3 » (interface text) when untitled. */
+export function ChapterHeading({
+  chapter,
+}: {
+  chapter: { position: number; title: string | null };
+}) {
+  const language = useCourseLanguage();
+  return chapter.title ? (
+    <>
+      <span className="text-muted-foreground tabular-nums">{chapter.position}.</span>{" "}
+      <span lang={language}>{chapter.title}</span>
+    </>
+  ) : (
+    m.chapter_untitled({ position: chapter.position })
+  );
 }
 
 /** What a running preparation is doing, by stage: reading the pages (006 R3.1), writing the chapter, building
@@ -122,16 +141,20 @@ export function FailedAction({
   );
 }
 
-/** The section she is on, counted from 1: the one after those done, never past the last. */
-export function currentSection(row: Row): number {
-  return Math.min(row.done_count + 1, Math.max(row.section_count, 1));
-}
-
-/** « Section 3 sur 9 », « 9 sections »: how far along, in words. */
-export function progressText(row: Row): string {
-  return row.state === "in_progress"
-    ? m.chapter_progress_section({ current: currentSection(row), total: row.section_count })
-    : m.chapter_status_sections({ count: row.section_count });
+/** How far along, in words: « 9 sections » before she starts, then counts, never a
+ *  position (spec 019: sections are done in any order): « 3 faites sur 9 », and
+ *  « 3 faites sur 9 · 2 passées » once something was passed. Started is the row's state
+ *  when there is one (the course page), else some section done or skipped (the révision's
+ *  chooser). */
+export function progressText(
+  counts: Pick<Row, "done_count" | "skipped_count" | "section_count"> & { state?: ChapterState },
+): string {
+  const started = counts.state
+    ? counts.state !== "not_started"
+    : counts.done_count + counts.skipped_count > 0;
+  return started
+    ? doneAndSkipped(counts.done_count, counts.skipped_count, counts.section_count)
+    : m.chapter_status_sections({ count: counts.section_count });
 }
 
 export function ChapterRowItem({
@@ -217,6 +240,7 @@ export function ChapterRowItem({
       {row.ready && row.state !== "not_started" && (
         <ProgressBar
           done={row.done_count}
+          skipped={row.skipped_count}
           total={row.section_count}
           label={progressText(row)}
           tone={done ? "success" : "primary"}
@@ -275,15 +299,15 @@ function Status({ row }: { row: Row }) {
       <Badge tone="bg-secondary text-muted-foreground">{preparingLabel(row)}</Badge>
     );
   }
-  const tone =
+  const stateTone =
     row.state === "done"
-      ? "bg-success/15 text-success"
+      ? tone.success
       : row.state === "in_progress"
         ? "bg-primary/15 text-primary"
         : "bg-secondary text-muted-foreground";
   return (
     <>
-      <Badge tone={tone}>{STATE_LABEL[row.state]()}</Badge>
+      <Badge tone={stateTone}>{STATE_LABEL[row.state]()}</Badge>
       {" · "}
       {progressText(row)}
       {row.authoring_state === "generating" &&
@@ -293,8 +317,8 @@ function Status({ row }: { row: Row }) {
   );
 }
 
-function Badge({ tone, children }: { tone: string; children: React.ReactNode }) {
+function Badge({ tone: colours, children }: { tone: string; children: React.ReactNode }) {
   return (
-    <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${tone}`}>{children}</span>
+    <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${colours}`}>{children}</span>
   );
 }

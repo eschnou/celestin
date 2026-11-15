@@ -16,14 +16,17 @@ from app.config import Settings
 from app.domain import errors
 from app.domain.chapter import LessonChapter
 from app.domain.errors import ToolValidationError
-from app.domain.usage import UsageScope, add_usage, usage_scope
+from app.domain.revision import tally
+from app.domain.subject import Subject
+from app.domain.mode import Mode
+from app.domain.usage import Feature, UsageScope, add_usage, usage_scope
 from app.providers.base import Completed, Failed, LLMClient, TextDelta, ToolCallRequested
 from app.services import history, prompt_service
 from app.services.prompts import PromptLibrary
 from app.services.tool_events import event_of
 from app.services.tools import registry
 from app.services.tools.context import TurnContext
-from app.services.tools.section import SectionCompleted, SectionStarted
+from app.services.tools.section import SectionCompleted, SectionSkipped, SectionStarted
 
 log = logging.getLogger(__name__)
 
@@ -46,12 +49,29 @@ class TutorService:
             self._prompts.tutor(language),
             self._prompts.subject(chapter.subject, language),
             chapter.pack,
-            ctx.curriculum,
+            ctx.chapter_path,
             ctx.progress,
             history.to_provider_input(entries, self._settings.history_token_budget, ctx),
             self._prompts.mode(ctx.mode, language),
             self._prompts.mode_opening(ctx.mode, language),
             ctx.mode,
+            now=self._settings.local_now(),
+            language=language,
+        )
+
+    def build_revision_input(self, subject: Subject, entries: list[Entry], ctx: TurnContext) -> list[dict[str, Any]]:
+        """The model input for one révision turn (spec 020): the same four layers, with the chosen chapters' packs
+        and overviews, the révision's mode files, the transcript, and the state of the chosen chapters. `ctx`
+        comes from the controller, with the scope and what this révision noted."""
+        language = ctx.language
+        return prompt_service.build_revision(
+            self._prompts.tutor(language),
+            self._prompts.subject(subject, language),
+            ctx.scope,
+            tally(ctx.noted.values()),
+            history.to_provider_input(entries, self._settings.history_token_budget, ctx),
+            self._prompts.mode(ctx.mode, language),
+            self._prompts.mode_opening(ctx.mode, language),
             now=self._settings.local_now(),
             language=language,
         )
@@ -66,7 +86,7 @@ class TutorService:
         scope = (
             UsageScope(
                 user_id=ctx.user_id,
-                feature="discussion_turn" if ctx.mode == "discussion" else "tutor_turn",
+                feature=_FEATURES[ctx.mode],
                 course_id=ctx.course_id,
                 chapter_id=ctx.chapter_id,
                 correlation_id=turn_id,
@@ -158,6 +178,8 @@ class TutorService:
                         "section_completed",
                         extra={"turn_id": turn_id, "section_id": outcome.section.id, "summary": outcome.summary},
                     )
+                elif isinstance(outcome, SectionSkipped):
+                    log.info("section_skipped", extra={"turn_id": turn_id, "section_id": outcome.section.id})
                 yield event_of(outcome, ctx.locale)
 
             block_id += 1
@@ -184,6 +206,7 @@ class TutorService:
                 "turn_id": turn_id,
                 "user_id": ctx.user_id,
                 "chapter_id": ctx.chapter_id,
+                "course_id": ctx.course_id,
                 "mode": ctx.mode,
                 "language": ctx.language,
                 "section_active": ctx.progress.active,
@@ -197,6 +220,11 @@ class TutorService:
                 "cached_tokens": (usage.get("input_tokens_details") or {}).get("cached_tokens", 0),
             },
         )
+
+
+# What a turn is recorded as in the usage ledger (spec 015), per mode. A révision turn (spec 020) has a course and no
+# chapter.
+_FEATURES: dict[Mode, Feature] = {"parcours": "tutor_turn", "discussion": "discussion_turn", "revision": "revision_turn"}
 
 
 def _for_the_student(usage: dict[str, Any]) -> dict[str, Any]:

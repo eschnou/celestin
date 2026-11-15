@@ -1,7 +1,7 @@
 /** The head of a course page: its mark, its name, where she stands, and the few things that manage it. */
 
 import { Ellipsis, Pencil, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { ConfirmDialog } from "@/components/celestin/confirm-dialog";
 import { field, primary, secondary } from "@/components/celestin/styles";
@@ -28,6 +28,7 @@ export function CourseHeader({
   chaptersDone,
   onRename,
   onDelete,
+  action,
 }: {
   name: string;
   subject: SubjectId;
@@ -37,6 +38,8 @@ export function CourseHeader({
   chaptersDone: number;
   onRename: (name: string) => Promise<void>;
   onDelete: () => void;
+  /** The course's own action beside its menu: « Réviser » (spec 020). */
+  action?: ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -100,6 +103,7 @@ export function CourseHeader({
           </>
         )}
       </div>
+      {!editing && action}
       {!editing && (
         <DropdownMenu>
           <DropdownMenuTrigger

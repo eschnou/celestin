@@ -97,11 +97,6 @@ class Settings(BaseSettings):
 
     max_tool_rounds: int = 6
     max_message_chars: int = 4000
-    # An abuse guard, not context management: one exchange adds three to five
-    # entries, so a long session must stay well clear of this. Fitting the
-    # transcript to the model is history_token_budget's job, and it trims rather
-    # than rejects.
-    max_history_entries: int = 400
     history_token_budget: int = 30_000
     # 100 000 characters of French with math symbols is well over the old 256 KiB.
     max_body_bytes: int = 1_048_576
@@ -112,6 +107,16 @@ class Settings(BaseSettings):
     discussion_max_entries: Annotated[int, Field(ge=1)] = 400
     discussion_max_chars: Annotated[int, Field(ge=1000)] = 200_000
     discussion_conversations_per_day: Annotated[int, Field(ge=1)] = 30
+    # Stored séances (spec 018 D10). A turn the browser reports (spoken, or stopped by the learner) is the one
+    # write without a model call, so it is bounded: per student and hour, and by the rows a chapter may hold
+    # for a student (all content versions; « Recommencer le chapitre » deletes them). Model turns are not.
+    seance_reports_per_hour: Annotated[int, Field(ge=1)] = 600
+    seance_max_rows: Annotated[int, Field(ge=1)] = 200
+    # Révision (spec 020 D2, D6). The prompt carries the pack of every chosen chapter, so a selection is bounded by
+    # the characters of those packs (about 37 000 tokens of French at the default); the caps and the append policy
+    # are the discussion's. A révision started counts against its own daily quota.
+    revision_max_pack_chars: Annotated[int, Field(ge=1000)] = 120_000
+    revision_sessions_per_day: Annotated[int, Field(ge=1)] = 10
 
     # Courses and chapters (005 design 3.13).
     max_courses_per_student: Annotated[int, Field(ge=1)] = 30

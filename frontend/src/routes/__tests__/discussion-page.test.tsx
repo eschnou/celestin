@@ -71,7 +71,7 @@ const CHAPTER = {
   language: "fr",
   subject: "mathematics",
   sections: [{ id: "suites", index: 1, kind: "teach", title: "Suites", goal: "g" }],
-  progress: { done: [], active: null },
+  progress: { done: [], active: null, skipped: [] },
 };
 
 const CHAPTER_PATH = "/api/courses/maths/chapters/suites";
@@ -147,6 +147,18 @@ describe("the standalone discussion route", () => {
     );
     expect(screen.getByRole("button", { name: "Discussion" }).getAttribute("aria-pressed")).toBe(
       "true",
+    );
+    // Révision is the course's (spec 020): a link, with this chapter ticked.
+    expect(screen.getByRole("link", { name: "Révision" }).getAttribute("href")).toBe(
+      "/courses/maths/revision?chapter=suites",
+    );
+  });
+
+  it("offers the révision from the lesson's bar too", async () => {
+    mountLesson();
+    await screen.findByText(/Bonjour, on reprend les suites/);
+    expect(screen.getByRole("link", { name: "Révision" }).getAttribute("href")).toBe(
+      "/courses/maths/revision?chapter=suites",
     );
   });
 });

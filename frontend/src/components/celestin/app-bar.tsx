@@ -9,7 +9,7 @@ import { APP_NAME } from "@/lib/brand";
 
 export function AppBar({ user }: { user: User }) {
   return (
-    <header className="flex items-center gap-3 border-b border-border bg-background px-4 py-3">
+    <header className="flex items-center gap-3 border-b border-border bg-background px-4 py-3 print:hidden">
       <Link to={homePath(user)} className="flex items-center gap-2">
         <img src={celestinMark} alt="" className="size-8" />
         <span className="text-sm font-bold">{APP_NAME}</span>

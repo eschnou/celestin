@@ -374,6 +374,15 @@ describe("the calls", () => {
     expect(within(second).getAllByText("—").length).toBeGreaterThan(4);
   });
 
+  it("names a révision's turn (spec 020), in the list and in the filter", async () => {
+    mount(base({ calls: [call({ feature: "revision_turn" })] }), calls());
+    const row = (await screen.findAllByText("Ana"))[0]!.closest("tr")!;
+    expect(within(row).getByText("Tour de révision")).toBeTruthy();
+    expect(
+      within(screen.getByLabelText("Usage")).getByRole("option", { name: "Tour de révision" }),
+    ).toBeTruthy();
+  });
+
   it("filters by status and sends it", async () => {
     const seen = mount(base(), calls());
     await screen.findByText("turn1");

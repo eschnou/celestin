@@ -66,7 +66,6 @@
   "course_action_failed": "That didn't work. Try again.",
   "course_empty": "This course doesn't have any chapters yet. Add one with the PDF or photos of your course.",
   "course_add_chapter": "Add a chapter",
-  "chapter_progress_section": "Section {current} of {total}",
   "chapter_menu": "Actions for “{title}”",
   "course_resume_title": "Pick up where you left off",
   "course_next_title": "Next chapter",
@@ -99,9 +98,43 @@
   "chapter_state_in_progress": "in progress",
   "chapter_state_done": "done",
   "chapter_action_review": "Review",
+  "chapter_action_reread": "Reread",
+  "chapter_action_reread_title": "Reread this section in the notebook",
   "chapter_action_start": "Start",
   "chapter_action_resume": "Resume",
   "chapter_action_continue": "Continue",
+  "chapter_action_skip": "Skip",
+  "chapter_action_skip_title": "Skip this section: it stays open, you can come back to it",
+  "chapter_count_done": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} done",
+        "countPlural=other": "{count} done"
+      }
+    }
+  ],
+  "chapter_count_skipped": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} skipped",
+        "countPlural=other": "{count} skipped"
+      }
+    }
+  ],
+  "chapter_count_done_of": [
+    {
+      "declarations": ["input count", "input total", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} of {total} done",
+        "countPlural=other": "{count} of {total} done"
+      }
+    }
+  ],
   "chapter_untitled": "New chapter {position}",
   "chapter_name": "Chapter {position} — {title}",
   "chapter_reading_pages": "Reading the pages… ({done}/{total})",
@@ -122,6 +155,7 @@
   "chapter_redeposit": "Upload the document again",
   "chapter_discuss": "Discuss",
   "chapter_content": "Chapter content",
+  "chapter_notebook": "Notebook",
   "chapter_delete": "Delete",
   "chapter_delete_title": "Delete “{title}”?",
   "chapter_delete_description": "The course text, the prepared content and your progress on this chapter will be erased. This can't be undone.",
@@ -195,7 +229,8 @@
   "lesson_state_done": "done",
   "lesson_state_active": "in progress",
   "lesson_state_available": "up next",
-  "lesson_state_locked": "locked",
+  "lesson_state_skipped": "skipped",
+  "lesson_state_open": "to do",
   "content_done_when": "Done when: {text}",
   "content_path_title_label": "Path title",
   "content_section_kind": "Kind of section {n}",
@@ -327,9 +362,19 @@
   ],
   "lesson_reset": "Start the chapter over",
   "lesson_reset_title": "Start the chapter over?",
-  "lesson_reset_description": "Your progress in this chapter will be erased from your account and a new session will start at the first section.",
+  "lesson_reset_description": "Your progress in this chapter and your notebook will be erased from your account, and a new session will start at the first section.",
   "lesson_reset_confirm": "Start over",
   "lesson_reset_failed": "The chapter couldn't be reset. Try again in a moment.",
+  "lesson_resumed_marker": "session resumed",
+  "lesson_restore_failed": "The session couldn't be loaded. Try again in a moment.",
+  "notebook_head_title": "Célestin — notebook",
+  "notebook_lead": "What Célestin wrote on the board, section by section.",
+  "notebook_back": "← Back to the session",
+  "notebook_show_exchanges": "Show the conversation",
+  "notebook_loading": "Loading the notebook…",
+  "notebook_failed": "The notebook couldn't be opened. Try again in a moment.",
+  "notebook_empty": "Your notebook is still empty: what Célestin writes on the board is kept here, session after session.",
+  "notebook_section_empty": "Nothing on the board in this section.",
   "lesson_max_rounds": "Célestin went on for too long and the answer was cut short. Ask again if you need to.",
   "discussion_head_title": "Célestin — discussion",
   "discussion_loading": "Loading the discussion…",
@@ -337,6 +382,47 @@
   "discussion_new": "New conversation",
   "discussion_new_title": "New conversation?",
   "discussion_new_description": "The current discussion won't be accessible any more. Your progress on the path isn't affected.",
+  "lesson_mode_revision": "Revision",
+  "lesson_mode_revision_title": "Test yourself on the course's chapters, before a test",
+  "course_revise": "Revise",
+  "course_revise_title": "Test yourself on this course's chapters, before a test",
+  "course_revise_unavailable": "You need at least one ready chapter to revise.",
+  "revision_head_title": "Célestin — revision",
+  "revision_title": "Revision",
+  "revision_loading": "Loading the revision…",
+  "revision_failed": "The revision couldn't be opened. Try again in a moment.",
+  "revision_start_failed": "The revision couldn't start. Try again in a moment.",
+  "revision_choose_title": "What do you want to revise?",
+  "revision_choose_lead": "Tick the chapters your test covers. Célestin asks you questions, mixing them up, and after each one you say how it went.",
+  "revision_choose_label": "The chapters to revise",
+  "revision_chapter_not_ready": "not ready yet",
+  "revision_no_ready": "No chapter is ready yet. Add a chapter to the course and wait until it's prepared.",
+  "revision_start": "Start the revision",
+  "revision_back_to_live": "Back to the current revision",
+  "revision_scope": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} chapter in this revision",
+        "countPlural=other": "{count} chapters in this revision"
+      }
+    }
+  ],
+  "revision_new": "New revision",
+  "revision_new_title": "New revision?",
+  "revision_new_description": "The current revision will be closed and you'll choose your chapters again. Your results are kept.",
+  "revision_closed": "This revision is closed.",
+  "revision_quick_label": "How did it go?",
+  "revision_outcome_solid": "Solid",
+  "revision_outcome_shaky": "Shaky",
+  "revision_outcome_todo": "To review",
+  "revision_bilan": "Results",
+  "revision_bilan_title": "Revision results",
+  "revision_bilan_lead": "These are your own results: after each question, you said how it went.",
+  "revision_not_tested": "not tested yet",
+  "revision_section_todo": "not done yet",
+  "revision_noted_on": "noted on {date}",
   "lesson_tutor_name": "Professor Célestin",
   "lesson_interrupted": "(interrupted)",
   "lesson_thinking": "Célestin is thinking…",
@@ -840,6 +926,7 @@
   "usage_role_voice": "Voice",
   "usage_feature_tutor_turn": "Lesson turn",
   "usage_feature_discussion_turn": "Discussion",
+  "usage_feature_revision_turn": "Revision turn",
   "usage_feature_authoring": "Chapter preparation",
   "usage_feature_document_reading": "Document reading",
   "usage_feature_work_reading": "Work reading",

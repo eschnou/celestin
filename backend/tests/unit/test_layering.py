@@ -52,3 +52,23 @@ def test_providers_do_not_reach_the_database(path: Path) -> None:
     modules |= {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
     offenders = sorted(m for m in modules if m.startswith(("app.db", "app.services", "app.api")))
     assert offenders == [], f"{path.name} imports {offenders}"
+
+
+# Spec 014's AI settings DTOs re-export the service's resolution types; they predate this rule.
+SCHEMAS_ALLOWED = {APP / "api" / "schemas" / "ai.py"}
+
+
+@pytest.mark.parametrize(
+    "path",
+    sorted(p for p in (APP / "api" / "schemas").glob("*.py") if p not in SCHEMAS_ALLOWED),
+    ids=lambda p: p.name,
+)
+def test_wire_schemas_do_not_import_the_services(path: Path) -> None:
+    """`backend/CLAUDE.md`: the layers are one-way, and the services import the wire schemas (the transcript
+    entry types), so a schema importing a service is a cycle in the making. A route or `app/api/stored.py` asks
+    the services and hands the answer to the DTO (spec 018 review)."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    modules = {n.module for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) and n.module and n.level == 0}
+    modules |= {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
+    offenders = sorted(m for m in modules if m.startswith("app.services"))
+    assert offenders == [], f"{path.name} imports {offenders}"

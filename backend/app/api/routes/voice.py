@@ -18,6 +18,7 @@ from app.api.deps import (
     DiscussionServiceDep,
     HubDep,
     ReposDep,
+    SeanceServiceDep,
     StudentDep,
     VoiceBudgetDep,
     VoiceServiceDep,
@@ -31,6 +32,7 @@ from app.api.schemas.voice import (
     VoiceUsageReport,
 )
 from app.domain.errors import NotFound, VoiceDisabled
+from app.services import conversations
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/voice")
@@ -45,6 +47,7 @@ async def create_session(
     curricula: CurriculumCacheDep,
     repos: ReposDep,
     discussions: DiscussionServiceDep,
+    seances: SeanceServiceDep,
 ) -> JSONResponse:
     if not hub.voice_available:  # voice enabled, a voice model and a Realtime-capable connection (spec 014)
         raise VoiceDisabled()
@@ -53,14 +56,14 @@ async def create_session(
         chapter, ctx = open_lesson(
             user, payload.course_id, payload.chapter_id, repos, curricula, payload.mode
         )
+        # Neither mode posts its transcript: the server owns what was said (007 R4.4,
+        # spec 018). The parcours is seeded from the séance its next turn continues.
         if payload.mode != "discussion":
-            return chapter, ctx, payload.history
-        # A discussion is seeded from its stored conversation, not from a posted
-        # transcript: the server owns what was said (007 R4.4).
+            return chapter, ctx, seances.seed(user.id, chapter, ctx.progress)
         if payload.conversation_id is None:
             raise NotFound()
         conversation = discussions.open_conversation(user.id, chapter, payload.conversation_id)
-        return chapter, ctx, discussions.stored_entries(conversation)
+        return chapter, ctx, conversations.stored_entries(conversation)
 
     chapter, ctx, entries = await run_in_threadpool(prepare)
     result = await service.create_session(chapter, entries, ctx)

@@ -1,13 +1,14 @@
 /**
  * Discussion mode (spec 007): the conversation lives on the server, so the turn
- * request names it instead of carrying the transcript. The parcours keeps posting
- * its history to `/api/chat`; these are the routes for the other mode.
+ * request names it instead of carrying the transcript. The parcours posts its message
+ * to `/api/chat` (018); these are the routes for the other mode. A spoken turn is
+ * reported through `voice/client.ts`'s `reportTurn`, which serves both modes.
  */
 
 import { queryOptions } from "@tanstack/react-query";
 
 import { getJson, sendJson, streamEvents } from "@/lib/tutor/client";
-import type { Conversation, HistoryEntry, LessonScope, TutorEvent } from "@/lib/tutor/types";
+import type { Conversation, LessonScope, TutorEvent } from "@/lib/tutor/types";
 
 export const TURN_URL = "/api/discussion/turn";
 export const VOICE_TURN_URL = "/api/discussion/voice/turn";
@@ -38,18 +39,6 @@ export async function startConversation(
 ): Promise<Conversation> {
   const response = await sendJson(discussionUrl(courseId, chapterId));
   return ((await response.json()) as { conversation: Conversation }).conversation;
-}
-
-/** A spoken turn, reported by the browser (007 deviation D1): the model's speech
- *  reaches the browser over WebRTC and never the server. */
-export async function recordVoiceTurn(scope: LessonScope, entries: HistoryEntry[]): Promise<void> {
-  if (entries.length === 0 || !scope.conversationId) return;
-  await sendJson(VOICE_TURN_URL, {
-    course_id: scope.courseId,
-    chapter_id: scope.chapterId,
-    conversation_id: scope.conversationId,
-    entries,
-  });
 }
 
 /** The turn transport for `useTutorSession`: the message, not the transcript. */

@@ -5,19 +5,23 @@
  */
 
 import { memo } from "react";
-import { Check, ChevronRight, Lock } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
+import { SectionRing } from "@/components/celestin/section-label";
 import { useCourseLanguage } from "@/lib/course-language";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
-import { KIND_LABEL } from "@/lib/tutor/labels";
+import { doneAndSkipped, KIND_LABEL } from "@/lib/tutor/labels";
 import { chapterModel } from "@/lib/tutor/chapter-model";
 import type { Chapter, Progress, SectionState } from "@/lib/tutor/types";
 
+/** Colour signals state: done is green, the section worked is the primary, a passed one
+ *  (spec 019) a mid grey, apart from both and darker than what is still to do. */
 const SEGMENT: Record<SectionState, string> = {
   done: "bg-success",
   active: "bg-primary",
+  skipped: "bg-muted-foreground/40",
   available: "bg-border",
-  locked: "bg-border",
+  open: "bg-border",
 };
 
 type ChapterStripProps = {
@@ -56,7 +60,9 @@ export const ChapterStrip = memo(function ChapterStrip({
   const model = chapterModel(chapter, progress);
   const count = (
     <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground tabular-nums">
-      {model.doneCount} / {model.total}
+      {model.skippedCount > 0
+        ? doneAndSkipped(model.doneCount, model.skippedCount)
+        : `${model.doneCount} / ${model.total}`}
       <ChevronRight className="size-3.5" />
     </span>
   );
@@ -101,7 +107,7 @@ export const ChapterStrip = memo(function ChapterStrip({
             {model.focus.kind === "active" ? (
               <span className="size-2.5 shrink-0 rounded-full bg-primary" />
             ) : (
-              <Lock className="size-3.5 shrink-0 text-muted-foreground" />
+              <SectionRing state="available" className="size-2.5" />
             )}
             <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
               {model.focus.kind === "next" && `${m.lesson_strip_next()} · `}

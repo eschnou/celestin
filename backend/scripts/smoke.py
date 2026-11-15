@@ -3,7 +3,11 @@
     uv run python -m scripts.smoke [--language en|nl]
 
 Runs two turns through the same service the API uses, so the second proves prompt
-caching engaged on the prefix production actually sends (design 7).
+caching engaged on the prefix production actually sends (design 7). Each mode has its own
+prefix, so each is checked, and its verdict is printed as soon as it is known. The révision
+(spec 020) runs on its own fixtures, the fixture révision of the course language (sequences
+then statistics, `scripts/chapter_files.REVISION_CHAPTER_DIRS`) with their own subject
+(mathematics), whatever `--chapter-dir` and `--subject` say: it is loaded before any paid call.
 """
 
 from __future__ import annotations
@@ -16,8 +20,10 @@ import sys
 from app.api.schemas.chat import Entry, LearnerEntry
 from app.api.schemas.events import (
     BoardSetEvent,
+    RevisionResultEvent,
     ErrorEvent,
     SectionDoneEvent,
+    SectionSkippedEvent,
     SectionStartEvent,
     TextDeltaEvent,
     TurnEnd,
@@ -59,12 +65,22 @@ def load_lesson(settings, argv: list[str]):
 
 
 def context_for(
-    chapter, done: list[str] | None = None, active: str | None = None, mode: str = "parcours"
+    chapter,
+    done: list[str] | None = None,
+    active: str | None = None,
+    mode: str = "parcours",
+    skipped: list[str] | None = None,
 ):
     from app.services.tools.context import TurnContext
 
     return TurnContext.from_progress(
-        chapter.curriculum, done or [], active, mode=mode, pack=chapter.pack, language=chapter.language
+        chapter.curriculum,
+        done or [],
+        active,
+        mode=mode,
+        pack=chapter.pack,
+        language=chapter.language,
+        skipped=skipped,
     )
 
 
@@ -75,18 +91,51 @@ SECOND_TURN = by_language(
 )
 
 
+def revision_scope(prompts, language):
+    """The révision leg's chapters: the fixture révision of the course language, read with its own subject (it is
+    a mathematics révision, whatever chapter and subject the other modes run on)."""
+    from scripts.chapter_files import REVISION_SUBJECT, load_revision
+
+    return load_revision(REVISION_SUBJECT, prompts, language)
+
+
+def revision_input(tutor: TutorService, scope, language, entries: list[Entry]):
+    """A révision turn on `scope`: no store, nothing noted before."""
+    from app.services.tools.context import TurnContext
+    from scripts.chapter_files import REVISION_SUBJECT
+
+    ctx = TurnContext(mode="revision", revision=scope, pack=scope.packs, language=language)
+    return tutor.build_revision_input(REVISION_SUBJECT, entries, ctx), ctx
+
+
+def verdict(mode: str, cached: int, is_openai: bool) -> str:
+    """One mode's line, printed as soon as its second turn ended."""
+    if cached:
+        return f"cached_tokens on turn 2 ({mode}): {cached} — CACHE OK"
+    if not is_openai:
+        # The cache breakpoint is OpenAI's; another server may cache by its own rules, or not at all.
+        return f"cached_tokens on turn 2 ({mode}): 0 — no cached tokens (not an error: not OpenAI)"
+    return f"cached_tokens on turn 2 ({mode}): 0 — CACHE MISS"
+
+
 async def one_turn(
-    tutor: TutorService, chapter, entries: list[Entry], mode: str = "parcours"
+    tutor: TutorService, chapter, entries: list[Entry], mode: str = "parcours", scope=None
 ) -> dict:
     usage: dict = {}
-    ctx = context_for(chapter, mode=mode)
-    async for event in tutor.run_turn(tutor.build_input(chapter, entries, ctx), ctx):
+    if mode == "revision":
+        items, ctx = revision_input(tutor, scope, chapter.language, entries)
+    else:
+        ctx = context_for(chapter, mode=mode)
+        items = tutor.build_input(chapter, entries, ctx)
+    async for event in tutor.run_turn(items, ctx):
         if isinstance(event, TextDeltaEvent):
             print(event.text, end="", flush=True)
         elif isinstance(event, BoardSetEvent):
             print(f"\n  [tableau] {event.marker} — {event.card.kind}")
-        elif isinstance(event, (SectionStartEvent, SectionDoneEvent)):
+        elif isinstance(event, (SectionStartEvent, SectionDoneEvent, SectionSkippedEvent)):
             print(f"\n  [parcours] {event.marker}")
+        elif isinstance(event, RevisionResultEvent):
+            print(f"\n  [révision] {event.marker}")
         elif isinstance(event, ErrorEvent):
             print(f"\n  [erreur] {event.code}")
         elif isinstance(event, TurnEnd):
@@ -104,12 +153,15 @@ async def main() -> None:
     print(f"--- {ai_clients.describe(config, 'tutor')} · chapter {chapter.id} ({chapter.subject}, {chapter.language}) ---")
 
     # Each mode has its own cached prefix (007 §1.1), so each is checked: a mode
-    # whose prefix drifts would otherwise be billed in full on every turn.
-    cached_by_mode: dict[str, int] = {}
+    # whose prefix drifts would otherwise be billed in full on every turn. The révision's
+    # chapters are read before the first paid call, so a broken fixture costs nothing.
+    scope = revision_scope(prompts, chapter.language)
+    is_openai = config.tutor.connection.is_openai
+    missed: list[str] = []
     for mode in MODES:
         print(f"\n=== mode {mode} ===")
         print("--- turn 1: opening ---")
-        print(json.dumps(await one_turn(tutor, chapter, [], mode), indent=2))
+        print(json.dumps(await one_turn(tutor, chapter, [], mode, scope), indent=2))
 
         print("\n--- turn 2: same prefix, expect a cache hit ---")
         second = await one_turn(
@@ -117,24 +169,20 @@ async def main() -> None:
             chapter,
             [LearnerEntry(kind="learner", text=SECOND_TURN[chapter.language])],
             mode,
+            scope,
         )
         print(json.dumps(second, indent=2))
-        cached_by_mode[mode] = (second.get("input_tokens_details") or {}).get("cached_tokens", 0)
+        cached = (second.get("input_tokens_details") or {}).get("cached_tokens", 0)
+        print(verdict(mode, cached, is_openai), flush=True)
+        if not cached and is_openai:
+            missed.append(mode)
 
     print()
-    for mode, cached in cached_by_mode.items():
-        print(f"cached_tokens on turn 2 ({mode}): {cached}")
-    missed = [mode for mode, cached in cached_by_mode.items() if not cached]
-    if missed and not config.tutor.connection.is_openai:
-        # The cache breakpoint is OpenAI's; another server may cache by its own rules, or not at all.
-        print(f"no cached tokens in {', '.join(missed)} on {config.tutor.connection.host} (not an error: not OpenAI)")
-    elif missed:
+    if missed:
         raise SystemExit(
             f"CACHE MISS in {', '.join(missed)} — something varies ahead of the breakpoint (design 7)"
         )
-    else:
-        print("CACHE OK")
-
+    print("CACHE OK" if is_openai else f"done on {config.tutor.connection.host} (not OpenAI: cache not required)")
 
 if __name__ == "__main__":
     asyncio.run(main())

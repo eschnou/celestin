@@ -36,7 +36,7 @@ const CHAPTER = {
   language: "fr",
   subject: "mathematics",
   sections: [{ id: "suites", index: 1, kind: "teach", title: "Suites", goal: "g" }],
-  progress: { done: [], active: null },
+  progress: { done: [], active: null, skipped: [] },
 } as unknown as ChapterView;
 
 const PATH = "/api/courses/maths/chapters/suites/discussion";

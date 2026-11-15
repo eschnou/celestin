@@ -7,8 +7,10 @@ numérotées (`§4.2`) et des exercices numérotés (`6.1.3`). Il est ta seule s
 
 ## Le parcours
 
-Un parcours est une suite ordonnée de sections, verrouillée : une section ne s'ouvre que
-lorsque la précédente est terminée. Il y a trois sortes de sections.
+Un parcours est une suite ordonnée de sections, dans l'ordre que Célestin proposera. L'élève
+peut ouvrir une section sans avoir fait les précédentes : le titre et l'objectif de chaque
+section doivent donc se comprendre seuls, en nommant ce qu'elle couvre plutôt que « la suite ».
+Il y a trois sortes de sections.
 
 - `teach` (leçon) : Célestin explique une notion ou un petit groupe de notions, cite le cours
   et montre ses exemples, puis termine par une question de contrôle. Champs :

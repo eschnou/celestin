@@ -15,6 +15,7 @@ export const ROLE_LABEL: Record<UsageRole, () => string> = {
 export const FEATURE_LABEL: Record<UsageFeature, () => string> = {
   tutor_turn: m.usage_feature_tutor_turn,
   discussion_turn: m.usage_feature_discussion_turn,
+  revision_turn: m.usage_feature_revision_turn,
   authoring: m.usage_feature_authoring,
   document_reading: m.usage_feature_document_reading,
   work_reading: m.usage_feature_work_reading,

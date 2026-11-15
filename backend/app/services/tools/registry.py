@@ -2,7 +2,9 @@
 
 Declaration order is fixed: tool definitions sit inside the cached prefix, and
 reordering them invalidates every cache entry (design 7). Section tools come
-after the board tools so the board declarations' bytes do not move (002 R4.5).
+after the board tools so the board declarations' bytes do not move (002 R4.5),
+`skip_section` (spec 019) after them for the same reason, and `record_result` (spec 020,
+révision only) last of all.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
+from app.api.schemas.chat import ToolEntry
 from app.domain.errors import ToolValidationError, format_validation_errors
 from app.domain.language import COURSE_LANGUAGES, DEFAULT_COURSE_LANGUAGE, CourseLanguage, by_language
 from app.domain.mode import DEFAULT_MODE, MODES, Mode
@@ -25,21 +28,35 @@ from app.services.tools.board import (
     clear_board,
     display_board,
     log_schema_refusal,
+    shown_clear,
+    shown_display,
 )
-from app.services.tools.context import TurnContext
-from app.services.tools.pace import NextStepProposed, ProposeNextStepArgs, propose_next_step
+from app.services.tools.context import Shown, StoredView, TurnContext
+from app.services.tools.result import RecordResultArgs, ResultRecorded, record_result, replay_record, shown_record
+from app.services.tools.pace import NextStepProposed, ProposeNextStepArgs, propose_next_step, shown_propose
 from app.services.tools.section import (
     CompleteSectionArgs,
     SectionCompleted,
+    SectionSkipped,
     SectionStarted,
+    SkipSectionArgs,
     StartSectionArgs,
+    check_section,
+    check_start,
     complete_section,
     replay_complete,
+    replay_skip,
     replay_start,
+    shown_complete,
+    shown_skip,
+    shown_start,
+    skip_section,
     start_section,
 )
 
-ToolOutcome = BoardSet | BoardCleared | SectionStarted | SectionCompleted | NextStepProposed
+ToolOutcome = (
+    BoardSet | BoardCleared | SectionStarted | SectionCompleted | NextStepProposed | SectionSkipped | ResultRecorded
+)
 
 
 @dataclass(frozen=True)
@@ -49,9 +66,18 @@ class Tool:
     args_model: type[BaseModel]
     handler: Callable[[Any, TurnContext], ToolOutcome]
     strict: bool
-    # What a replayed, successful call answers on later turns (design 3.8), from
-    # the raw stored arguments. None means a bare {"ok": true}.
-    replay: Callable[[dict[str, Any], TurnContext], str] | None = None
+    # What a replayed, successful call answers on later turns (design 3.8), from the
+    # stored entry: what the call was at the time (its arguments, `review`). None means
+    # a bare {"ok": true}.
+    replay: Callable[[ToolEntry, TurnContext], str] | None = None
+    # What a stored call shows when a transcript is read back (spec 018): its marker,
+    # built by the function the live handler uses, and its entry's extra wire fields.
+    # None shows no marker. `StoredEntry` asks here, so a new tool needs no DTO edit.
+    shown: Callable[[ToolEntry, StoredView], Shown] | None = None
+    # What a call the browser reports must satisfy beyond its schema, against the chapter
+    # (spec 018 D10): the entry to store (completed with what the call was, if the browser
+    # left it out), or None to refuse the report. None accepts any entry of the tool.
+    check: Callable[[ToolEntry, StoredView], ToolEntry | None] | None = None
     # Told about arguments Pydantic refused, before the model is: for the logs only.
     on_invalid: Callable[[ValidationError, TurnContext], None] | None = None
 
@@ -88,6 +114,7 @@ _TOOLS: dict[str, Tool] = {
             handler=display_board,
             strict=False,
             on_invalid=log_schema_refusal,
+            shown=shown_display,
         ),
         Tool(
             name="clear_board",
@@ -95,18 +122,21 @@ _TOOLS: dict[str, Tool] = {
             args_model=ClearBoardArgs,
             handler=clear_board,
             strict=True,
+            shown=shown_clear,
         ),
         Tool(
             name="start_section",
             description=(
                 "Ouvre une section du parcours et renvoie son plan : objectif, déroulé ou "
-                "exercices types, critère de fin. Refusée si la section n'est pas encore "
-                "ouverte. Une section déjà faite s'ouvre en révision."
+                "exercices types, critère de fin. N'importe quelle section peut être ouverte, "
+                "dans n'importe quel ordre. Une section déjà faite s'ouvre en révision."
             ),
             args_model=StartSectionArgs,
             handler=start_section,
             strict=True,
             replay=replay_start,
+            shown=shown_start,
+            check=check_start,
         ),
         Tool(
             name="complete_section",
@@ -118,6 +148,8 @@ _TOOLS: dict[str, Tool] = {
             handler=complete_section,
             strict=True,
             replay=replay_complete,
+            shown=shown_complete,
+            check=check_section,
         ),
         Tool(
             name="propose_next_step",
@@ -129,17 +161,61 @@ _TOOLS: dict[str, Tool] = {
             args_model=ProposeNextStepArgs,
             handler=propose_next_step,
             strict=True,
+            shown=shown_propose,
+        ),
+        Tool(
+            name="skip_section",
+            description=(
+                "Passe une section que ton élève demande de passer (déjà vue, pas utile "
+                "maintenant). Seulement à sa demande. Une section passée reste ouverte et peut "
+                "être commencée plus tard ; une section déjà faite ne se passe pas. Renvoie ce "
+                "qui vient ensuite."
+            ),
+            args_model=SkipSectionArgs,
+            handler=skip_section,
+            strict=True,
+            replay=replay_skip,
+            shown=shown_skip,
+            check=check_section,
+        ),
+        Tool(
+            name="record_result",
+            description=(
+                "Note le bilan que ton élève vient de donner sur une question de la révision, pour la section "
+                "du chapitre à laquelle la question appartient : solid (acquis), shaky (fragile) ou todo "
+                "(à revoir). Seulement ce que ton élève a dit, jamais ton propre jugement. Le chapitre se donne "
+                "par son numéro, la section par son identifiant. Renvoie le bilan de la révision jusqu'ici."
+            ),
+            args_model=RecordResultArgs,
+            handler=record_result,
+            strict=True,
+            replay=replay_record,
+            shown=shown_record,
         ),
     )
 }
 
 # Which tools each mode offers (007 §3.5). A discussion has the board and nothing
 # that could move the path: not declaring them is the first of the two locks, the
-# controller's `save=None` being the second.
+# controller's `save=None` being the second. A révision (spec 020) has the same two locks
+# and one tool of its own, which writes the student's self-assessment, never the path.
 _MODE_TOOLS: dict[Mode, tuple[str, ...]] = {
-    "parcours": tuple(_TOOLS),
+    "parcours": (
+        "display_board",
+        "clear_board",
+        "start_section",
+        "complete_section",
+        "propose_next_step",
+        "skip_section",
+    ),
     "discussion": ("display_board", "clear_board"),
+    "revision": ("display_board", "clear_board", "record_result"),
 }
+
+
+def offered(mode: Mode) -> tuple[str, ...]:
+    """The tools `mode` offers, in declaration order: what a reported turn may name (spec 018 D10)."""
+    return _MODE_TOOLS[mode]
 
 
 # What the model reads in the tool declarations, per course language (spec 011 §4.7):
@@ -300,13 +376,33 @@ def arguments_valid(name: str, arguments_json: str) -> bool:
     return True
 
 
-def replay_output(name: str, arguments: dict[str, Any], ctx: TurnContext) -> dict[str, Any]:
+def replay_output(entry: ToolEntry, ctx: TurnContext) -> dict[str, Any]:
     """The tool result a successful call from an earlier turn answers now (design 3.8).
-    Never raises: an unknown tool replays as a bare success."""
-    tool = _TOOLS.get(name)
-    if tool is None or tool.replay is None:
+    Never raises: an unknown tool, or one the turn's mode does not offer, replays as a bare
+    success (a section tool's replay reads a chapter's path, which a révision has not)."""
+    tool = _TOOLS.get(entry.name)
+    if tool is None or tool.replay is None or entry.name not in _MODE_TOOLS[ctx.mode]:
         return {"ok": True}
-    return {"ok": True, "result": tool.replay(arguments, ctx)}
+    return {"ok": True, "result": tool.replay(entry, ctx)}
+
+
+def shown(entry: ToolEntry, mode: Mode, view: StoredView = StoredView()) -> Shown:
+    """What a stored call shows when a transcript of `mode` is read back (spec 018).
+    A tool the mode does not offer shows nothing (no marker, no extra field), as an
+    unknown one does: a discussion reads its board calls only."""
+    tool = _TOOLS.get(entry.name)
+    if tool is None or tool.shown is None or entry.name not in _MODE_TOOLS[mode]:
+        return Shown()
+    return tool.shown(entry, view)
+
+
+def checked(entry: ToolEntry, view: StoredView) -> ToolEntry | None:
+    """A reported call as it will be stored, or None when its tool refuses it (spec 018 D10).
+    `view` holds the chapter's curriculum and the progress the report is stored against."""
+    tool = _TOOLS.get(entry.name)
+    if tool is None or tool.check is None:
+        return entry
+    return tool.check(entry, view)
 
 
 def output_of(outcome: ToolOutcome) -> dict[str, Any]:

@@ -97,3 +97,56 @@ def test_replayed_failed_section_start_keeps_its_refusal() -> None:
     items = history.to_provider_input([entry], BIG, CTX)
     assert '"ok": false' in items[1]["output"]
     assert "fermée" in items[1]["output"]
+
+
+# --- the parcours keeps the section's brief (spec 018 D10) ---------------------------------
+
+
+def _start(section: str = "intro") -> ToolEntry:
+    return ToolEntry(kind="tool", name="start_section", arguments={"section_id": section}, review=False)
+
+
+def _long_row(turns: int = 40) -> list:
+    """A séance as it is stored: its start, then many long turns, far over the budget."""
+    entries: list = [tutor("Bonjour."), _start()]
+    for n in range(turns):
+        entries += [learner(f"q{n} " + "x" * 600), tutor(f"r{n} " + "y" * 600)]
+    return entries
+
+
+def test_a_long_parcours_row_still_starts_with_the_brief() -> None:
+    budget = 2000
+    items = history.to_provider_input(_long_row(), budget, CTX)
+    assert items[0]["type"] == "function_call" and items[0]["name"] == "start_section"
+    assert items[1]["call_id"] == items[0]["call_id"] and "Déroulé" in items[1]["output"]
+    assert items[2]["role"] == "user" and not items[2]["content"].startswith("q0 ")  # older turns are gone
+    # Within the budget plus that one call.
+    rest = [e for e in history.trim(_long_row(), budget, keep_brief=True) if e.kind != "tool"]
+    assert history.estimate_tokens(rest) <= budget
+
+
+def test_the_brief_is_carried_once_and_only_when_it_was_dropped() -> None:
+    entries = _long_row()
+    kept = history.trim(entries, 2000, keep_brief=True)
+    assert [e.kind for e in kept].count("tool") == 1 and kept[0].name == "start_section"
+    # Under budget, nothing moves: the start stays where it was.
+    assert history.trim(entries[:6], BIG, keep_brief=True) == entries[:6]
+    # A later start still kept: the dropped one is not carried as well.
+    later = [*entries, _start(), learner("après"), tutor("ok")]
+    kept = history.trim(later, 500, keep_brief=True)  # keeps the turn the later start was made in
+    assert [e for e in kept if e.kind == "tool"] == [later[-3]] and kept[0].kind == "learner"
+
+
+def test_the_latest_ok_start_is_the_one_carried() -> None:
+    refused = ToolEntry(kind="tool", name="start_section", arguments={"section_id": "bilan"}, ok=False, error="non")
+    entries = [_start("intro"), learner("a" * 3200), refused, learner("b" * 3200), learner("c" * 3200)]
+    kept = history.trim(entries, 1500, keep_brief=True)
+    assert kept[0] == entries[0] and kept[1].text.startswith("c")
+
+
+def test_a_discussion_and_a_plain_trim_never_carry_a_start() -> None:
+    entries = _long_row()
+    assert all(e.kind != "tool" for e in history.trim(entries, 2000))
+    discussion = ctx_for(mode="discussion")
+    items = history.to_provider_input(entries, 2000, discussion)
+    assert all(i.get("type") != "function_call" for i in items)

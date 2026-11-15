@@ -258,3 +258,168 @@ def test_the_ledger_follows_the_user_and_forgets_a_deleted_course(tmp_path) -> N
         assert conn.execute(text("select course_id from ai_usage")).one() == (None,)
         conn.execute(text("delete from users where id = 'u1'"))
         assert conn.execute(text("select count(*) from ai_usage")).scalar_one() == 0
+
+
+def test_upgrade_from_0011_gives_the_parcours_its_rows_and_downgrade_takes_them_back(tmp_path) -> None:
+    """Spec 018: the discussions survive both ways, a live discussion and a live séance coexist on a
+    chapter, and the downgrade removes the séances (the older schema has no place for them)."""
+    from sqlalchemy import inspect, text
+    from sqlalchemy.exc import IntegrityError
+
+    url = f"sqlite:///{tmp_path / 's.db'}"
+    command.upgrade(alembic_config(url), "0011")
+    engine = make_engine(url)
+    row = (
+        "insert into conversations (id, user_id, chapter_id, mode, content_version, entries, entry_count, "
+        "char_count, state, created_at, updated_at{extra}) values (:id, 'u1', 'ch1', :mode, 1, '[]', 0, 0, :state, "
+        "'2026-01-01 00:00:00', '2026-01-01 00:00:00'{values})"
+    )
+    with engine.begin() as conn:
+        conn.execute(text(
+            "insert into users (id, email, name, password_hash, role, locale, enabled, created_at) "
+            "values ('u1', 'a@x.be', 'Ana', 'h', 'student', 'fr', 1, '2026-01-01 00:00:00')"
+        ))
+        conn.execute(text(
+            "insert into courses (id, user_id, name, subject, language, created_at, updated_at) "
+            "values ('c1', 'u1', 'Maths', 'mathematics', 'fr', '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+        ))
+        conn.execute(text(
+            "insert into chapters (id, course_id, position, source_text, section_count, content_version, "
+            "authoring_state, source_kind, page_count, pages_done, created_at, updated_at) values ('ch1', 'c1', 1, 'x', "
+            "0, 1, 'idle', 'text', 0, 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+        ))
+        conn.execute(text(row.format(extra="", values="")), {"id": "d1", "mode": "discussion", "state": "live"})
+    command.upgrade(alembic_config(url), "head")
+    engine = make_engine(url)
+    columns = {c["name"] for c in inspect(engine).get_columns("conversations")}
+    assert {"section_id", "card_count"} <= columns
+    parcours = row.format(extra=", section_id, card_count", values=", 'suites', 2")
+    with engine.begin() as conn:
+        assert conn.execute(text("select card_count, section_id from conversations")).one() == (0, None)
+        conn.execute(text(parcours), {"id": "p1", "mode": "parcours", "state": "live"})
+        conn.execute(text(parcours), {"id": "p2", "mode": "parcours", "state": "closed"})
+    with pytest.raises(IntegrityError), engine.begin() as conn:  # one live séance per student and chapter
+        conn.execute(text(parcours), {"id": "p3", "mode": "parcours", "state": "live"})
+    with pytest.raises(IntegrityError), engine.begin() as conn:  # a révision row names no chapter (spec 020)
+        conn.execute(text(parcours), {"id": "r1", "mode": "revision", "state": "closed"})
+    with engine.connect() as conn:
+        assert conn.execute(text("select count(*) from courses")).scalar_one() == 1  # the rebuild deleted nothing
+    command.downgrade(alembic_config(url), "0011")
+    engine = make_engine(url)
+    with engine.connect() as conn:
+        assert conn.execute(text("select id from conversations")).scalars().all() == ["d1"]
+    assert "section_id" not in {c["name"] for c in inspect(engine).get_columns("conversations")}
+    command.upgrade(alembic_config(url), "head")
+
+
+def test_upgrade_from_0012_gives_every_progress_an_empty_skipped_and_downgrade_keeps_the_rest(tmp_path) -> None:
+    """Spec 019: an existing progress has skipped nothing; the downgrade forgets the skips, keeps done and active."""
+    from sqlalchemy import inspect, text
+
+    url = f"sqlite:///{tmp_path / 'k.db'}"
+    command.upgrade(alembic_config(url), "0012")
+    engine = make_engine(url)
+    with engine.begin() as conn:
+        conn.execute(text(
+            "insert into users (id, email, name, password_hash, role, locale, enabled, created_at) "
+            "values ('u1', 'a@x.be', 'Ana', 'h', 'student', 'fr', 1, '2026-01-01 00:00:00')"
+        ))
+        conn.execute(text(
+            "insert into courses (id, user_id, name, subject, language, created_at, updated_at) "
+            "values ('c1', 'u1', 'Maths', 'mathematics', 'fr', '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+        ))
+        conn.execute(text(
+            "insert into chapters (id, course_id, position, source_text, section_count, content_version, "
+            "authoring_state, source_kind, page_count, pages_done, created_at, updated_at) values ('ch1', 'c1', 1, 'x', "
+            "3, 1, 'idle', 'text', 0, 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+        ))
+        conn.execute(text(
+            "insert into progress (user_id, chapter_id, done, active, updated_at) "
+            "values ('u1', 'ch1', '[\"intro\"]', 'exos', '2026-01-01 00:00:00')"
+        ))
+    command.upgrade(alembic_config(url), "head")
+    engine = make_engine(url)
+    with engine.begin() as conn:
+        assert conn.execute(text("select done, active, skipped from progress")).one() == ('["intro"]', "exos", "[]")
+        conn.execute(text("update progress set skipped = '[\"bilan\"]'"))
+    command.downgrade(alembic_config(url), "0012")
+    engine = make_engine(url)
+    assert "skipped" not in {c["name"] for c in inspect(engine).get_columns("progress")}
+    with engine.connect() as conn:
+        assert conn.execute(text("select done, active from progress")).one() == ('["intro"]', "exos")
+        assert conn.execute(text("select count(*) from courses")).scalar_one() == 1
+    command.upgrade(alembic_config(url), "head")
+
+
+def test_upgrade_from_0013_gives_revisions_their_rows_and_downgrade_takes_them_back(tmp_path) -> None:
+    """Spec 020: the discussions and séances survive both ways; a révision names its course and no chapter, one is
+    live per student and course, its results and its ledger rows land; the downgrade removes all three."""
+    from sqlalchemy import inspect, text
+    from sqlalchemy.exc import IntegrityError
+
+    url = f"sqlite:///{tmp_path / 'r.db'}"
+    command.upgrade(alembic_config(url), "0013")
+    engine = make_engine(url)
+    row = (
+        "insert into conversations (id, user_id, chapter_id, mode, content_version, entries, entry_count, "
+        "char_count, card_count, state, created_at, updated_at{extra}) values (:id, 'u1', {chapter}, :mode, 1, '[]', "
+        "0, 0, 0, :state, '2026-01-01 00:00:00', '2026-01-01 00:00:00'{values})"
+    )
+    usage = (
+        "insert into ai_usage (created_at, user_id, course_id, role, feature, model, provider, status) "
+        "values ('2026-02-01 10:00:00', 'u1', 'c1', 'tutor', :feature, 'm', 'h', 'ok')"
+    )
+    with engine.begin() as conn:
+        conn.execute(text(
+            "insert into users (id, email, name, password_hash, role, locale, enabled, created_at) "
+            "values ('u1', 'a@x.be', 'Ana', 'h', 'student', 'fr', 1, '2026-01-01 00:00:00')"
+        ))
+        conn.execute(text(
+            "insert into courses (id, user_id, name, subject, language, created_at, updated_at) "
+            "values ('c1', 'u1', 'Maths', 'mathematics', 'fr', '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+        ))
+        conn.execute(text(
+            "insert into chapters (id, course_id, position, source_text, section_count, content_version, "
+            "authoring_state, source_kind, page_count, pages_done, created_at, updated_at) values ('ch1', 'c1', 1, 'x', "
+            "3, 1, 'idle', 'text', 0, 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+        ))
+        for id_, mode in (("d1", "discussion"), ("p1", "parcours")):
+            conn.execute(text(row.format(extra="", chapter="'ch1'", values="")), {"id": id_, "mode": mode, "state": "live"})
+        conn.execute(text(usage), {"feature": "tutor_turn"})
+    command.upgrade(alembic_config(url), "head")
+    engine = make_engine(url)
+    assert {"course_id", "scope"} <= {c["name"] for c in inspect(engine).get_columns("conversations")}
+    revision = row.format(extra=", course_id, scope", chapter="null", values=", 'c1', '[{\"chapter_id\": \"ch1\", \"content_version\": 1}]'")
+    with engine.begin() as conn:
+        assert conn.execute(text("select id from conversations order by id")).scalars().all() == ["d1", "p1"]
+        conn.execute(text(revision), {"id": "r1", "mode": "revision", "state": "live"})
+        conn.execute(text(revision), {"id": "r2", "mode": "revision", "state": "closed"})
+        conn.execute(text(
+            "insert into revision_results (user_id, course_id, chapter_id, section_id, outcome, content_version, "
+            "conversation_id, created_at) values ('u1', 'c1', 'ch1', 'intro', 'shaky', 1, 'r1', '2026-02-01 10:00:00')"
+        ))
+        conn.execute(text(usage), {"feature": "revision_turn"})
+    with pytest.raises(IntegrityError), engine.begin() as conn:  # one live révision per student and course
+        conn.execute(text(revision), {"id": "r3", "mode": "revision", "state": "live"})
+    with pytest.raises(IntegrityError), engine.begin() as conn:  # a révision names no chapter
+        conn.execute(text(row.format(extra=", course_id", chapter="'ch1'", values=", 'c1'")), {"id": "r4", "mode": "revision", "state": "closed"})
+    with pytest.raises(IntegrityError), engine.begin() as conn:  # a discussion names its chapter, not a course
+        conn.execute(text(row.format(extra=", course_id", chapter="null", values=", 'c1'")), {"id": "d2", "mode": "discussion", "state": "closed"})
+    with pytest.raises(IntegrityError), engine.begin() as conn:  # three words, no more
+        conn.execute(text(
+            "insert into revision_results (user_id, course_id, chapter_id, section_id, outcome, content_version, "
+            "created_at) values ('u1', 'c1', 'ch1', 'intro', 'perfect', 1, '2026-02-01 10:00:00')"
+        ))
+    with engine.connect() as conn:
+        assert conn.execute(text("select count(*) from courses")).scalar_one() == 1  # the rebuilds deleted nothing
+        assert conn.execute(text("select count(*) from ai_usage")).scalar_one() == 2
+    command.downgrade(alembic_config(url), "0013")
+    engine = make_engine(url)
+    assert "revision_results" not in inspect(engine).get_table_names()
+    assert "course_id" not in {c["name"] for c in inspect(engine).get_columns("conversations")}
+    with engine.connect() as conn:
+        assert conn.execute(text("select id from conversations order by id")).scalars().all() == ["d1", "p1"]
+        assert conn.execute(text("select feature from ai_usage")).scalars().all() == ["tutor_turn"]
+    with pytest.raises(IntegrityError), engine.begin() as conn:  # the older schema: a chapter, always
+        conn.execute(text(row.format(extra="", chapter="null", values="")), {"id": "d3", "mode": "discussion", "state": "closed"})
+    command.upgrade(alembic_config(url), "head")

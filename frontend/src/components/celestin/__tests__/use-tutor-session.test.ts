@@ -143,7 +143,7 @@ describe("session reducer", () => {
         marker: "section commencée · 1. Suites",
       },
     ]);
-    expect(state.progress).toEqual({ done: [], active: "suites" });
+    expect(state.progress).toEqual({ done: [], active: "suites", skipped: [] });
     expect(state.entries).toMatchObject([
       { role: "marker", text: "section commencée · 1. Suites", boardIndex: null },
     ]);
@@ -159,10 +159,23 @@ describe("session reducer", () => {
       ],
       state,
     );
-    expect(state.progress).toEqual({ done: ["suites"], active: null });
+    expect(state.progress).toEqual({ done: ["suites"], active: null, skipped: [] });
     expect(state.history).toEqual([
-      { kind: "tool", name: "start_section", arguments: { section_id: "suites" }, ok: true },
-      { kind: "tool", name: "complete_section", arguments: { section_id: "suites" }, ok: true },
+      // `review` travels with the stored séance (018); the model never reads it.
+      {
+        kind: "tool",
+        name: "start_section",
+        arguments: { section_id: "suites" },
+        ok: true,
+        review: false,
+      },
+      {
+        kind: "tool",
+        name: "complete_section",
+        arguments: { section_id: "suites" },
+        ok: true,
+        next_section_id: "sa",
+      },
     ]);
   });
 
@@ -192,7 +205,10 @@ describe("session reducer", () => {
   });
 
   it("leaves the path untouched on a review", () => {
-    const from: SessionState = { ...EMPTY_SESSION, progress: { done: ["suites"], active: "sa" } };
+    const from: SessionState = {
+      ...EMPTY_SESSION,
+      progress: { done: ["suites"], active: "sa", skipped: [] },
+    };
     const state = play(
       [
         {
@@ -204,14 +220,14 @@ describe("session reducer", () => {
       ],
       from,
     );
-    expect(state.progress).toEqual({ done: ["suites"], active: "sa" });
+    expect(state.progress).toEqual({ done: ["suites"], active: "sa", skipped: [] });
     expect(state.entries[0]).toMatchObject({ role: "marker", text: "révision · 1. Suites" });
   });
 
   it("does not list a section twice in done", () => {
     const from: SessionState = {
       ...EMPTY_SESSION,
-      progress: { done: ["suites"], active: "suites" },
+      progress: { done: ["suites"], active: "suites", skipped: [] },
     };
     const state = play(
       [{ event: "section.done", section_id: "suites", next_section_id: null, marker: "m" }],
@@ -286,6 +302,124 @@ describe("session reducer", () => {
       { event: "section.done", section_id: "test-blanc", next_section_id: null, marker: "m" },
     ]);
     expect(state.nextStep).toBeNull();
+  });
+
+  it("skips the active section: cleared, the page turns to the next one (spec 019)", () => {
+    const state = play([
+      { event: "section.start", section_id: "sa", review: false, marker: "ouverte" },
+      {
+        event: "section.skipped",
+        section_id: "sa",
+        next_section_id: "sb",
+        active_section_id: null,
+        marker: "passée · 1",
+      },
+    ]);
+    expect(state.progress).toEqual({ done: [], active: null, skipped: ["sa"] });
+    expect(state.nextStep).toEqual({ kind: "section", sectionId: "sb" });
+    expect(state.entries.at(-1)).toMatchObject({ role: "marker", text: "passée · 1" });
+    // What the call answered travels with the stored séance (spec 019); the model never reads it.
+    expect(state.history.at(-1)).toEqual({
+      kind: "tool",
+      name: "skip_section",
+      arguments: { section_id: "sa" },
+      ok: true,
+      next_section_id: "sb",
+      active_section_id: null,
+    });
+  });
+
+  it("clears the page-turn button when a skip finishes the chapter (spec 019)", () => {
+    // complete(X) lights the button for Y; skipping Y, the last open section, ends the
+    // chapter: nothing is active and nothing is proposed, so nothing is offered.
+    const state = play([
+      { event: "section.start", section_id: "sa", review: false, marker: "m" },
+      { event: "section.done", section_id: "sa", next_section_id: "sb", marker: "m" },
+      {
+        event: "section.skipped",
+        section_id: "sb",
+        next_section_id: null,
+        active_section_id: null,
+        marker: "m",
+      },
+    ]);
+    expect(state.nextStep).toBeNull();
+    expect(state.history.at(-1)).toMatchObject({ next_section_id: null, active_section_id: null });
+  });
+
+  it("records the non-review sections started, once each, in order", () => {
+    const state = play([
+      { event: "section.start", section_id: "sb", review: false, marker: "m" },
+      { event: "section.start", section_id: "sa", review: true, marker: "m" },
+      { event: "section.start", section_id: "sc", review: false, marker: "m" },
+      { event: "section.start", section_id: "sb", review: false, marker: "m" },
+    ]);
+    expect(state.started).toEqual(["sb", "sc"]);
+  });
+
+  it("skips another section without touching the active one or the page", () => {
+    const state = play([
+      { event: "section.start", section_id: "sa", review: false, marker: "ouverte" },
+      { event: "step.ready", marker: "étape" },
+      {
+        event: "section.skipped",
+        section_id: "sc",
+        next_section_id: null,
+        active_section_id: "sa",
+        marker: "passée",
+      },
+    ]);
+    expect(state.progress).toEqual({ done: [], active: "sa", skipped: ["sc"] });
+    expect(state.nextStep).toEqual({ kind: "step" });
+    expect(state.section).toBe("sa");
+  });
+
+  it("does not list a section twice in skipped", () => {
+    const skip = {
+      event: "section.skipped",
+      section_id: "sb",
+      next_section_id: null,
+      active_section_id: null,
+      marker: "m",
+    } as const;
+    expect(play([skip, skip]).progress.skipped).toEqual(["sb"]);
+  });
+
+  it("un-skips a section when it starts, and not on a review", () => {
+    const from = play([
+      {
+        event: "section.skipped",
+        section_id: "sb",
+        next_section_id: "sc",
+        active_section_id: null,
+        marker: "m",
+      },
+    ]);
+    const started = play(
+      [{ event: "section.start", section_id: "sb", review: false, marker: "m" }],
+      from,
+    );
+    expect(started.progress).toEqual({ done: [], active: "sb", skipped: [] });
+    const reviewed = play(
+      [{ event: "section.start", section_id: "sb", review: true, marker: "m" }],
+      from,
+    );
+    expect(reviewed.progress).toEqual({ done: [], active: null, skipped: ["sb"] });
+  });
+
+  it("keeps skipped sections through a completion", () => {
+    const state = play([
+      {
+        event: "section.skipped",
+        section_id: "sa",
+        next_section_id: "sb",
+        active_section_id: null,
+        marker: "m",
+      },
+      { event: "section.start", section_id: "sb", review: false, marker: "m" },
+      { event: "section.done", section_id: "sb", next_section_id: "sc", marker: "m" },
+    ]);
+    expect(state.progress).toEqual({ done: ["sb"], active: null, skipped: ["sa"] });
   });
 
   it("appends a learner message to both views", () => {

@@ -66,7 +66,6 @@
   "course_action_failed": "Dat is niet gelukt. Probeer opnieuw.",
   "course_empty": "Deze cursus heeft nog geen hoofdstukken. Voeg er een toe met de pdf of de foto's van je cursus.",
   "course_add_chapter": "Een hoofdstuk toevoegen",
-  "chapter_progress_section": "Sectie {current} van {total}",
   "chapter_menu": "Acties voor “{title}”",
   "course_resume_title": "Ga verder waar je gebleven was",
   "course_next_title": "Volgend hoofdstuk",
@@ -99,9 +98,43 @@
   "chapter_state_in_progress": "bezig",
   "chapter_state_done": "afgerond",
   "chapter_action_review": "Herhalen",
+  "chapter_action_reread": "Herlezen",
+  "chapter_action_reread_title": "Deze sectie herlezen in het schrift",
   "chapter_action_start": "Beginnen",
   "chapter_action_resume": "Verder gaan",
   "chapter_action_continue": "Doorgaan",
+  "chapter_action_skip": "Overslaan",
+  "chapter_action_skip_title": "Deze sectie overslaan: ze blijft open, je kunt er later naar terugkeren",
+  "chapter_count_done": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} afgerond",
+        "countPlural=other": "{count} afgerond"
+      }
+    }
+  ],
+  "chapter_count_skipped": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} overgeslagen",
+        "countPlural=other": "{count} overgeslagen"
+      }
+    }
+  ],
+  "chapter_count_done_of": [
+    {
+      "declarations": ["input count", "input total", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} van {total} afgerond",
+        "countPlural=other": "{count} van {total} afgerond"
+      }
+    }
+  ],
   "chapter_untitled": "Nieuw hoofdstuk {position}",
   "chapter_name": "Hoofdstuk {position} — {title}",
   "chapter_reading_pages": "De pagina's worden gelezen… ({done}/{total})",
@@ -122,6 +155,7 @@
   "chapter_redeposit": "Het document opnieuw bezorgen",
   "chapter_discuss": "Bespreken",
   "chapter_content": "Inhoud van het hoofdstuk",
+  "chapter_notebook": "Schrift",
   "chapter_delete": "Verwijderen",
   "chapter_delete_title": "“{title}” verwijderen?",
   "chapter_delete_description": "De tekst van de cursus, de voorbereide inhoud en je voortgang in dit hoofdstuk worden gewist. Dit kan niet ongedaan gemaakt worden.",
@@ -195,7 +229,8 @@
   "lesson_state_done": "afgerond",
   "lesson_state_active": "bezig",
   "lesson_state_available": "volgende",
-  "lesson_state_locked": "vergrendeld",
+  "lesson_state_skipped": "overgeslagen",
+  "lesson_state_open": "te doen",
   "content_done_when": "Afgerond wanneer: {text}",
   "content_path_title_label": "Titel van het traject",
   "content_section_kind": "Soort van sectie {n}",
@@ -327,9 +362,19 @@
   ],
   "lesson_reset": "Het hoofdstuk opnieuw beginnen",
   "lesson_reset_title": "Het hoofdstuk opnieuw beginnen?",
-  "lesson_reset_description": "Je voortgang in dit hoofdstuk wordt uit je account gewist en een nieuwe sessie begint bij de eerste sectie.",
+  "lesson_reset_description": "Je voortgang in dit hoofdstuk en je schrift worden uit je account gewist, en een nieuwe sessie begint bij de eerste sectie.",
   "lesson_reset_confirm": "Opnieuw beginnen",
   "lesson_reset_failed": "Het hoofdstuk kon niet opnieuw gestart worden. Probeer het zo meteen opnieuw.",
+  "lesson_resumed_marker": "sessie hervat",
+  "lesson_restore_failed": "De sessie kon niet geladen worden. Probeer het zo meteen opnieuw.",
+  "notebook_head_title": "Célestin — schrift",
+  "notebook_lead": "Wat Célestin op het bord schreef, sectie per sectie.",
+  "notebook_back": "← Terug naar de sessie",
+  "notebook_show_exchanges": "Het gesprek tonen",
+  "notebook_loading": "Het schrift wordt geladen…",
+  "notebook_failed": "Het schrift kon niet geopend worden. Probeer het zo meteen opnieuw.",
+  "notebook_empty": "Je schrift is nog leeg: wat Célestin op het bord schrijft, komt hier terecht, sessie na sessie.",
+  "notebook_section_empty": "Niets op het bord in deze sectie.",
   "lesson_max_rounds": "Célestin ging te lang door en het antwoord werd afgebroken. Vraag het opnieuw als je dat wilt.",
   "discussion_head_title": "Célestin — bespreking",
   "discussion_loading": "De bespreking wordt geladen…",
@@ -337,6 +382,47 @@
   "discussion_new": "Nieuw gesprek",
   "discussion_new_title": "Een nieuw gesprek?",
   "discussion_new_description": "Het huidige gesprek is daarna niet meer toegankelijk. Je voortgang in het traject verandert niet.",
+  "lesson_mode_revision": "Herhaling",
+  "lesson_mode_revision_title": "Test jezelf op de hoofdstukken van de cursus, voor een toets",
+  "course_revise": "Herhalen",
+  "course_revise_title": "Test jezelf op de hoofdstukken van deze cursus, voor een toets",
+  "course_revise_unavailable": "Je hebt minstens één klaar hoofdstuk nodig om te herhalen.",
+  "revision_head_title": "Célestin — herhaling",
+  "revision_title": "Herhaling",
+  "revision_loading": "De herhaling wordt geladen…",
+  "revision_failed": "De herhaling kon niet geopend worden. Probeer het zo meteen opnieuw.",
+  "revision_start_failed": "De herhaling kon niet starten. Probeer het zo meteen opnieuw.",
+  "revision_choose_title": "Wat wil je herhalen?",
+  "revision_choose_lead": "Vink de hoofdstukken van je toets aan. Célestin stelt je vragen door elkaar, en na elke vraag zeg jij hoe het ging.",
+  "revision_choose_label": "De hoofdstukken om te herhalen",
+  "revision_chapter_not_ready": "nog niet klaar",
+  "revision_no_ready": "Er is nog geen hoofdstuk klaar. Voeg een hoofdstuk toe aan de cursus en wacht tot het voorbereid is.",
+  "revision_start": "De herhaling starten",
+  "revision_back_to_live": "Terug naar de huidige herhaling",
+  "revision_scope": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} hoofdstuk in deze herhaling",
+        "countPlural=other": "{count} hoofdstukken in deze herhaling"
+      }
+    }
+  ],
+  "revision_new": "Nieuwe herhaling",
+  "revision_new_title": "Een nieuwe herhaling?",
+  "revision_new_description": "De huidige herhaling wordt afgesloten en je kiest je hoofdstukken opnieuw. Je overzicht blijft bewaard.",
+  "revision_closed": "Deze herhaling is afgesloten.",
+  "revision_quick_label": "Hoe ging het?",
+  "revision_outcome_solid": "Gekend",
+  "revision_outcome_shaky": "Wankel",
+  "revision_outcome_todo": "Te herhalen",
+  "revision_bilan": "Overzicht",
+  "revision_bilan_title": "Overzicht van de herhaling",
+  "revision_bilan_lead": "Dit zijn je eigen inschattingen: na elke vraag zei jij hoe het ging.",
+  "revision_not_tested": "nog niet getest",
+  "revision_section_todo": "nog niet gedaan",
+  "revision_noted_on": "genoteerd op {date}",
   "lesson_tutor_name": "Professor Célestin",
   "lesson_interrupted": "(onderbroken)",
   "lesson_thinking": "Célestin denkt na…",
@@ -840,6 +926,7 @@
   "usage_role_voice": "Spraak",
   "usage_feature_tutor_turn": "Beurt in de les",
   "usage_feature_discussion_turn": "Bespreking",
+  "usage_feature_revision_turn": "Herhalingsbeurt",
   "usage_feature_authoring": "Voorbereiding van een hoofdstuk",
   "usage_feature_document_reading": "Een document lezen",
   "usage_feature_work_reading": "Werk lezen",

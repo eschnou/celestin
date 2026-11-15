@@ -1,0 +1,4 @@
+État du parcours : 0 section(s) faite(s) et 1 passée(s) sur 3.
+Sections passées : « 1. Introduction ».
+Section en cours : « 2. Exercices » (exercices).
+Si tu n'as pas encore son plan dans cette conversation, appelle start_section("exos").

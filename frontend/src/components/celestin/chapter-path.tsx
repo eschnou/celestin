@@ -9,7 +9,7 @@ import { useCallback, useState } from "react";
 import { ChapterMapSheet } from "@/components/celestin/chapter-map";
 import { ChapterStrip } from "@/components/celestin/chapter-strip";
 import { useCompactLayout } from "@/components/celestin/compact-layout";
-import type { Chapter, Progress } from "@/lib/tutor/types";
+import type { ChapterView, Progress } from "@/lib/tutor/types";
 
 export function ChapterPath({
   chapter,
@@ -17,13 +17,19 @@ export function ChapterPath({
   streaming,
   onSend,
   onReset,
+  rereadable,
+  begun,
 }: {
-  chapter: Chapter;
+  chapter: Pick<ChapterView, "id" | "course_id" | "title" | "sections">;
   progress: Progress;
   /** A turn is in flight: the map's actions wait. */
   streaming: boolean;
   onSend: (text: string) => void;
   onReset: () => void;
+  /** The sections with boards in the cahier (018): their rows offer « Relire ». */
+  rereadable: ReadonlySet<string>;
+  /** The sections with a stored séance (spec 019): the map offers « Reprendre » there. */
+  begun: ReadonlySet<string>;
 }) {
   const compact = useCompactLayout();
   const [open, setOpen] = useState(false);
@@ -39,6 +45,8 @@ export function ChapterPath({
         streaming={streaming}
         onSend={onSend}
         onReset={onReset}
+        rereadable={rereadable}
+        begun={begun}
       />
     </>
   );

@@ -1,7 +1,7 @@
 """Spec 017 R4.5, R5: what the code builds for the model in a Dutch course, beside the French and English pins.
 
 `test_model_text_by_language.py` pins the English rows; French is pinned by the original tests. These cover the
-Dutch rows of the same tables: the locked path, the tools' words, the history estimate, the authoring words, the
+Dutch rows of the same tables: the path's refusals, the tools' words, the history estimate, the authoring words, the
 declarations, and that a Dutch course is read as Dutch whichever interface language the account has.
 """
 
@@ -37,11 +37,12 @@ def refusal(name: str, args: dict, ctx: TurnContext) -> str:
 
 
 def test_path_refusals_in_dutch() -> None:
-    assert path.can_start(CUR, Progress(), "nope", "nl") == (
+    assert path.can_start(CUR, "nope", "nl") == (
         "Sectie “nope” bestaat niet. Secties van het hoofdstuk: intro, exos, bilan."
     )
-    assert path.can_start(CUR, Progress(), "exos", "nl") == (
-        "Sectie “2. Oefeningen” is nog niet open. Je kunt “1. Inleiding” beginnen (id: intro)."
+    assert path.can_start(CUR, "exos", "nl") is None  # spec 019: no section is locked
+    assert path.can_skip(CUR, Progress(done=frozenset({"exos"})), "exos", "nl") == (
+        "Sectie “2. Oefeningen” is al afgerond: ze kan niet overgeslagen worden."
     )
     assert path.can_complete(CUR, Progress(), "intro", "nl") == "Geen sectie is bezig. Begin er een met start_section."
     assert path.can_complete(CUR, Progress(active="intro"), "exos", "nl") == (
@@ -53,7 +54,12 @@ def test_path_refusals_in_dutch() -> None:
 def test_the_sections_tools_refuse_in_the_courses_language() -> None:
     ctx = ctx_for(name="valid_nl.yaml", language="nl")
     assert "bestaat niet" in refusal("start_section", {"section_id": "nope"}, ctx)
-    assert "nog niet open" in refusal("start_section", {"section_id": "exos"}, ctx)
+    assert "bestaat niet" in refusal("skip_section", {"section_id": "nope"}, ctx)
+    run("start_section", {"section_id": "exos"}, ctx)  # a later section opens
+    skipped = run("skip_section", {"section_id": "exos"}, ctx).output
+    assert skipped == "Sectie overgeslagen. Volgende sectie: “1. Inleiding” (les), id: intro."
+    ctx.progress = Progress(done=frozenset({"exos"}))
+    assert "al afgerond" in refusal("skip_section", {"section_id": "exos"}, ctx)
     brief = run("start_section", {"section_id": "intro"}, ctx).output
     assert brief.startswith("Sectie “1. Inleiding” (les)")
 

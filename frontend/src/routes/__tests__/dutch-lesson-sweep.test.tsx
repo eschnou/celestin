@@ -5,7 +5,7 @@
  * course. Célestin's words and the board's content are French and say so with `lang="fr"`; nothing
  * else in French or English may be on screen.
  */
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { stubLayoutApis } from "@/test/jsdom-stubs";
 
@@ -75,7 +75,7 @@ const CHAPTER = {
     { id: "s2", index: 2, kind: "practise", title: "Calculer un terme", goal: "g2" },
     { id: "s3", index: 3, kind: "synthesis", title: "Synthèse", goal: "g3" },
   ],
-  progress: { done: ["s1"], active: "s2" },
+  progress: { done: ["s1"], active: "s2", skipped: [] },
 };
 
 afterEach(() => {
@@ -84,11 +84,20 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function mountLesson() {
+function mountLesson(
+  seance: unknown = null,
+  start: { progress: unknown; seances: unknown } = {
+    progress: CHAPTER.progress,
+    seances: { s1: { cards: 3 } },
+  },
+) {
   mockApi(
     (_method, path) => {
       if (path.endsWith("/api/health")) return { body: { voice: false } };
       if (path.endsWith("/api/courses/maths/chapters/suites")) return { body: CHAPTER };
+      // Boards stored for the first section (018): its row offers to reread them.
+      if (path.endsWith("/api/courses/maths/chapters/suites/seance"))
+        return { body: { seance, ...start } };
       return undefined;
     },
     { locale: "nl", name: "Lea" },
@@ -121,9 +130,35 @@ describe.each([
         screen.getByRole("button", { name: "Het traject van het hoofdstuk bekijken" }),
       );
       await screen.findByRole("dialog");
+      expect(screen.getByRole("link", { name: "Herlezen" })).toBeTruthy();
       expect(foreignTextOutside("nl")).toEqual([]);
       fireEvent.click(screen.getByRole("button", { name: "Het hoofdstuk opnieuw beginnen" }));
       await screen.findByRole("alertdialog");
+      expect(foreignTextOutside("nl")).toEqual([]);
+    }));
+});
+
+describe("the Dutch sweep: a resumed séance (018)", () => {
+  beforeEach(() => stubLayoutApis({ desktop: true }));
+
+  it("the restored transcript and its « séance reprise » marker", () =>
+    withLocale("nl", async () => {
+      mountLesson({
+        id: "row1",
+        section_id: "s2",
+        entries: [
+          { kind: "tutor", text: "On reprend le calcul d'un terme." },
+          {
+            kind: "tool",
+            name: "start_section",
+            arguments: { section_id: "s2" },
+            review: false,
+            marker: "vraag gesteld",
+          },
+          { kind: "learner", text: "D'accord." },
+        ],
+      });
+      await screen.findByText(/sessie hervat/);
       expect(foreignTextOutside("nl")).toEqual([]);
     }));
 });
@@ -140,6 +175,29 @@ describe("the Dutch sweep: the lesson on a phone only", () => {
       );
       await screen.findByRole("dialog");
       expect(screen.getByText("Gesprek met Célestin")).toBeTruthy();
+      expect(foreignTextOutside("nl")).toEqual([]);
+    }));
+});
+
+describe("the Dutch sweep: the open path (spec 019)", () => {
+  beforeEach(() => stubLayoutApis({ desktop: true }));
+
+  it("a skipped section, a section to resume, and « Passer »", () =>
+    withLocale("nl", async () => {
+      // s1 done, s2 skipped, s3 begun in an earlier séance and proposed next.
+      mountLesson(null, {
+        progress: { done: ["s1"], active: null, skipped: ["s2"] },
+        seances: { s1: { cards: 3 }, s3: { cards: 0 } },
+      });
+      await screen.findByText(/Bonjour, on reprend les suites/);
+      expect(screen.getAllByText(/1 afgerond · 1 overgeslagen/).length).toBeGreaterThan(0);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Het traject van het hoofdstuk bekijken" }),
+      );
+      const sheet = await screen.findByRole("dialog");
+      expect(within(sheet).getByText("overgeslagen")).toBeTruthy();
+      expect(within(sheet).getByRole("button", { name: "Verder gaan" })).toBeTruthy();
+      expect(within(sheet).getAllByRole("button", { name: "Overslaan" }).length).toBe(1);
       expect(foreignTextOutside("nl")).toEqual([]);
     }));
 });

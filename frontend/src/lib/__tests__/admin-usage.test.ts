@@ -56,6 +56,10 @@ describe("the address", () => {
     });
   });
 
+  it("knows a révision's turn (spec 020)", () => {
+    expect(parseUsageSearch({ feature: "revision_turn" }).feature).toBe("revision_turn");
+  });
+
   it.each([
     [{ view: "everything" }, "view"],
     [{ period: "yesterday" }, "period"],

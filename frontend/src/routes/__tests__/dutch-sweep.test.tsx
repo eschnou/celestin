@@ -13,9 +13,12 @@ import { withLocale } from "@/test/locale";
 import { mockApi, mountRoutes, type Handler } from "@/test/route-harness";
 import { Route as ChapterFile } from "../_auth/courses/$courseId/chapters/$chapterId/index";
 import { Route as ContentFile } from "../_auth/courses/$courseId/chapters/$chapterId/content";
+import { Route as NotebookFile } from "../_auth/courses/$courseId/chapters/$chapterId/notebook";
 import { Route as CourseFile } from "../_auth/courses/$courseId/index";
 import { Route as CoursesFile } from "../_auth/courses/index";
+import { Route as RevisionFile } from "../_auth/courses/$courseId/revision";
 import { Route as SettingsFile } from "../_auth/settings";
+import { stubLayoutApis } from "@/test/jsdom-stubs";
 
 vi.mock("@/components/celestin/math", () => ({
   Math: ({ tex }: { tex: string }) => <span>{tex}</span>,
@@ -69,7 +72,8 @@ const row = (over: Record<string, unknown> = {}) => ({
 const DETAIL = {
   ...summary,
   chapters: [
-    row(),
+    // One section skipped (spec 019): the row counts it apart.
+    row({ skipped_count: 1 }),
     row({
       id: "h2",
       position: 2,
@@ -165,6 +169,8 @@ const ROUTES = [
   { path: "/courses/$courseId/", file: CourseFile },
   { path: "/courses/$courseId/chapters/$chapterId/", file: ChapterFile },
   { path: "/courses/$courseId/chapters/$chapterId/content", file: ContentFile },
+  { path: "/courses/$courseId/chapters/$chapterId/notebook", file: NotebookFile },
+  { path: "/courses/$courseId/revision", file: RevisionFile },
   { path: "/settings", file: SettingsFile },
 ];
 
@@ -227,6 +233,7 @@ describe("the Dutch sweep: courses", () => {
     withLocale("nl", async () => {
       open("/courses/c1");
       await screen.findByRole("heading", { name: "Fysica 4e jaar" });
+      expect(screen.getAllByText(/2 van 9 afgerond · 1 overgeslagen/).length).toBeGreaterThan(0);
       clean();
       fireEvent.keyDown(screen.getByRole("button", { name: "Acties voor de cursus" }), {
         key: "Enter",
@@ -354,3 +361,181 @@ describe("the Dutch sweep: settings and the user menu", () => {
 });
 
 import { within } from "@testing-library/react";
+
+// --- the cahier (spec 018) ------------------------------------------------------------------
+
+const NOTEBOOK_CHAPTER = {
+  id: "h1",
+  title: "Le mouvement rectiligne uniforme",
+  position: 1,
+  course_id: "c1",
+  course_name: "Physics Year 4",
+  language: "fr",
+  subject: "sciences",
+  sections: [
+    { id: "s1", index: 1, kind: "teach", title: "Vitesse moyenne", goal: "Définir la vitesse." },
+    { id: "s2", index: 2, kind: "practise", title: "Calculer une durée", goal: "g2" },
+  ],
+  progress: { done: ["s1"], active: "s2", skipped: [] },
+};
+
+const NOTEBOOK = {
+  sections: [
+    {
+      section_id: "s1",
+      items: [
+        {
+          kind: "card",
+          card: { kind: "title", eyebrow: "Section 1", title: "Vitesse", objective: "o" },
+        },
+        { kind: "tutor", text: "Voici la définition de la vitesse moyenne." },
+        {
+          kind: "card",
+          card: {
+            kind: "check_question",
+            question: "Quelle est l'unité de la vitesse ?",
+            options: [
+              { id: "a", text: "Le mètre par seconde" },
+              { id: "b", text: "La seconde" },
+            ],
+            correct_option_id: "a",
+            feedback: "Exact : une distance divisée par une durée.",
+          },
+        },
+        { kind: "learner", text: "Le mètre par seconde, je pense." },
+      ],
+    },
+  ],
+};
+
+const notebookApi: Handler = (method, path) => {
+  if (method === "GET" && path.endsWith("/chapters/h1/notebook")) return { body: NOTEBOOK };
+  if (method === "GET" && path.endsWith("/api/courses/c1/chapters/h1"))
+    return { body: NOTEBOOK_CHAPTER };
+  return undefined;
+};
+
+describe("the Dutch sweep: the cahier", () => {
+  it("its sections, the exchange, a revealed answer and the empty state", () =>
+    withLocale("nl", async () => {
+      open("/courses/c1/chapters/h1/notebook", notebookApi);
+      await screen.findByRole("heading", { name: "Vitesse moyenne" });
+      clean();
+      fireEvent.click(screen.getByRole("switch", { name: "Het gesprek tonen" }));
+      await screen.findByText("Le mètre par seconde, je pense.");
+      fireEvent.click(screen.getByRole("button", { name: /La seconde/ }));
+      await screen.findByText(/une distance divisée/);
+      clean();
+      cleanup();
+      open("/courses/c1/chapters/h1/notebook", (method, path) =>
+        method === "GET" && path.endsWith("/chapters/h1/notebook")
+          ? { body: { sections: [] } }
+          : notebookApi(method, path, undefined),
+      );
+      await screen.findByText(/Je schrift is nog leeg/);
+      clean();
+    }));
+});
+
+// --- révision (spec 020) ------------------------------------------------------------------------
+
+const REVISION_CHAPTERS = [
+  {
+    id: "h1",
+    position: 1,
+    title: "De rijen",
+    ready: true,
+    section_count: 2,
+    done_count: 1,
+    skipped_count: 1,
+    sections: [
+      { id: "s1", index: 1, kind: "teach", title: "Een rij definiëren", state: "done" },
+      { id: "s2", index: 2, kind: "practise", title: "Berekenen", state: "skipped" },
+    ],
+  },
+  {
+    id: "h2",
+    position: 2,
+    title: null,
+    ready: false,
+    section_count: 0,
+    done_count: 0,
+    skipped_count: 0,
+    sections: [],
+  },
+];
+
+const LIVE_REVISION = {
+  id: "r1",
+  chapter_ids: ["h1"],
+  entry_count: 4,
+  created_at: "",
+  entries: [
+    { kind: "learner", text: "Ja." },
+    {
+      kind: "tool",
+      name: "record_result",
+      arguments: { chapter: 1, section_id: "s1", outcome: "shaky" },
+      chapter_id: "h1",
+      section_id: "s1",
+      outcome: "shaky",
+      // The backend's form: the section's label after the interface's words (a Dutch course).
+      marker: "genoteerd: wankel · 1. Een rij definiëren",
+    },
+    { kind: "tutor", text: "Vergelijk met je antwoord: gekend, wankel of te herhalen?" },
+  ],
+};
+
+const revisionApi =
+  (live: typeof LIVE_REVISION | null): Handler =>
+  (method, path) => {
+    if (method === "GET" && path.endsWith("/api/courses/c1/revision"))
+      return {
+        body: {
+          revision: live,
+          chapters: REVISION_CHAPTERS,
+          results: [
+            { chapter_id: "h1", section_id: "s1", outcome: "shaky", at: "2026-11-10T10:00:00Z" },
+          ],
+        },
+      };
+    if (method === "POST" && path.endsWith("/api/courses/c1/revision"))
+      return {
+        status: 422,
+        body: {
+          code: "revision_too_large",
+          message: "Deze hoofdstukken zijn te veel leerstof voor één herhaling: kies er minder.",
+        },
+      };
+    return undefined;
+  };
+
+describe("the Dutch sweep: the révision", () => {
+  it("the chooser and a refusal", () =>
+    withLocale("nl", async () => {
+      stubLayoutApis({ desktop: true });
+      open("/courses/c1/revision", revisionApi(null));
+      await screen.findByRole("heading", { name: "Wat wil je herhalen?" });
+      clean();
+      fireEvent.click(screen.getByRole("button", { name: "De herhaling starten" }));
+      await screen.findByRole("alert");
+      clean();
+    }));
+
+  it("a live révision, its « Bilan » and the confirmation to start a new one", () =>
+    withLocale("nl", async () => {
+      stubLayoutApis({ desktop: true });
+      open("/courses/c1/revision", revisionApi(LIVE_REVISION));
+      await screen.findByText(/Vergelijk me/);
+      clean();
+      fireEvent.click(screen.getByRole("button", { name: "Overzicht" }));
+      await screen.findByRole("dialog", { name: "Overzicht van de herhaling" });
+      clean();
+      cleanup();
+      open("/courses/c1/revision", revisionApi(LIVE_REVISION));
+      await screen.findByText(/Vergelijk me/);
+      fireEvent.click(screen.getByRole("button", { name: "Nieuwe herhaling" }));
+      await screen.findByRole("alertdialog");
+      clean();
+    }));
+});

@@ -1,0 +1,4 @@
+État du parcours : 1 section(s) faite(s) et 1 passée(s) sur 3.
+Sections passées : « 2. Exercices ».
+Aucune section en cours. Prochaine : « 3. Synthèse » (synthèse).
+Commence-la avec start_section("bilan").

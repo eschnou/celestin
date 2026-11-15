@@ -13,7 +13,8 @@ from pydantic import BaseModel, ConfigDict
 
 from app.domain.language import by_language
 from app.domain.marker import Marker
-from app.services.tools.context import TurnContext
+from app.api.schemas.chat import ToolEntry
+from app.services.tools.context import Shown, StoredView, TurnContext
 
 
 class ProposeNextStepArgs(BaseModel):
@@ -33,5 +34,12 @@ _OUTPUT = by_language(
 )
 
 
+STEP_READY = Marker("marker.step_ready")
+
+
 def propose_next_step(_: ProposeNextStepArgs, ctx: TurnContext) -> NextStepProposed:
-    return NextStepProposed(marker=Marker("marker.step_ready"), output=_OUTPUT[ctx.language])
+    return NextStepProposed(marker=STEP_READY, output=_OUTPUT[ctx.language])
+
+
+def shown_propose(_: ToolEntry, __: StoredView) -> Shown:
+    return Shown(STEP_READY)

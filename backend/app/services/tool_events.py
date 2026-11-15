@@ -8,8 +8,10 @@ from __future__ import annotations
 
 from app.api.schemas.events import (
     BoardClearEvent,
+    RevisionResultEvent,
     BoardSetEvent,
     SectionDoneEvent,
+    SectionSkippedEvent,
     SectionStartEvent,
     StepReadyEvent,
     TurnEvent,
@@ -18,7 +20,8 @@ from app.domain.locale import DEFAULT_LOCALE, Locale
 from app.services.tools.board import BoardCleared, BoardSet
 from app.services.tools.pace import NextStepProposed
 from app.services.tools.registry import ToolOutcome
-from app.services.tools.section import SectionCompleted, SectionStarted
+from app.services.tools.result import ResultRecorded
+from app.services.tools.section import SectionCompleted, SectionSkipped, SectionStarted
 
 
 def event_of(outcome: ToolOutcome, locale: Locale = DEFAULT_LOCALE) -> TurnEvent:
@@ -40,5 +43,21 @@ def event_of(outcome: ToolOutcome, locale: Locale = DEFAULT_LOCALE) -> TurnEvent
             section_id=outcome.section.id,
             next_section_id=outcome.next.id if outcome.next else None,
             marker=marker,
+        )
+    if isinstance(outcome, SectionSkipped):
+        return SectionSkippedEvent(
+            section_id=outcome.section.id,
+            next_section_id=outcome.next.id if outcome.next else None,
+            active_section_id=outcome.active.id if outcome.active else None,
+            marker=marker,
+        )
+    if isinstance(outcome, ResultRecorded):
+        return RevisionResultEvent(
+            chapter_id=outcome.chapter.id,
+            section_id=outcome.section.id,
+            outcome=outcome.outcome,
+            marker=marker,
+            chapter=outcome.chapter.number,
+            tally=dict(outcome.tally),
         )
     raise TypeError(f"no event for outcome {type(outcome).__name__}")

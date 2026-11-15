@@ -1,0 +1,3 @@
+Section passée. Prochaine section : « 3. Synthèse » (synthèse), id : bilan.
+Section passée. Section toujours en cours : « 2. Exercices » (exercices), id : exos.
+Section passée. Chapitre terminé : toutes les sections sont faites ou passées.

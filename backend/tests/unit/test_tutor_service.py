@@ -12,6 +12,7 @@ from app.api.schemas.events import (
     BoardSetEvent,
     ErrorEvent,
     SectionDoneEvent,
+    SectionSkippedEvent,
     SectionStartEvent,
     StepReadyEvent,
     TextDeltaEvent,
@@ -206,6 +207,7 @@ async def test_tools_are_declared_on_every_round(courses: None) -> None:
         "start_section",
         "complete_section",
         "propose_next_step",
+        "skip_section",
     ]
 
 
@@ -234,14 +236,46 @@ async def test_start_section_emits_event_and_brief(courses: None) -> None:
     assert "Déroulé" in result["result"]
 
 
-async def test_locked_section_is_refused_without_event(courses: None) -> None:
+async def test_a_later_section_opens_without_a_refusal(courses: None) -> None:
+    """Spec 019 D1: the path is open; only an unknown id is refused."""
     llm = FakeLLM([[call("start_section", {"section_id": "bilan"}), Completed()], [Completed()]])
+    events = await drain(build(llm, courses))
+    started = next(e for e in events if isinstance(e, SectionStartEvent))
+    assert (started.section_id, started.review) == ("bilan", False)
+    outputs = [i for i in llm.calls[1]["input"] if i.get("type") == "function_call_output"]
+    assert json.loads(outputs[0]["output"])["ok"] is True
+
+
+async def test_an_unknown_section_is_refused_without_event(courses: None) -> None:
+    llm = FakeLLM([[call("start_section", {"section_id": "nope"}), Completed()], [Completed()]])
     events = await drain(build(llm, courses))
     assert not [e for e in events if isinstance(e, SectionStartEvent)]
     outputs = [i for i in llm.calls[1]["input"] if i.get("type") == "function_call_output"]
     result = json.loads(outputs[0]["output"])
     assert result["ok"] is False
     assert "intro" in result["error"]
+
+
+async def test_skip_section_emits_its_event_and_says_what_comes_next(courses: None) -> None:
+    llm = FakeLLM([[call("skip_section", {"section_id": "intro"}), Completed()], [Completed()]])
+    events = await drain(build(llm, courses), progress=ProgressDTO(active="intro"))
+    skipped = next(e for e in events if isinstance(e, SectionSkippedEvent))
+    assert (skipped.section_id, skipped.next_section_id) == ("intro", "exos")
+    assert skipped.marker == "section passée · 1. Introduction"
+    outputs = [i for i in llm.calls[1]["input"] if i.get("type") == "function_call_output"]
+    result = json.loads(outputs[0]["output"])
+    assert result == {"ok": True, "result": "Section passée. Prochaine section : « 2. Exercices » (exercices), id : exos."}
+
+
+async def test_skip_of_a_done_section_is_refused_without_event(courses: None) -> None:
+    llm = FakeLLM([[call("skip_section", {"section_id": "intro"}), Completed()], [Completed()]])
+    events = await drain(build(llm, courses), progress=ProgressDTO(done=["intro"]))
+    assert not [e for e in events if isinstance(e, SectionSkippedEvent)]
+    outputs = [i for i in llm.calls[1]["input"] if i.get("type") == "function_call_output"]
+    assert json.loads(outputs[0]["output"]) == {
+        "ok": False,
+        "error": "La section « 1. Introduction » est déjà faite : elle ne peut pas être passée.",
+    }
 
 
 async def test_complete_then_start_in_one_turn_sees_the_new_state(courses: None) -> None:
@@ -386,3 +420,20 @@ async def test_a_failing_provider_round_is_a_failed_row_and_the_usual_error() ->
     with pytest.raises(ProviderRateLimited):
         await drain_for(service, "u1")
     assert [(e.status, e.error_code) for e in sink.entries] == [("failed", "provider_rate_limited")]
+
+
+async def test_a_revision_turn_has_its_own_feature_a_course_and_no_chapter() -> None:
+    """Spec 020: a révision is a course's, not a chapter's; the ledger records its turns with role tutor."""
+    from app.services.prompts import PromptLibrary
+    from app.config import get_settings
+    from app.services.tools.context import TurnContext as Context
+    from scripts.chapter_files import load_revision
+
+    sink = _Sink()
+    service = recorded([[TextDelta("x"), Completed()]], sink)
+    scope = load_revision("mathematics", PromptLibrary(get_settings().prompts_dir))
+    ctx = Context(user_id="u1", course_id="c1", mode="revision", revision=scope)
+    [event async for event in service.run_turn([], ctx)]
+    assert [(e.feature, e.role, e.course_id, e.chapter_id) for e in sink.entries] == [
+        ("revision_turn", "tutor", "c1", None)
+    ]

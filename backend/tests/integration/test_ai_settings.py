@@ -150,16 +150,16 @@ async def test_a_saved_configuration_opens_the_gated_routes_without_a_restart(ap
     llm = FakeLLM([[TextDelta("Bonjour"), Completed()]])
     app.dependency_overrides[get_llm] = lambda: llm
     async with client_as(app, "student") as student:
-        refused = await student.post("/api/chat", json={**LESSON, "history": []})
+        refused = await student.post("/api/chat", json={**LESSON, "message": None})
         assert refused.status_code == 503 and refused.json()["code"] == "ai_not_configured"
         assert (await admin.put(URL, json=openai_body())).status_code == 200
-        opened = await student.post("/api/chat", json={**LESSON, "history": []})
+        opened = await student.post("/api/chat", json={**LESSON, "message": None})
         assert opened.status_code == 200 and "Bonjour" in opened.text
         health = (await student.get("/api/health")).json()
         assert health["ai_configured"] is True and health["voice"] is True
         # Back to no key: the same route refuses again.
         assert (await admin.put(URL, json=openai_body(key=None) | {"default": {"base_url": OPENAI, "clear_key": True}})).status_code == 200
-        assert (await student.post("/api/chat", json={**LESSON, "history": []})).status_code == 503
+        assert (await student.post("/api/chat", json={**LESSON, "message": None})).status_code == 503
 
 
 async def test_a_role_connection_round_trips(admin) -> None:

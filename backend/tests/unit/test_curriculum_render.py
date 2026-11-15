@@ -57,8 +57,8 @@ def test_review_brief() -> None:
 
 
 def test_completion() -> None:
-    assert "id : exos" in render.completion(CUR, Progress(done=frozenset({"intro"})))
-    assert render.completion(CUR, Progress(done=frozenset({"intro", "exos", "bilan"}))) == (
+    assert "id : exos" in render.completion(None, CUR.get("exos"))
+    assert render.completion(None, None) == (
         "Section terminée. Chapitre terminé."
     )
 

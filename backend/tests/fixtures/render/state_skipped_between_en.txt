@@ -1,0 +1,4 @@
+Path status: 1 section(s) done and 1 skipped out of 3.
+Skipped sections: “2. Exercises”.
+No section in progress. Next: “3. Summary” (summary).
+Start it with start_section("bilan").

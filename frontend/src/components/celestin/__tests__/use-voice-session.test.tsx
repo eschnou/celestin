@@ -4,8 +4,6 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RealtimeClientEvent, RealtimeServerEvent } from "@/lib/tutor/voice/realtime";
 
-vi.mock("@/lib/tutor/discussion", () => ({ recordVoiceTurn: vi.fn(async () => {}) }));
-import { recordVoiceTurn } from "@/lib/tutor/discussion";
 import type { CloseReason } from "@/lib/tutor/voice/session";
 import type { ToolResult, VoiceSessionInfo } from "@/lib/tutor/voice/types";
 import {
@@ -129,6 +127,7 @@ function harness(
       return next;
     }),
     reportUsage: vi.fn(),
+    reportTurn: vi.fn(async (_scope: LessonScope, _entries: HistoryEntry[]) => {}),
   };
   const deps: VoiceDeps = {
     supported: overrides.supported ?? true,
@@ -207,9 +206,8 @@ describe("useVoiceSession", () => {
     const h = harness();
     await h.start();
     expect(h.hook.result.current.phase).toBe("listening");
-    expect(h.api.createVoiceSession).toHaveBeenCalledWith(SCOPE, [
-      { kind: "learner", text: "salut" },
-    ]);
+    // No transcript in the request: the server seeds the call from the stored séance (018).
+    expect(h.api.createVoiceSession).toHaveBeenCalledWith(SCOPE);
     expect(h.dispatched).toEqual([{ event: "voice.on" }]);
     expect(h.call.sent).toEqual([
       { type: "conversation.item.create", item: { type: "message", role: "system" } },
@@ -261,7 +259,7 @@ describe("useVoiceSession", () => {
     h.toolResults.push({
       output: '{"ok":true}',
       event: { event: "section.start", section_id: "suites", review: false, marker: "m" },
-      progress: { done: [], active: "suites" },
+      progress: { done: [], active: "suites", skipped: [] },
       stateText: "État",
     });
     h.emit([
@@ -294,6 +292,37 @@ describe("useVoiceSession", () => {
     expect(h.hook.result.current.phase).toBe("listening");
   });
 
+  it("dispatches a spoken skip like the other section tools (spec 019)", async () => {
+    const h = harness();
+    await h.start();
+    h.call.sent.length = 0;
+    const skipped = {
+      event: "section.skipped",
+      section_id: "suites",
+      next_section_id: "limites",
+      active_section_id: null,
+      marker: "section passée",
+    } as const;
+    h.toolResults.push({
+      output: '{"ok":true}',
+      event: skipped,
+      progress: { done: [], active: null, skipped: ["suites"] },
+    });
+    h.emit([
+      { type: "response.created", response: { id: "r1" } },
+      FC("skip_section", '{"section_id":"suites"}'),
+      { type: "response.done", response: { id: "r1", status: "completed" } },
+    ]);
+    await h.flush();
+    expect(h.api.executeTool).toHaveBeenCalledWith(
+      "s1",
+      { callId: "c1", name: "skip_section", arguments: '{"section_id":"suites"}' },
+      SCOPE,
+    );
+    expect(h.dispatched.slice(1)).toEqual([{ event: "turn.start", turn_id: "r1" }, skipped]);
+    expect(h.call.sent.at(-1)).toEqual({ type: "response.create" });
+  });
+
   it("executes two calls of one response serially, in scope", async () => {
     const h = harness();
     await h.start();
@@ -301,9 +330,9 @@ describe("useVoiceSession", () => {
       {
         output: "{}",
         event: { event: "section.start", section_id: "suites", review: false, marker: "m" },
-        progress: { done: [], active: "suites" },
+        progress: { done: [], active: "suites", skipped: [] },
       },
-      { output: "{}", event: null, progress: { done: [], active: "suites" } },
+      { output: "{}", event: null, progress: { done: [], active: "suites", skipped: [] } },
     );
     h.emit([
       { type: "response.created", response: { id: "r1" } },
@@ -595,8 +624,8 @@ describe("a spoken turn in a discussion", () => {
     s.emit([{ type: "response.done", response: { status: "completed" } } as never]);
     await s.flush();
 
-    expect(recordVoiceTurn).toHaveBeenCalledTimes(1);
-    const [scope, entries] = vi.mocked(recordVoiceTurn).mock.calls[0]!;
+    expect(s.api.reportTurn).toHaveBeenCalledTimes(1);
+    const [scope, entries] = s.api.reportTurn.mock.calls[0]!;
     expect(scope.conversationId).toBe("conv1");
     expect(entries).toEqual([
       { kind: "learner", text: "et les suites géométriques ?" },
@@ -610,7 +639,7 @@ describe("a spoken turn in a discussion", () => {
     await s.start();
     s.emit([{ type: "response.done", response: { status: "completed" } } as never]);
     await s.flush();
-    expect(vi.mocked(recordVoiceTurn).mock.calls[0]![1]).toEqual([]);
+    expect(s.api.reportTurn.mock.calls[0]![1]).toEqual([]);
   });
 
   it("reports only what is new on the next turn", async () => {
@@ -622,16 +651,70 @@ describe("a spoken turn in a discussion", () => {
     s.emit([{ type: "response.done", response: { status: "completed" } } as never]);
     await s.flush();
 
-    expect(vi.mocked(recordVoiceTurn).mock.calls[1]![1]).toEqual([
-      { kind: "tutor", text: "Et ensuite ?" },
+    expect(s.api.reportTurn.mock.calls[1]![1]).toEqual([{ kind: "tutor", text: "Et ensuite ?" }]);
+  });
+});
+
+// --- the parcours (018): the server holds the séance, so spoken turns are reported too ---
+
+describe("a spoken turn in the parcours", () => {
+  it("reports what the call added through the same path, with the parcours scope", async () => {
+    const s = harness();
+    await s.start();
+    s.history.push({ kind: "learner", text: "on commence ?" });
+    s.history.push({
+      kind: "tool",
+      name: "start_section",
+      arguments: { section_id: "suites" },
+      ok: true,
+      review: false,
+    });
+    s.history.push({ kind: "tutor", text: "C'est parti." });
+    s.emit([{ type: "response.done", response: { status: "completed" } } as never]);
+    await s.flush();
+
+    expect(s.api.reportTurn).toHaveBeenCalledTimes(1);
+    const [scope, entries] = s.api.reportTurn.mock.calls[0]!;
+    expect(scope).toEqual(SCOPE);
+    expect(scope.mode).toBeUndefined();
+    expect(entries).toEqual([
+      { kind: "learner", text: "on commence ?" },
+      {
+        kind: "tool",
+        name: "start_section",
+        arguments: { section_id: "suites" },
+        ok: true,
+        review: false,
+      },
+      { kind: "tutor", text: "C'est parti." },
+    ]);
+    // What was there before the call is already stored.
+    expect(entries).not.toContainEqual({ kind: "learner", text: "salut" });
+  });
+
+  it("reports a spoken skip with the other tool calls", async () => {
+    const s = harness();
+    await s.start();
+    const skip = {
+      kind: "tool" as const,
+      name: "skip_section",
+      arguments: { section_id: "suites" },
+      ok: true,
+      next_section_id: "limites",
+      active_section_id: null,
+    };
+    s.history.push({ kind: "learner", text: "celle-là je l'ai vue en classe" }, skip);
+    s.emit([{ type: "response.done", response: { status: "completed" } } as never]);
+    await s.flush();
+    expect(s.api.reportTurn.mock.calls[0]![1]).toEqual([
+      { kind: "learner", text: "celle-là je l'ai vue en classe" },
+      skip,
     ]);
   });
 
-  it("reports nothing in the parcours, where the browser owns the transcript", async () => {
+  it("never sends the transcript with the session request", async () => {
     const s = harness();
     await s.start();
-    s.emit([{ type: "response.done", response: { status: "completed" } } as never]);
-    await s.flush();
-    expect(recordVoiceTurn).not.toHaveBeenCalled();
+    expect(s.api.createVoiceSession.mock.calls[0]).toEqual([SCOPE]);
   });
 });

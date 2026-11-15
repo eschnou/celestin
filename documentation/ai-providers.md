@@ -129,7 +129,7 @@ holds, so the report is about what a student's request will use:
 
 | Role | Check | Failure codes |
 |---|---|---|
-| tutor | Streams one request with the application's own five tools and needs a **valid** `display_board` call | `no_tool_calls`, `tool_arguments` |
+| tutor | Streams one request with the application's own six tools and needs a **valid** `display_board` call | `no_tool_calls`, `tool_arguments` |
 | authoring | A tiny answer that must follow a schema (or JSON mode) | `schema_unsupported` |
 | transcription | A generated PNG of « 42 » that must be read | `no_image_input` |
 | voice | A Realtime client secret must be mintable (no audio) | `other` |

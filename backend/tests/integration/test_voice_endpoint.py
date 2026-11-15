@@ -10,11 +10,11 @@ import pytest
 from httpx import AsyncClient
 
 from app.domain.errors import ProviderUnavailable
-from tests.conftest import CARD
+from tests.conftest import CARD, seed_seance
 from tests.fixtures.fake_realtime import ExplodingRealtime, FakeRealtime
 
 IDS = LESSON
-EMPTY = {**IDS, "history": []}
+EMPTY = {**IDS}
 
 
 async def test_session_shape_and_headers(make_voice_client, caplog: pytest.LogCaptureFixture) -> None:
@@ -36,15 +36,20 @@ async def test_session_shape_and_headers(make_voice_client, caplog: pytest.LogCa
     assert realtime.sessions[0]["tools"][0]["name"] == "display_board"
 
 
-async def test_session_with_history_is_not_opening(make_voice_client) -> None:
+async def test_session_with_a_stored_seance_is_not_opening(make_voice_client) -> None:
+    """Spec 018: the parcours session is seeded from the live séance, not from a posted transcript."""
     async with make_voice_client(FakeRealtime()) as client:
-        r = await client.post(
-            "/api/voice/session",
-            json={**IDS, "history": [{"kind": "learner", "text": "Bonjour"}]},
-        )
+        seed_seance(client.app, client.user["id"], [{"kind": "learner", "text": "Bonjour"}])
+        r = await client.post("/api/voice/session", json=EMPTY)
     assert r.status_code == 201
     assert r.json()["opening"] is False
     assert r.json()["seed"][0]["role"] == "user"
+
+
+async def test_a_posted_history_is_refused(make_voice_client) -> None:
+    async with make_voice_client(FakeRealtime()) as client:
+        r = await client.post("/api/voice/session", json={**IDS, "history": []})
+    assert r.status_code == 422
 
 
 async def test_session_rate_limited(make_voice_client) -> None:
@@ -98,11 +103,54 @@ async def test_tool_start_section_golden(make_voice_client) -> None:
     body = r.json()
     assert body["event"]["event"] == "section.start"
     assert body["event"]["section_id"] == "suites" and body["event"]["review"] is False
-    assert body["progress"] == {"done": [], "active": "suites"}
+    assert body["progress"] == {"done": [], "active": "suites", "skipped": []}
     assert json.loads(body["output"])["ok"] is True
     assert "Section en cours" in body["state_text"]
     stored = client.app.state.repos.progress.load(client.user["id"], CHAPTER_ID)
     assert stored and stored.progress.active == "suites"
+
+
+async def test_tool_skip_section_golden(make_voice_client) -> None:
+    """Spec 019: a spoken « on passe » goes through the same tool and event as a typed one."""
+    async with make_voice_client(FakeRealtime()) as client:
+        start = {**IDS, "session_id": "s", "call_id": "c1", "name": "start_section",
+                 "arguments": json.dumps({"section_id": "suites"})}
+        assert (await client.post("/api/voice/tool", json=start)).status_code == 200
+        r = await client.post(
+            "/api/voice/tool",
+            json={**IDS, "session_id": "s", "call_id": "c2", "name": "skip_section",
+                  "arguments": json.dumps({"section_id": "suites"})},
+        )
+        again = await client.post(
+            "/api/voice/tool",
+            json={**IDS, "session_id": "s", "call_id": "c3", "name": "skip_section",
+                  "arguments": json.dumps({"section_id": "suites"})},
+        )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["event"] == {
+        "event": "section.skipped",
+        "section_id": "suites",
+        "next_section_id": "sa-definition",
+        "active_section_id": None,
+        "marker": "section passée · 1. Suites numériques",
+    }
+    assert body["progress"] == {"done": [], "active": None, "skipped": ["suites"]}
+    assert json.loads(body["output"])["result"].startswith("Section passée. Prochaine section :")
+    assert "1 passée(s)" in body["state_text"]
+    # Idempotent: the same event, no progress move, so no new state text.
+    assert again.json()["event"] == body["event"] and again.json()["state_text"] is None
+    stored = client.app.state.repos.progress.load(client.user["id"], CHAPTER_ID)
+    assert stored and stored.progress.skipped == frozenset({"suites"}) and stored.progress.active is None
+
+
+async def test_a_parcours_voice_session_declares_skip_section_last(make_voice_client) -> None:
+    realtime = FakeRealtime()
+    async with make_voice_client(realtime) as client:
+        assert (await client.post("/api/voice/session", json=EMPTY)).status_code == 201
+    tools = [t["name"] for t in realtime.sessions[-1]["tools"]]
+    assert tools[-1] == "skip_section" and len(tools) == 6
+    assert "skip_section" in realtime.sessions[-1]["instructions"]
 
 
 async def test_tool_display_board_golden(make_voice_client) -> None:
@@ -248,7 +296,7 @@ async def test_voice_limiter_is_per_user(make_voice_client) -> None:
         assert (await client.post("/api/voice/session", json=EMPTY)).status_code == 429
         bob, other = sign_in(client.app, email="bob@example.be", name="Bob", lesson=False)
         course_id, chapter_id = seed_lesson(client.app, bob["id"])
-        body = {"course_id": course_id, "chapter_id": chapter_id, "history": []}
+        body = {"course_id": course_id, "chapter_id": chapter_id}
         assert (await client.post("/api/voice/session", json=body, headers=other)).status_code == 201
 
 
@@ -282,7 +330,7 @@ async def test_a_discussion_session_declares_only_the_board_tools(make_voice_cli
         conversation = await _conversation(client)
         r = await client.post(
             "/api/voice/session",
-            json={**IDS, "history": [], "mode": "discussion", "conversation_id": conversation},
+            json={**IDS, "mode": "discussion", "conversation_id": conversation},
         )
     assert r.status_code == 201
     tools = [t["name"] for t in realtime.sessions[-1]["tools"]]
@@ -306,7 +354,7 @@ async def test_a_discussion_session_is_seeded_from_the_stored_conversation(make_
         )
         r = await client.post(
             "/api/voice/session",
-            json={**IDS, "history": [], "mode": "discussion", "conversation_id": conversation},
+            json={**IDS, "mode": "discussion", "conversation_id": conversation},
         )
     body = r.json()
     assert body["opening"] is False
@@ -316,19 +364,20 @@ async def test_a_discussion_session_is_seeded_from_the_stored_conversation(make_
 async def test_a_discussion_session_needs_a_conversation(make_voice_client) -> None:
     async with make_voice_client(FakeRealtime()) as client:
         missing = await client.post(
-            "/api/voice/session", json={**IDS, "history": [], "mode": "discussion"}
+            "/api/voice/session", json={**IDS, "mode": "discussion"}
         )
         unknown = await client.post(
             "/api/voice/session",
-            json={**IDS, "history": [], "mode": "discussion", "conversation_id": "0" * 32},
+            json={**IDS, "mode": "discussion", "conversation_id": "0" * 32},
         )
     assert missing.status_code == 404 and unknown.status_code == 404
 
 
+@pytest.mark.parametrize("name", ["start_section", "skip_section"])
 async def test_a_section_tool_is_refused_from_a_discussion_and_writes_no_progress(
-    make_voice_client,
+    make_voice_client, name: str
 ) -> None:
-    """The browser sends the tool name, so the gate has to be here (007 §3.5)."""
+    """The browser sends the tool name, so the gate has to be here (007 §3.5; `skip_section`, spec 019)."""
     async with make_voice_client(FakeRealtime()) as client:
         r = await client.post(
             "/api/voice/tool",
@@ -336,7 +385,7 @@ async def test_a_section_tool_is_refused_from_a_discussion_and_writes_no_progres
                 **IDS,
                 "mode": "discussion",
                 "call_id": "c1",
-                "name": "start_section",
+                "name": name,
                 "arguments": json.dumps({"section_id": "suites"}),
             },
         )
@@ -378,7 +427,7 @@ async def test_a_spoken_turn_is_appended_to_the_conversation(make_voice_client) 
             },
         )
         stored = client.app.state.repos.conversations.get_owned(
-            client.user["id"], client.chapter_id, conversation
+            client.user["id"], client.chapter_id, conversation, mode="discussion"
         )
     assert r.status_code == 204
     assert stored is not None and stored.entry_count == 2

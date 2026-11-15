@@ -73,7 +73,7 @@ async def test_a_turn_with_a_tool_call_streams_text_and_a_board(settings, db_eng
     app, requests = chat_app(settings, db_engine, rounds)
     assert app.state.hub.config.tutor.connection.api_style == "chat"
     async with _client_for(app, anonymous=False) as client:
-        r = await client.post("/api/chat", json={**LESSON, "history": []})
+        r = await client.post("/api/chat", json={**LESSON, "message": None})
     assert r.status_code == 200
     frames = sse_frames(r.text)
     assert [name for name, _ in frames] == ["turn.start", "text.delta", "board.set", "text.delta", "turn.end"]
@@ -101,7 +101,7 @@ async def test_a_refused_tool_call_is_handed_back_to_the_model(settings, db_engi
     ]
     app, requests = chat_app(settings, db_engine, rounds)
     async with _client_for(app, anonymous=False) as client:
-        r = await client.post("/api/chat", json={**LESSON, "history": []})
+        r = await client.post("/api/chat", json={**LESSON, "message": None})
     assert r.status_code == 200 and "Je corrige." in r.text
     answer = next(m for m in requests[1]["messages"] if m["role"] == "tool")
     assert json.loads(answer["content"])["ok"] is False  # the validation error went back as the tool result
@@ -110,7 +110,7 @@ async def test_a_refused_tool_call_is_handed_back_to_the_model(settings, db_engi
 async def test_a_provider_failure_is_the_usual_error(settings, db_engine) -> None:
     app, _ = chat_app(settings, db_engine, [[chunk("début"), chunk(finish="length")]])
     async with _client_for(app, anonymous=False) as client:
-        r = await client.post("/api/chat", json={**LESSON, "history": []})
+        r = await client.post("/api/chat", json={**LESSON, "message": None})
     frames = sse_frames(r.text)
     assert [name for name, _ in frames][-2:] == ["error", "turn.end"]
     assert frames[-2][1]["code"] == "provider_unavailable" and frames[-1][1]["reason"] == "end"

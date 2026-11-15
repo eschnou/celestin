@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { markTerm, splitInlineMath } from "../board-blocks";
+import { markBold, markTerm, splitInlineMath } from "../board-blocks";
 
 const values = (s: string) => splitInlineMath(s).map((p) => [p.math, p.value]);
 
@@ -159,6 +159,36 @@ describe("markTerm", () => {
   it("changes nothing when the term is missing", () => {
     expect(marked("Un élément de la population.", "individu")).toEqual([
       ["Un élément de la population.", false],
+    ]);
+  });
+});
+
+describe("markBold", () => {
+  const bold = (text: string) =>
+    markBold(splitInlineMath(text)).map((p) => [p.value, p.math, p.strong === true]);
+
+  it("sets the prose between two ** in bold", () => {
+    expect(bold("Une suite est **arithmétique** si…")).toEqual([
+      ["Une suite est ", false, false],
+      ["arithmétique", false, true],
+      [" si…", false, false],
+    ]);
+  });
+
+  it("keeps maths maths, inside a bold span or not, and never reads ** in it", () => {
+    expect(bold("**la raison $q$** et $a**b$")).toEqual([
+      ["la raison ", false, true],
+      ["q", true, false],
+      [" et ", false, false],
+      ["a**b", true, false],
+    ]);
+  });
+
+  it("leaves a lone ** literal, as a pair still streaming", () => {
+    expect(bold("Retiens **ceci")).toEqual([["Retiens **ceci", false, false]]);
+    expect(bold("**a** et **b")).toEqual([
+      ["a", false, true],
+      [" et **b", false, false],
     ]);
   });
 });

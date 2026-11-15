@@ -72,7 +72,7 @@ async def test_the_body_limit_refusal_follows_the_header(make_client) -> None:
     from tests.fixtures.fake_llm import FakeLLM
 
     client, _ = make_client(FakeLLM([]))
-    big = {**LESSON, "history": [{"kind": "learner", "text": "x" * 1_100_000}]}
+    big = {**LESSON, "message": "x" * 1_100_000}
     async with client:
         r = await client.post("/api/chat", json=big, headers=EN)
         assert r.status_code == 413 and r.json()["code"] == "payload_too_large"
@@ -84,7 +84,7 @@ async def test_the_body_limit_refusal_follows_the_header(make_client) -> None:
 async def test_an_error_event_in_a_stream_follows_the_account(make_client) -> None:
     client, _ = make_client(ExplodingLLM(ProviderRateLimited()), locale="en")
     async with client:
-        r = await client.post("/api/chat", json={**LESSON, "history": []}, headers=FR_HEADER)
+        r = await client.post("/api/chat", json={**LESSON, "message": None}, headers=FR_HEADER)
     error = next(data for name, data in frames(r.text) if name == "error")
     assert error["code"] == "provider_rate_limited"
     assert error["message"] == "Too many requests at once. Wait a few seconds and try again."
@@ -93,7 +93,7 @@ async def test_an_error_event_in_a_stream_follows_the_account(make_client) -> No
 async def test_an_error_event_in_a_stream_is_french_by_default(make_client) -> None:
     client, _ = make_client(ExplodingLLM(ProviderRateLimited()))
     async with client:
-        r = await client.post("/api/chat", json={**LESSON, "history": []})
+        r = await client.post("/api/chat", json={**LESSON, "message": None})
     error = next(data for name, data in frames(r.text) if name == "error")
     assert "Attends quelques secondes" in error["message"]
 

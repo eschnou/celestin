@@ -6,6 +6,7 @@ from app.api.schemas.events import (
     BoardClearEvent,
     BoardSetEvent,
     SectionDoneEvent,
+    SectionSkippedEvent,
     SectionStartEvent,
     StepReadyEvent,
 )
@@ -42,3 +43,14 @@ def test_section_done_names_the_next() -> None:
 
 def test_step_ready() -> None:
     assert isinstance(event_of(registry.execute("propose_next_step", "{}", ctx_for())), StepReadyEvent)
+
+
+def test_section_skipped_names_the_next_only_when_nothing_is_active() -> None:
+    """Spec 019: skipping another section does not turn the page of the one being worked."""
+    ev = event_of(registry.execute("skip_section", '{"section_id":"intro"}', ctx_for(Progress(active="intro"))))
+    assert isinstance(ev, SectionSkippedEvent)
+    assert (ev.section_id, ev.next_section_id, ev.marker) == ("intro", "exos", "section passée · 1. Introduction")
+    ev = event_of(registry.execute("skip_section", '{"section_id":"exos"}', ctx_for(Progress(active="intro"))), "en")
+    assert (ev.section_id, ev.next_section_id, ev.marker) == ("exos", None, "section skipped · 2. Exercices")
+    last = ctx_for(Progress(done=frozenset({"intro", "exos"})))
+    assert event_of(registry.execute("skip_section", '{"section_id":"bilan"}', last)).next_section_id is None

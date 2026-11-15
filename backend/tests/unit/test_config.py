@@ -10,7 +10,6 @@ def test_defaults_applied() -> None:
     assert s.openai_model == "gpt-6.1-sol"
     assert s.max_tool_rounds == 6
     assert s.max_message_chars == 4000
-    assert s.max_history_entries == 400
     assert s.history_token_budget == 30_000
     assert s.debug_log_prompts is False
 
@@ -151,6 +150,16 @@ def test_discussion_limits_come_from_the_environment(monkeypatch) -> None:
     monkeypatch.setenv("DISCUSSION_CONVERSATIONS_PER_DAY", "3")
     s = Settings(_env_file=None)
     assert s.discussion_max_entries == 12 and s.discussion_conversations_per_day == 3
+
+
+def test_revision_defaults_and_environment(monkeypatch) -> None:
+    """Spec 020 D2, D6: the packs a révision carries, and how many start per day."""
+    s = Settings(_env_file=None)
+    assert (s.revision_max_pack_chars, s.revision_sessions_per_day) == (120_000, 10)
+    monkeypatch.setenv("REVISION_MAX_PACK_CHARS", "50000")
+    monkeypatch.setenv("REVISION_SESSIONS_PER_DAY", "2")
+    s = Settings(_env_file=None)
+    assert (s.revision_max_pack_chars, s.revision_sessions_per_day) == (50_000, 2)
 
 
 @pytest.mark.parametrize(

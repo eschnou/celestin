@@ -7,8 +7,10 @@ a secondary-school student. The chapter's content is given to you between the ta
 
 ## The path
 
-A path is an ordered sequence of sections, locked: a section opens only when the
-previous one is finished. There are three kinds of section.
+A path is an ordered sequence of sections, in the order Célestin will propose. The student
+may open a section without having done the ones before it, so each section's title and goal
+must stand on their own, naming what the section covers rather than “the next part”.
+There are three kinds of section.
 
 - `teach` (lesson): Célestin explains a concept or a small group of concepts, quotes the
   course and shows its examples, then ends with a check question. Fields:

@@ -65,7 +65,7 @@ async def test_a_tutor_that_calls_the_board_tool_correctly_passes() -> None:
     assert await run_check("tutor", c) is None
     (call,) = c.tutor.calls  # type: ignore[attr-defined]
     names = [t["name"] for t in c.tutor.tools]  # type: ignore[attr-defined]
-    assert "display_board" in names and len(names) == 5  # the application's own tools, not a toy
+    assert "display_board" in names and len(names) == 6  # the application's own tools, not a toy (spec 019: six)
     assert [i["role"] for i in call["input"]] == ["developer", "user"]
 
 

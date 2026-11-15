@@ -1,0 +1,7 @@
+Path status: 1 section(s) done and 1 skipped out of 3.
+Skipped sections: “2. Exercises”.
+No section in progress. The next would be “3. Summary” (summary), to do in the path.
+---
+Path status: 2 section(s) done and 1 skipped out of 3.
+Skipped sections: “2. Exercises”.
+Chapter finished: every section is done or skipped.

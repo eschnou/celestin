@@ -14,7 +14,9 @@ import {
   ANSWER_MESSAGE,
   NEXT_SECTION_MESSAGE,
   NEXT_STEP_MESSAGE,
+  RESUME_MESSAGE,
   REVIEW_MESSAGE,
+  SKIP_MESSAGE,
   START_MESSAGE,
   VOICE_TOOL_FAILED,
   LEARNER_SENTENCES,
@@ -28,6 +30,8 @@ describe("the learner's sentences", () => {
   const all = () => [
     REVIEW_MESSAGE("Suites"),
     START_MESSAGE("Suites"),
+    RESUME_MESSAGE("Suites"),
+    SKIP_MESSAGE("Suites"),
     NEXT_STEP_MESSAGE,
     NEXT_SECTION_MESSAGE,
     ANSWER_MESSAGE("Oui"),
@@ -38,6 +42,8 @@ describe("the learner's sentences", () => {
     expect(all()).toEqual([
       "Je voudrais revoir la section « Suites ».",
       "On commence la section « Suites » ?",
+      "On reprend la section « Suites » ?",
+      "Je passe la section « Suites ».",
       "Étape suivante.",
       "Section suivante.",
       "Ma réponse à la question : « Oui ».",
@@ -59,6 +65,8 @@ describe("the learner's sentences, per course language", () => {
     return [
       said.review("Sequences"),
       said.start("Sequences"),
+      said.resume("Sequences"),
+      said.skip("Sequences"),
       said.nextStep,
       said.nextSection,
       said.answer("Yes"),
@@ -71,6 +79,8 @@ describe("the learner's sentences, per course language", () => {
     expect(read("fr")).toEqual([
       REVIEW_MESSAGE("Sequences"),
       START_MESSAGE("Sequences"),
+      RESUME_MESSAGE("Sequences"),
+      SKIP_MESSAGE("Sequences"),
       NEXT_STEP_MESSAGE,
       NEXT_SECTION_MESSAGE,
       ANSWER_MESSAGE("Yes"),
@@ -82,6 +92,8 @@ describe("the learner's sentences, per course language", () => {
     expect(read("en")).toEqual([
       "I'd like to review the section “Sequences”.",
       "Shall we start the section “Sequences”?",
+      "Shall we pick up the section “Sequences” again?",
+      "I'm skipping the section “Sequences”.",
       "Next step.",
       "Next section.",
       "My answer to the question: “Yes”.",
@@ -93,6 +105,8 @@ describe("the learner's sentences, per course language", () => {
     expect(read("nl")).toEqual([
       "Ik wil graag de sectie “Sequences” herhalen.",
       "Beginnen we met de sectie “Sequences”?",
+      "Gaan we verder met de sectie “Sequences”?",
+      "Ik sla de sectie “Sequences” over.",
       "Volgende stap.",
       "Volgende sectie.",
       "Mijn antwoord op de vraag: “Yes”.",

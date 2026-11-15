@@ -1,0 +1,4 @@
+Stand van het traject: 1 van de 3 sectie(s) afgerond en 1 overgeslagen.
+Overgeslagen secties: “2. Oefeningen”.
+Geen sectie bezig. Volgende: “3. Samenvatting” (samenvatting).
+Begin eraan met start_section("bilan").

@@ -85,13 +85,45 @@ async def test_course_detail_states_and_last(client: AsyncClient) -> None:
     assert detail["chapters_total"] == 2 and detail["chapters_done"] == 0
 
 
+SECTIONS = ["suites", "sa-definition", "sa-proprietes", "sa-applications", "sg-definition", "sg-applications", "synthese"]
+
+
+@pytest.mark.parametrize(
+    ("done", "active", "skipped", "state", "counts"),
+    [
+        ([], None, [], "not_started", (0, 0)),
+        ([], None, ["suites"], "in_progress", (0, 1)),  # something was decided: no longer « not started »
+        ([], "sg-definition", ["suites"], "in_progress", (0, 1)),  # jumped ahead
+        (SECTIONS[:5], None, SECTIONS[5:], "done", (5, 2)),  # every section done or skipped: « terminé »
+        ([], None, SECTIONS, "done", (0, 7)),
+        (SECTIONS[:6], None, [], "in_progress", (6, 0)),
+        (SECTIONS, None, [], "done", (7, 0)),
+    ],
+)
+async def test_a_chapter_is_done_when_every_section_is_done_or_skipped(
+    client: AsyncClient, done: list[str], active: str | None, skipped: list[str], state: str, counts: tuple[int, int]
+) -> None:
+    """Spec 019 D5: the course page counts done and skipped apart (`done_count`, `skipped_count`)."""
+    seed_progress(client.app, client.user["id"], CHAPTER_ID, done, active, skipped)
+    detail = (await client.get(f"/api/courses/{COURSE_ID}")).json()
+    (row,) = detail["chapters"]
+    assert row["state"] == state and (row["done_count"], row["skipped_count"]) == counts
+    assert detail["chapters_done"] == (1 if state == "done" else 0)
+
+
+async def test_the_lesson_view_carries_the_skipped_sections_sorted(client: AsyncClient) -> None:
+    seed_progress(client.app, client.user["id"], CHAPTER_ID, ["suites"], "sa-proprietes", ["synthese", "sa-definition", "ghost"])
+    body = (await client.get(CH)).json()
+    assert body["progress"] == {"done": ["suites"], "active": "sa-proprietes", "skipped": ["sa-definition", "synthese"]}
+
+
 async def test_lesson_view_hides_internals_and_repairs_progress(client: AsyncClient) -> None:
     seed_progress(client.app, client.user["id"], CHAPTER_ID, ["suites", "ghost"], "suites")
     r = await client.get(CH)
     assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
     body = r.json()
     assert body["course_id"] == COURSE_ID and body["course_name"] == "Mathématiques 5e" and body["subject"] == "mathematics"
-    assert body["progress"] == {"done": ["suites"], "active": None}
+    assert body["progress"] == {"done": ["suites"], "active": None, "skipped": []}
     text = json.dumps(body, ensure_ascii=False)
     for internal in ("beats", "exercises", "done_when", "Terminée", "6.1.1"):
         assert internal not in text
@@ -234,7 +266,7 @@ async def test_another_student_gets_404_everywhere(client: AsyncClient) -> None:
         ("put", f"{CH}/curriculum", {"version": 1, "curriculum": curriculum}),
         ("delete", f"{CH}/progress", None),
         ("delete", CH, None),
-        ("post", "/api/chat", {**LESSON, "history": []}),
+        ("post", "/api/chat", {**LESSON, "message": None}),
         ("post", "/api/voice/tool", {**LESSON, "call_id": "c1", "name": "clear_board", "arguments": "{}"}),
     ]
     for method, url, body in calls:
@@ -568,7 +600,7 @@ async def test_a_turn_cannot_save_progress_after_the_content_changed(make_client
             return save(user_id, chapter_id, progress, version)
 
         repos.progress.save = save_after_an_edit
-        r = await client.post("/api/chat", json={**LESSON, "history": []})
+        r = await client.post("/api/chat", json={**LESSON, "message": None})
     assert "event: section.start" not in r.text
     assert repos.progress.load(client.user["id"], CHAPTER_ID) is None
 

@@ -32,6 +32,7 @@ export function ResumeCard({ courseId, featured }: { courseId: string; featured:
       {row.state === "in_progress" && (
         <ProgressBar
           done={row.done_count}
+          skipped={row.skipped_count}
           total={row.section_count}
           label={progressText(row)}
           className="mt-3"

@@ -90,8 +90,9 @@ export const Entry = memo(function Entry({
       <img src={celestinMark} alt="" className="mt-0.5 size-6 shrink-0" />
       <p lang={language} className="text-sm leading-relaxed text-foreground">
         {entry.spoken && <SpokenMark className="text-muted-foreground" />}
-        {/* The tutor writes maths inline, the same way it does on the board. */}
-        <RichText text={entry.text} />
+        {/* The tutor writes maths inline, the same way it does on the board, and its
+            emphasis as `**…**`. */}
+        <RichText text={entry.text} bold />
         {entry.interrupted && (
           <span lang={getLocale()} className="ml-1 text-xs text-muted-foreground italic">
             {m.lesson_interrupted()}

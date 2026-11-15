@@ -1,0 +1,3 @@
+Path status: 2 section(s) done and 1 skipped out of 3.
+Skipped sections: “2. Exercises”.
+Chapter finished: every section is done or skipped. Offer to do a skipped section or to review a finished one.

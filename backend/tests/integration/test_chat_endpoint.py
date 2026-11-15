@@ -8,22 +8,31 @@ import pytest
 
 from app.providers.base import Completed, Failed, TextDelta
 from app.domain.errors import ProviderRateLimited
-from tests.conftest import CARD, seed_progress, sse_frames as frames, tool_call as call
+from tests.conftest import CARD, seed_progress, seed_seance, sse_frames as frames, tool_call as call
 from tests.fixtures.fake_llm import ExplodingLLM, FakeLLM
 
 BODY = LESSON
 
 
 async def post(
-    make_client, llm, history: list | None = None, progress: dict | None = None
+    make_client,
+    llm,
+    history: list | None = None,
+    progress: dict | None = None,
+    message: str | None = None,
 ) -> tuple[int, str, dict]:
     """Progress, when given, is stored for the signed-in user first (004 R6):
-    the request itself no longer carries it."""
+    the request itself no longer carries it. So is `history`, as the live séance the
+    turn continues (spec 018: the request carries the message, not the transcript)."""
     client, _ = make_client(llm)
     if progress is not None:
-        seed_progress(client.app, client.user["id"], CHAPTER_ID, progress["done"], progress["active"])
+        seed_progress(
+            client.app, client.user["id"], CHAPTER_ID, progress["done"], progress["active"], progress.get("skipped")
+        )
+    if history:
+        seed_seance(client.app, client.user["id"], history)
     async with client:
-        r = await client.post("/api/chat", json={**BODY, "history": history or []})
+        r = await client.post("/api/chat", json={**BODY, "message": message})
         return r.status_code, r.text, dict(r.headers)
 
 
@@ -103,10 +112,12 @@ async def test_history_is_replayed_to_the_model(make_client) -> None:
         make_client,
         llm,
         history=[{"kind": "learner", "text": "salut"}, {"kind": "tutor", "text": "bonjour"}],
+        message="et ensuite ?",
     )
     items = llm.calls[0]["input"]
     assert {"role": "user", "content": "salut"} in items
     assert {"role": "assistant", "content": "bonjour"} in items
+    assert {"role": "user", "content": "et ensuite ?"} in items
 
 
 async def test_provider_failure_after_first_byte_is_an_in_stream_error(make_client) -> None:
@@ -147,7 +158,7 @@ async def test_chapter_not_ready_is_a_409_before_any_frame(make_client) -> None:
     async with client:
         repos = client.app.state.repos
         bare = repos.chapters.create(LESSON["course_id"], "texte collé", max_chapters=40)
-        r = await client.post("/api/chat", json={"course_id": LESSON["course_id"], "chapter_id": bare.id, "history": []})
+        r = await client.post("/api/chat", json={"course_id": LESSON["course_id"], "chapter_id": bare.id, "message": None})
     assert r.status_code == 409 and r.json()["code"] == "chapter_not_ready"
     assert "event:" not in r.text
     assert llm.rounds_used == 0
@@ -161,9 +172,9 @@ async def test_chat_is_scoped_to_the_owner(make_client) -> None:
         from tests.conftest import sign_in
 
         _, headers = sign_in(client.app, email="bob@example.be", name="Bob", lesson=False)
-        foreign = await client.post("/api/chat", json={**BODY, "history": []}, headers=headers)
-        wrong_chapter = await client.post("/api/chat", json={**BODY, "chapter_id": "ab" * 16, "history": []})
-        bad_id = await client.post("/api/chat", json={**BODY, "chapter_id": "suites", "history": []})
+        foreign = await client.post("/api/chat", json={**BODY, "message": None}, headers=headers)
+        wrong_chapter = await client.post("/api/chat", json={**BODY, "chapter_id": "ab" * 16, "message": None})
+        bad_id = await client.post("/api/chat", json={**BODY, "chapter_id": "suites", "message": None})
     assert foreign.status_code == 404 and wrong_chapter.status_code == 404
     assert bad_id.status_code == 422
     assert llm.rounds_used == 0
@@ -182,18 +193,32 @@ async def test_section_start_persists_progress(make_client) -> None:
     llm = FakeLLM([[call("start_section", {"section_id": "suites"}), Completed()], [Completed()]])
     client, _ = make_client(llm)
     async with client:
-        r = await client.post("/api/chat", json={**BODY, "history": []})
+        r = await client.post("/api/chat", json={**BODY, "message": None})
     assert r.status_code == 200 and "section.start" in r.text
     record = client.app.state.repos.progress.load(client.user["id"], CHAPTER_ID)
     assert record and record.progress.active == "suites"
 
 
 async def test_refused_start_persists_nothing(make_client) -> None:
-    llm = FakeLLM([[call("start_section", {"section_id": "sg-applications"}), Completed()], [Completed()]])
+    llm = FakeLLM([[call("start_section", {"section_id": "nope"}), Completed()], [Completed()]])
     client, _ = make_client(llm)
     async with client:
-        await client.post("/api/chat", json={**BODY, "history": []})
+        await client.post("/api/chat", json={**BODY, "message": None})
     assert client.app.state.repos.progress.load(client.user["id"], CHAPTER_ID) is None
+
+
+async def test_a_later_section_starts_and_persists(make_client) -> None:
+    """Spec 019 D1: no section is locked; a skipped one leaves `skipped` when it starts."""
+    from app.domain.progress import Progress
+
+    llm = FakeLLM([[call("start_section", {"section_id": "sg-applications"}), Completed()], [Completed()]])
+    client, _ = make_client(llm)
+    seed_progress(client.app, client.user["id"], CHAPTER_ID, [], None, ["suites", "sg-applications"])
+    async with client:
+        r = await client.post("/api/chat", json={**BODY, "message": "on fait les applications"})
+    assert "section.start" in r.text
+    record = client.app.state.repos.progress.load(client.user["id"], CHAPTER_ID)
+    assert record.progress == Progress(active="sg-applications", skipped=frozenset({"suites"}))
 
 
 async def test_failing_store_is_a_tool_error_not_an_event(make_client, monkeypatch) -> None:
@@ -205,7 +230,7 @@ async def test_failing_store_is_a_tool_error_not_an_event(make_client, monkeypat
 
     monkeypatch.setattr(client.app.state.repos.progress, "save", boom)
     async with client:
-        r = await client.post("/api/chat", json={**BODY, "history": []})
+        r = await client.post("/api/chat", json={**BODY, "message": None})
     assert r.status_code == 200 and "section.start" not in r.text
     answered = next(i for i in llm.calls[1]["input"] if i.get("type") == "function_call_output")
     output = json.loads(answered["output"])
@@ -213,20 +238,23 @@ async def test_failing_store_is_a_tool_error_not_an_event(make_client, monkeypat
 
 
 @pytest.mark.parametrize(
-    "history",
+    "extra",
     [
-        [{"kind": "learner", "text": "x" * 5000}],
-        [{"kind": "learner", "text": "ok"}] * 401,
-        [{"kind": "bogus", "text": "ok"}],
+        {"message": "x" * 5000},
+        {"message": ""},
+        {"message": 12},
+        # Spec 018: the transcript is the server's; a request that posts one is refused.
+        {"history": [{"kind": "learner", "text": "ok"}]},
+        {"history": []},
     ],
 )
 async def test_invalid_payloads_are_rejected_without_calling_the_provider(
-    make_client, history: list
+    make_client, extra: dict
 ) -> None:
     llm = FakeLLM([[Completed()]])
     client, _ = make_client(llm)
     async with client:
-        r = await client.post("/api/chat", json={**BODY, "history": history})
+        r = await client.post("/api/chat", json={**BODY, **extra})
     assert r.status_code == 422
     assert llm.rounds_used == 0
 
@@ -256,7 +284,7 @@ async def test_golden_section_start_and_done(make_client) -> None:
             [Completed()],
         ]
     )
-    _, body, _ = await post(make_client, llm, progress={"done": [], "active": "suites"})
+    _, body, _ = await post(make_client, llm, progress={"done": [], "active": "suites"}, message="c'est bon")
     got = frames(body)
     assert [name for name, _ in got] == ["turn.start", "section.done", "turn.end"]
     assert got[1][1] == {
@@ -279,8 +307,61 @@ async def test_golden_step_ready(make_client) -> None:
     assert got[2][1] == {"marker": "étape suivante proposée"}
 
 
+# --- golden transcript 5: a skipped section (019) ---------------------------
+
+
+async def test_golden_section_skipped(make_client) -> None:
+    from app.domain.progress import Progress
+
+    llm = FakeLLM(
+        [
+            [call("skip_section", {"section_id": "suites"}), Completed()],
+            [TextDelta("D'accord, on passe."), Completed()],
+        ]
+    )
+    client, _ = make_client(llm)
+    seed_progress(client.app, client.user["id"], CHAPTER_ID, [], "suites")
+    async with client:
+        r = await client.post("/api/chat", json={**BODY, "message": "je l'ai déjà vue en classe"})
+    got = frames(r.text)
+    assert [name for name, _ in got] == ["turn.start", "section.skipped", "text.delta", "turn.end"]
+    assert got[1][1] == {
+        "section_id": "suites",
+        "next_section_id": "sa-definition",
+        "active_section_id": None,
+        "marker": "section passée · 1. Suites numériques",
+    }
+    assert r.text.split("event: section.skipped\n")[1].startswith(
+        'data: {"section_id":"suites","next_section_id":"sa-definition","active_section_id":null,'
+        '"marker":"section passée · 1. Suites numériques"}\n\n'
+    )
+    record = client.app.state.repos.progress.load(client.user["id"], CHAPTER_ID)
+    assert record.progress == Progress(skipped=frozenset({"suites"}))
+    outputs = [i for i in llm.calls[1]["input"] if i.get("type") == "function_call_output"]
+    assert json.loads(outputs[0]["output"]) == {
+        "ok": True,
+        "result": "Section passée. Prochaine section : « 2. Les suites arithmétiques » (cours), id : sa-definition.",
+    }
+
+
+async def test_skipping_a_done_section_is_refused_and_persists_nothing(make_client) -> None:
+    llm = FakeLLM([[call("skip_section", {"section_id": "suites"}), Completed()], [Completed()]])
+    _, body, _ = await post(make_client, llm, progress={"done": ["suites"], "active": None}, message="on passe")
+    assert [name for name, _ in frames(body)] == ["turn.start", "turn.end"]
+    outputs = [i for i in llm.calls[1]["input"] if i.get("type") == "function_call_output"]
+    assert "déjà faite" in json.loads(outputs[0]["output"])["error"]
+
+
+async def test_the_state_message_counts_the_skipped_sections(make_client) -> None:
+    llm = FakeLLM([[Completed()]])
+    await post(make_client, llm, progress={"done": ["suites"], "active": None, "skipped": ["sa-definition"]})
+    text = llm.calls[0]["input"][-1]["content"][0]["text"]
+    assert "1 section(s) faite(s) et 1 passée(s) sur 7." in text and "Sections passées : « 2. " in text
+    assert 'start_section("sa-proprietes")' in text
+
+
 async def test_refused_section_start_emits_no_event(make_client) -> None:
-    llm = FakeLLM([[call("start_section", {"section_id": "synthese"}), Completed()], [Completed()]])
+    llm = FakeLLM([[call("start_section", {"section_id": "nope"}), Completed()], [Completed()]])
     _, body, _ = await post(make_client, llm)
     assert [name for name, _ in frames(body)] == ["turn.start", "turn.end"]
     outputs = [i for i in llm.calls[1]["input"] if i.get("type") == "function_call_output"]
@@ -309,7 +390,7 @@ async def test_progress_write_is_logged_with_who_and_where(make_client, caplog) 
     client, _ = make_client(llm)
     async with client:
         with caplog.at_level("INFO"):
-            await client.post("/api/chat", json={**BODY, "history": []})
+            await client.post("/api/chat", json={**BODY, "message": None})
     saved = next(r for r in caplog.records if r.getMessage() == "progress_saved")
     assert saved.chapter_id == CHAPTER_ID and saved.active == "suites"  # type: ignore[attr-defined]
     assert saved.user_id == client.user["id"]  # type: ignore[attr-defined]
