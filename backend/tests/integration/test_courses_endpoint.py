@@ -234,7 +234,7 @@ async def test_another_student_gets_404_everywhere(client: AsyncClient) -> None:
         ("put", f"{CH}/curriculum", {"version": 1, "curriculum": curriculum}),
         ("delete", f"{CH}/progress", None),
         ("delete", CH, None),
-        ("post", "/api/chat", {**LESSON, "history": []}),
+        ("post", "/api/chat", {**LESSON, "message": None}),
         ("post", "/api/voice/tool", {**LESSON, "call_id": "c1", "name": "clear_board", "arguments": "{}"}),
     ]
     for method, url, body in calls:
@@ -568,7 +568,7 @@ async def test_a_turn_cannot_save_progress_after_the_content_changed(make_client
             return save(user_id, chapter_id, progress, version)
 
         repos.progress.save = save_after_an_edit
-        r = await client.post("/api/chat", json={**LESSON, "history": []})
+        r = await client.post("/api/chat", json={**LESSON, "message": None})
     assert "event: section.start" not in r.text
     assert repos.progress.load(client.user["id"], CHAPTER_ID) is None
 

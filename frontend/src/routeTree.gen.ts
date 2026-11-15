@@ -22,6 +22,7 @@ import { Route as AuthCoursesCourseIdIndexRouteImport } from './routes/_auth/cou
 import { Route as AuthCoursesCourseIdChaptersChapterIdIndexRouteImport } from './routes/_auth/courses/$courseId/chapters/$chapterId/index'
 import { Route as AuthCoursesCourseIdChaptersChapterIdContentRouteImport } from './routes/_auth/courses/$courseId/chapters/$chapterId/content'
 import { Route as AuthCoursesCourseIdChaptersChapterIdDiscussionRouteImport } from './routes/_auth/courses/$courseId/chapters/$chapterId/discussion'
+import { Route as AuthCoursesCourseIdChaptersChapterIdNotebookRouteImport } from './routes/_auth/courses/$courseId/chapters/$chapterId/notebook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -91,6 +92,12 @@ const AuthCoursesCourseIdChaptersChapterIdDiscussionRoute =
     path: '/courses/$courseId/chapters/$chapterId/discussion',
     getParentRoute: () => AuthRoute,
   } as any)
+const AuthCoursesCourseIdChaptersChapterIdNotebookRoute =
+  AuthCoursesCourseIdChaptersChapterIdNotebookRouteImport.update({
+    id: '/courses/$courseId/chapters/$chapterId/notebook',
+    path: '/courses/$courseId/chapters/$chapterId/notebook',
+    getParentRoute: () => AuthRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -104,6 +111,7 @@ export interface FileRoutesByFullPath {
   '/courses/$courseId/': typeof AuthCoursesCourseIdIndexRoute
   '/courses/$courseId/chapters/$chapterId/content': typeof AuthCoursesCourseIdChaptersChapterIdContentRoute
   '/courses/$courseId/chapters/$chapterId/discussion': typeof AuthCoursesCourseIdChaptersChapterIdDiscussionRoute
+  '/courses/$courseId/chapters/$chapterId/notebook': typeof AuthCoursesCourseIdChaptersChapterIdNotebookRoute
   '/courses/$courseId/chapters/$chapterId/': typeof AuthCoursesCourseIdChaptersChapterIdIndexRoute
 }
 export interface FileRoutesByTo {
@@ -118,6 +126,7 @@ export interface FileRoutesByTo {
   '/courses/$courseId': typeof AuthCoursesCourseIdIndexRoute
   '/courses/$courseId/chapters/$chapterId/content': typeof AuthCoursesCourseIdChaptersChapterIdContentRoute
   '/courses/$courseId/chapters/$chapterId/discussion': typeof AuthCoursesCourseIdChaptersChapterIdDiscussionRoute
+  '/courses/$courseId/chapters/$chapterId/notebook': typeof AuthCoursesCourseIdChaptersChapterIdNotebookRoute
   '/courses/$courseId/chapters/$chapterId': typeof AuthCoursesCourseIdChaptersChapterIdIndexRoute
 }
 export interface FileRoutesById {
@@ -134,6 +143,7 @@ export interface FileRoutesById {
   '/_auth/courses/$courseId/': typeof AuthCoursesCourseIdIndexRoute
   '/_auth/courses/$courseId/chapters/$chapterId/content': typeof AuthCoursesCourseIdChaptersChapterIdContentRoute
   '/_auth/courses/$courseId/chapters/$chapterId/discussion': typeof AuthCoursesCourseIdChaptersChapterIdDiscussionRoute
+  '/_auth/courses/$courseId/chapters/$chapterId/notebook': typeof AuthCoursesCourseIdChaptersChapterIdNotebookRoute
   '/_auth/courses/$courseId/chapters/$chapterId/': typeof AuthCoursesCourseIdChaptersChapterIdIndexRoute
 }
 export interface FileRouteTypes {
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/courses/$courseId/'
     | '/courses/$courseId/chapters/$chapterId/content'
     | '/courses/$courseId/chapters/$chapterId/discussion'
+    | '/courses/$courseId/chapters/$chapterId/notebook'
     | '/courses/$courseId/chapters/$chapterId/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/courses/$courseId'
     | '/courses/$courseId/chapters/$chapterId/content'
     | '/courses/$courseId/chapters/$chapterId/discussion'
+    | '/courses/$courseId/chapters/$chapterId/notebook'
     | '/courses/$courseId/chapters/$chapterId'
   id:
     | '__root__'
@@ -179,6 +191,7 @@ export interface FileRouteTypes {
     | '/_auth/courses/$courseId/'
     | '/_auth/courses/$courseId/chapters/$chapterId/content'
     | '/_auth/courses/$courseId/chapters/$chapterId/discussion'
+    | '/_auth/courses/$courseId/chapters/$chapterId/notebook'
     | '/_auth/courses/$courseId/chapters/$chapterId/'
   fileRoutesById: FileRoutesById
 }
@@ -283,6 +296,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCoursesCourseIdChaptersChapterIdDiscussionRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/courses/$courseId/chapters/$chapterId/notebook': {
+      id: '/_auth/courses/$courseId/chapters/$chapterId/notebook'
+      path: '/courses/$courseId/chapters/$chapterId/notebook'
+      fullPath: '/courses/$courseId/chapters/$chapterId/notebook'
+      preLoaderRoute: typeof AuthCoursesCourseIdChaptersChapterIdNotebookRouteImport
+      parentRoute: typeof AuthRoute
+    }
   }
 }
 
@@ -294,6 +314,7 @@ interface AuthRouteChildren {
   AuthCoursesCourseIdIndexRoute: typeof AuthCoursesCourseIdIndexRoute
   AuthCoursesCourseIdChaptersChapterIdContentRoute: typeof AuthCoursesCourseIdChaptersChapterIdContentRoute
   AuthCoursesCourseIdChaptersChapterIdDiscussionRoute: typeof AuthCoursesCourseIdChaptersChapterIdDiscussionRoute
+  AuthCoursesCourseIdChaptersChapterIdNotebookRoute: typeof AuthCoursesCourseIdChaptersChapterIdNotebookRoute
   AuthCoursesCourseIdChaptersChapterIdIndexRoute: typeof AuthCoursesCourseIdChaptersChapterIdIndexRoute
 }
 
@@ -307,6 +328,8 @@ const AuthRouteChildren: AuthRouteChildren = {
     AuthCoursesCourseIdChaptersChapterIdContentRoute,
   AuthCoursesCourseIdChaptersChapterIdDiscussionRoute:
     AuthCoursesCourseIdChaptersChapterIdDiscussionRoute,
+  AuthCoursesCourseIdChaptersChapterIdNotebookRoute:
+    AuthCoursesCourseIdChaptersChapterIdNotebookRoute,
   AuthCoursesCourseIdChaptersChapterIdIndexRoute:
     AuthCoursesCourseIdChaptersChapterIdIndexRoute,
 }

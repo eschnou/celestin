@@ -79,7 +79,7 @@ async def test_a_live_board_event_is_marked_in_the_account_language(make_client)
     llm = FakeLLM([[call("display_board", {"card": CARD}), Completed()], [TextDelta("Voilà."), Completed()]])
     client, _ = make_client(llm, locale="en")
     async with client:
-        r = await client.post("/api/chat", json={**LESSON, "history": []})
+        r = await client.post("/api/chat", json={**LESSON, "message": None})
     board = next(data for name, data in frames(r.text) if name == "board.set")
     assert board["marker"] == "explanation shown"
     assert board["card"]["title"] == CARD["title"]  # the card is Célestin's, untouched

@@ -12,7 +12,7 @@ see [ai-providers.md](./ai-providers.md).
 browser                                         backend                       OpenAI
 ───────                                         ───────                       ──────
 useVoiceSession
-  ├─ POST /api/voice/session {history,progress} ─▶ VoiceService ──────────────▶ POST /v1/realtime/client_secrets
+  ├─ POST /api/voice/session {course_id,chapter_id,mode} ─▶ VoiceService ──────▶ POST /v1/realtime/client_secrets
   │                                                 · session config            (prompt + pack + tools)
   │  ◀── {secret, seed[], limits, opening} ────────  · seed items
   ├─ VoiceSession: getUserMedia, RTCPeerConnection ─────────────────────────▶ POST /v1/realtime/calls (SDP)
@@ -21,6 +21,7 @@ useVoiceSession
   ├─ bridge(): Realtime events → TutorEvent  ──▶ useTutorSession.dispatch (the text-mode reducer)
   ├─ on a function call: POST /api/voice/tool ──▶ registry.execute + event_of ─▶ {output, event, progress}
   │      then function_call_output + response.create over the data channel
+  ├─ after a spoken turn: POST /api/seance/report (parcours) or /api/discussion/voice/turn ─▶ stored
   └─ on stop: POST /api/voice/usage ───────────▶ a usage ledger row (and a log line with a cost estimate)
 ```
 
@@ -34,16 +35,23 @@ Three facts drive the design:
   The bridge treats that continuation as the *same* tutor turn: no second `turn.start`, and the
   text `block_id` increments, exactly like a tool round in the text loop. That is what keeps the
   « Étape suivante » button alive after `propose_next_step`.
-- **One transcript.** Spoken turns land in the same `entries`/`history` as typed ones (with a
-  `spoken` flag on the transcript entry only), so switching back to text posts a valid history to
-  `/api/chat`. Verified end to end: voice session → typed message → bridged `display_board` →
-  stop → text turn with the whole history.
+- **One transcript, the server's.** Spoken turns land in the same `entries` as typed ones (with a
+  `spoken` flag on the transcript entry only), and the browser reports each one to the server
+  (`POST /api/seance/report` in the parcours, the route a stopped text turn uses too,
+  `/api/discussion/voice/turn` in a discussion; one code path, `reportTurn` in `voice/client.ts`),
+  because the speech never reaches it: the server checks the entries (known sections, valid cards,
+  bounded texts, a rate limit and a row cap in the parcours) and stores them with the same split rule
+  as a text turn (spec 018, [seances.md](./seances.md#voice)). The seed, which replays a parcours
+  `start_section` and so reads the section's earlier séances for its reprise note, is built off the
+  event loop. Switching back to text, the next `/api/chat` turn reads
+  the stored séance. Verified end to end before spec 018: voice session → typed message → bridged
+  `display_board` → stop → text turn with the whole history.
 
 ## Routes
 
 | Route | Body | Returns |
 |---|---|---|
-| `POST /api/voice/session` | `{course_id, chapter_id, history}` (same as chat), plus `mode` and `conversation_id` in discussion mode | `201` `{session_id, secret, expires_at, model, voice, limits, seed, opening}`, `Cache-Control: no-store` |
+| `POST /api/voice/session` | `{course_id, chapter_id, mode}`, plus `conversation_id` in discussion mode; no transcript (spec 018) | `201` `{session_id, secret, expires_at, model, voice, limits, seed, opening}`, `Cache-Control: no-store` |
 | `POST /api/voice/tool` | `{session_id, call_id, name, arguments, course_id, chapter_id, mode}` | `200` `{output, event, progress, state_text}` |
 | `POST /api/voice/usage` | `{session_id, reason, duration_s, responses, usage}` | `204`, always (each token total is bounded, a session is stored once, reports are limited per user: see [ai-usage.md](./ai-usage.md)) |
 
@@ -59,7 +67,9 @@ the student's stored record, and a section tool persists its transition before a
 
 ## The seed
 
-`VoiceService.seed` maps `history.to_provider_input` (trimming and replay included) onto Realtime
+The entries come from the server, never the request: the parcours' live séance (`SeanceService.seed`,
+which rolls a full one over first), a discussion's stored conversation. `VoiceService.seed` maps
+`history.to_provider_input` (trimming and replay included, the reprise note too) onto Realtime
 items: user text → `input_text`, assistant text → `output_text` (the API rejects `text`),
 `function_call` / `function_call_output` unchanged. Budget: `VOICE_SEED_TOKEN_BUDGET` (12 000 by
 default, below the text budget because audio shares the context). On an empty transcript the seed
@@ -223,7 +233,7 @@ Run both processes; in the browser:
 3. Interrupt Célestin mid-sentence: the entry is marked « (interrompu) », Célestin answers the interruption.
 4. Type « Étape suivante. » during voice: Célestin continues by voice.
 5. End the session, type a message: Célestin answers by text with the whole history.
-6. Reload: text mode, transcript gone, progress kept (as in text mode).
+6. Reload: text mode, the transcript and the board restored from the stored séance, progress kept (spec 018).
 7. Deny the mic once: the sentence appears, text mode intact.
 
 Checked with a synthetic silent microphone through Playwright on 11 September 2026: 2, 4, 5, the

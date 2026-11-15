@@ -149,12 +149,16 @@ export type AnswerHandler = (option: Option, correct: boolean) => void;
 function CheckQuestionBoard({
   card,
   onAnswer,
+  reread = false,
 }: {
   card: CheckQuestionCard;
   onAnswer?: AnswerHandler | undefined;
+  /** Reread in the cahier (018): any pick reveals the right option and the feedback. */
+  reread?: boolean;
 }) {
   const [picked, setPicked] = useState<string | null>(null);
   useEffect(() => setPicked(null), [card]);
+  const revealed = reread && picked !== null;
 
   return (
     <BoardFrame label={CARD_LABEL["check_question"]()} title={m.board_check_title()} fixedTitle>
@@ -166,6 +170,7 @@ function CheckQuestionBoard({
           {card.options.map((option) => {
             const chosen = picked === option.id;
             const correct = option.id === card.correct_option_id;
+            const shown = chosen || (revealed && correct);
             return (
               <button
                 key={option.id}
@@ -176,16 +181,16 @@ function CheckQuestionBoard({
                 }}
                 className={cn(
                   "flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left text-[15px] transition-colors",
-                  chosen && correct && "border-success bg-success/10",
+                  shown && correct && "border-success bg-success/10",
                   chosen && !correct && "border-destructive bg-destructive/10",
-                  !chosen && "border-border hover:bg-secondary",
+                  !shown && "border-border hover:bg-secondary",
                 )}
               >
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-border text-xs font-bold">
                   {option.id.toUpperCase()}
                 </span>
                 <RichText text={option.text} />
-                {chosen &&
+                {shown &&
                   (correct ? (
                     <Check className="ml-auto size-4 shrink-0 text-success" />
                   ) : (
@@ -195,7 +200,7 @@ function CheckQuestionBoard({
             );
           })}
         </div>
-        {picked === card.correct_option_id && (
+        {(revealed || picked === card.correct_option_id) && (
           <p className="panel-down text-sm text-muted-foreground">
             <RichText text={card.feedback} />
           </p>
@@ -249,12 +254,16 @@ function RecapBoard({ card }: { card: RecapCard }) {
   );
 }
 
+/** One card as the board draws it, from its DTO alone: the board's current card, and every
+ *  card of the cahier (018), which passes `reread` and no `onAnswer`. */
 export function CardView({
   card,
   onAnswer,
+  reread = false,
 }: {
   card: BoardCard;
   onAnswer?: AnswerHandler | undefined;
+  reread?: boolean;
 }) {
   switch (card.kind) {
     case "title":
@@ -266,7 +275,7 @@ export function CardView({
     case "exercise":
       return <ExerciseBoard card={card} />;
     case "check_question":
-      return <CheckQuestionBoard card={card} onAnswer={onAnswer} />;
+      return <CheckQuestionBoard card={card} onAnswer={onAnswer} reread={reread} />;
     case "recap":
       return <RecapBoard card={card} />;
     default:

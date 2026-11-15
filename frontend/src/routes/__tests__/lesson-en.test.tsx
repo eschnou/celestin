@@ -100,12 +100,10 @@ function mountLesson() {
   );
 }
 
-/** The last thing the learner "said" in the most recent call to the model. */
+/** What the learner "said" in the most recent call to the model: the message it posted. */
 const lastLearner = () => {
   const calls = vi.mocked(streamTurn).mock.calls;
-  const history = calls[calls.length - 1]![1];
-  const entry = history[history.length - 1]!;
-  return entry.kind === "learner" ? entry.text : undefined;
+  return calls[calls.length - 1]![1];
 };
 
 describe("the lesson in English", () => {
@@ -198,7 +196,7 @@ describe("the lesson in English", () => {
       const dialog = await screen.findByRole("alertdialog");
       expect(dialog.textContent).toContain("Start the chapter over?");
       expect(dialog.textContent).toContain(
-        "Your progress in this chapter will be erased from your account and a new session will start at the first section.",
+        "Your progress in this chapter and your notebook will be erased from your account, and a new session will start at the first section.",
       );
       expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeTruthy();
     }));

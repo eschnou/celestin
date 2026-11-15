@@ -512,11 +512,12 @@ async def delete_chapter(course_id: str, chapter_id: str, user: StudentDep, repo
 
 @router.delete("/courses/{course_id}/chapters/{chapter_id}/progress", status_code=204)
 async def reset_progress(course_id: str, chapter_id: str, user: StudentDep, repos: ReposDep) -> Response:
-    def reset() -> None:
+    def reset() -> int:
         if not repos.chapters.owns(user.id, course_id, chapter_id):
             raise NotFound()
-        repos.progress.clear(user.id, chapter_id)
+        # The parcours séances go with the progress, the cahier with them (spec 018 D9); discussions stay.
+        return repos.progress.reset(user.id, chapter_id)
 
-    await run_in_threadpool(reset)
-    log.info("progress_reset", extra={"user_id": user.id, "chapter_id": chapter_id})
+    seances = await run_in_threadpool(reset)
+    log.info("progress_reset", extra={"user_id": user.id, "chapter_id": chapter_id, "seances": seances})
     return Response(status_code=204)

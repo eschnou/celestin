@@ -254,18 +254,19 @@ CLEAR_MARKER = Marker("marker.cleared")
 _CARD = TypeAdapter(BoardCard)
 
 
-def marker_for(name: str, arguments: dict[str, Any], locale: Locale = DEFAULT_LOCALE) -> str | None:
-    """The label a board call shows in the transcript, from the call alone, in `locale`.
-
-    A live turn reads it off the tool outcome; a stored discussion has only the
-    recorded arguments, so it asks here rather than keeping a second copy of the
-    wording (007 design 4.3).
-    """
-    if name == "clear_board":
-        return CLEAR_MARKER.render(locale)
-    if name != "display_board":
-        return None
+def card_marker(arguments: dict[str, Any]) -> Marker | None:
+    """The marker a stored `display_board` call shows: its card's own, the one the live
+    call returned (`card.marker`), from the recorded arguments alone. None when the card
+    no longer validates: the call then shows without a label rather than a wrong one.
+    The registry's `shown` hook for the board tools reads it (spec 018)."""
     try:
-        return _CARD.validate_python(arguments.get("card")).marker.render(locale)
+        return _CARD.validate_python(arguments.get("card")).marker
     except ValidationError:
         return None
+
+
+def marker_for(name: str, arguments: dict[str, Any], locale: Locale = DEFAULT_LOCALE) -> str | None:
+    """The label a stored board call shows, rendered in `locale`: `card_marker` or
+    `CLEAR_MARKER`, the functions the board tools' `shown` hook uses (007 design 4.3)."""
+    marker = CLEAR_MARKER if name == "clear_board" else card_marker(arguments) if name == "display_board" else None
+    return marker.render(locale) if marker is not None else None

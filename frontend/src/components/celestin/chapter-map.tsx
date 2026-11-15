@@ -2,9 +2,12 @@
  * The chapter map (002 design 3.11): the full path, on demand.
  *
  * Rows only display; the backend decides what may start. A done row offers a
- * review, the next row an opening, both as ordinary learner messages.
+ * review, the next row an opening, both as ordinary learner messages. A row whose
+ * section has stored boards also offers to reread them in the cahier (018), which
+ * is a link, not a message: no model call.
  */
 
+import { Link } from "@tanstack/react-router";
 import { memo, useState } from "react";
 import { Check, Lock } from "lucide-react";
 import {
@@ -24,24 +27,30 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { SectionLabel } from "@/components/celestin/section-label";
 import { useCourseLanguage } from "@/lib/course-language";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { chapterModel } from "@/lib/tutor/chapter-model";
-import { KIND_LABEL, STATE_LABEL } from "@/lib/tutor/labels";
+import { STATE_LABEL } from "@/lib/tutor/labels";
 import { useLearnerSentences } from "@/lib/tutor/prompts";
-import type { Chapter, Progress, SectionOverview, SectionState } from "@/lib/tutor/types";
+import type { ChapterView, Progress, SectionOverview, SectionState } from "@/lib/tutor/types";
 
 type ChapterMapProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  chapter: Chapter;
+  chapter: Pick<ChapterView, "id" | "course_id" | "title" | "sections">;
   progress: Progress;
   /** A turn is in flight: actions wait. */
   streaming: boolean;
   onSend: (text: string) => void;
   onReset: () => void;
+  /** The sections the cahier has boards for (018): their rows offer « Relire ». */
+  rereadable: ReadonlySet<string>;
 };
+
+const ACTION =
+  "shrink-0 rounded-md border border-border bg-card px-2 py-1 text-xs font-semibold transition-colors hover:bg-secondary disabled:opacity-50";
 
 function Dot({ state }: { state: SectionState }) {
   if (state === "done") {
@@ -74,12 +83,17 @@ function Row({
   last,
   streaming,
   onAction,
+  notebook,
+  reread,
 }: {
   section: SectionOverview;
   state: SectionState;
   last: boolean;
   streaming: boolean;
   onAction: (text: string) => void;
+  /** Where the chapter's cahier is, and whether this section has boards to reread there. */
+  notebook: { courseId: string; chapterId: string };
+  reread: boolean;
 }) {
   const language = useCourseLanguage();
   const said = useLearnerSentences();
@@ -111,13 +125,9 @@ function Row({
       <div className="min-w-0 flex-1">
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
-            <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground tabular-nums">
-              <span>{section.index}</span>
-              <span className="rounded border border-border px-1 font-semibold tracking-wide uppercase">
-                {KIND_LABEL[section.kind]()}
-              </span>
+            <SectionLabel section={section} className="text-[11px]">
               <span className="sr-only">{STATE_LABEL[state]()}</span>
-            </p>
+            </SectionLabel>
             <p
               lang={language}
               className={cn(
@@ -134,12 +144,23 @@ function Row({
               </p>
             )}
           </div>
+          {reread && (
+            <Link
+              to="/courses/$courseId/chapters/$chapterId/notebook"
+              params={notebook}
+              hash={section.id}
+              title={m.chapter_action_reread_title()}
+              className={ACTION}
+            >
+              {m.chapter_action_reread()}
+            </Link>
+          )}
           {action && (
             <button
               type="button"
               disabled={streaming}
               onClick={() => onAction(action.text)}
-              className="shrink-0 rounded-md border border-border bg-card px-2 py-1 text-xs font-semibold transition-colors hover:bg-secondary disabled:opacity-50"
+              className={ACTION}
             >
               {action.label}
             </button>
@@ -158,10 +179,12 @@ export const ChapterMapSheet = memo(function ChapterMapSheet({
   streaming,
   onSend,
   onReset,
+  rereadable,
 }: ChapterMapProps) {
   const language = useCourseLanguage();
   const [confirmReset, setConfirmReset] = useState(false);
   const { segments, doneCount, total } = chapterModel(chapter, progress);
+  const notebook = { courseId: chapter.course_id, chapterId: chapter.id };
 
   const act = (text: string) => {
     onSend(text);
@@ -187,6 +210,8 @@ export const ChapterMapSheet = memo(function ChapterMapSheet({
               last={i === total - 1}
               streaming={streaming}
               onAction={act}
+              notebook={notebook}
+              reread={rereadable.has(section.id)}
             />
           ))}
         </ol>

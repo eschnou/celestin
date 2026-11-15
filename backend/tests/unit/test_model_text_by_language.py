@@ -82,14 +82,14 @@ def test_the_markers_the_student_sees_do_not_follow_the_course_language() -> Non
 
 def test_a_replayed_start_is_the_brief_in_the_turns_language() -> None:
     ctx = ctx_for(name="valid_en.yaml", language="en")
-    assert registry.replay_output("start_section", {"section_id": "intro"}, ctx)["result"].startswith(
+    assert registry.replay_output(ToolEntry(kind="tool", name="start_section", arguments={"section_id": "intro"}), ctx)["result"].startswith(
         "Section “1. Introduction” (lesson)"
     )
-    assert registry.replay_output("start_section", {"section_id": "zzz"}, ctx) == {
+    assert registry.replay_output(ToolEntry(kind="tool", name="start_section", arguments={"section_id": "zzz"}), ctx) == {
         "ok": True,
         "result": "Unknown section in the current path.",
     }
-    assert registry.replay_output("complete_section", {"section_id": "zzz"}, ctx_for())["result"] == (
+    assert registry.replay_output(ToolEntry(kind="tool", name="complete_section", arguments={"section_id": "zzz"}), ctx_for())["result"] == (
         "Section inconnue dans le parcours actuel."
     )
 

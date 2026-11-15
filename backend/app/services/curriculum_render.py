@@ -1,8 +1,9 @@
 """Text the model reads about the path (design 3.5). Pure functions.
 
 `overview` sits in the cached prefix, so it must be byte-stable per file.
-`brief` goes through a tool result. `state_message` is appended after the
-transcript on every turn.
+`brief` goes through a tool result, and so does `reprise`, the note that ends it
+when a section left unfinished is taken up again (spec 018 D5). `state_message`
+is appended after the transcript on every turn.
 
 Every sentence is looked up by the course's language (spec 011 §4.5): the French row is
 the text this module always said, byte for byte; the English one is its counterpart.
@@ -12,6 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from app.domain.curriculum import KIND_LABELS, Curriculum, Section
 from app.domain.language import DEFAULT_COURSE_LANGUAGE, CourseLanguage, by_language
@@ -204,6 +206,115 @@ WORDS = by_language(
         parts=("voormiddag", "namiddag", "avond"),
     ),
 )
+
+
+@dataclass(frozen=True)
+class RepriseWords:
+    """The reprise note (spec 018 D5), for one language."""
+
+    head: str
+    older: str  # {count}
+    line: str  # {kind} {title}
+    line_untitled: str  # {kind}
+    tail: str
+    kinds: dict[str, str]  # card kind -> what the note calls it
+
+
+REPRISE = by_language(
+    fr=RepriseWords(
+        head=(
+            "Reprise : cette section a déjà été travaillée lors d'une séance précédente. "
+            "Cartes déjà montrées, dans l'ordre :"
+        ),
+        older="(et {count} carte(s) plus ancienne(s))",
+        line="- {kind} : {title}",
+        line_untitled="- {kind}",
+        tail=(
+            "Dis en une phrase à ton élève où vous en étiez, puis continue après la dernière carte, "
+            "sans reprendre la section depuis le début."
+        ),
+        kinds={
+            "title": "titre",
+            "explanation": "explication",
+            "worked_example": "exemple guidé",
+            "exercise": "exercice",
+            "check_question": "question de compréhension",
+            "recap": "bilan",
+        },
+    ),
+    en=RepriseWords(
+        head=(
+            "Resuming: this section was already worked on in an earlier session. "
+            "Cards already shown, in order:"
+        ),
+        older="(and {count} older card(s))",
+        line="- {kind}: {title}",
+        line_untitled="- {kind}",
+        tail=(
+            "Tell your student in one sentence where you had got to, then continue after the last card, "
+            "without starting the section over."
+        ),
+        kinds={
+            "title": "title",
+            "explanation": "explanation",
+            "worked_example": "worked example",
+            "exercise": "exercise",
+            "check_question": "check question",
+            "recap": "recap",
+        },
+    ),
+    nl=RepriseWords(
+        head=(
+            "Hervatting: aan deze sectie werd al gewerkt in een vorige sessie. "
+            "Kaarten die al getoond werden, in volgorde:"
+        ),
+        older="(en {count} oudere kaart(en))",
+        line="- {kind}: {title}",
+        line_untitled="- {kind}",
+        tail=(
+            "Zeg je leerling in één zin waar jullie gebleven waren en ga dan verder na de laatste kaart, "
+            "zonder de sectie van voren af aan te herbeginnen."
+        ),
+        kinds={
+            "title": "titel",
+            "explanation": "uitleg",
+            "worked_example": "uitgewerkt voorbeeld",
+            "exercise": "oefening",
+            "check_question": "begripsvraag",
+            "recap": "samenvatting",
+        },
+    ),
+)
+
+# The note lists the most recent cards only: enough to say where they were, never the whole history.
+REPRISE_MAX_CARDS = 20
+
+
+def _card_title(card: dict[str, Any]) -> str | None:
+    """What a card is called in the note: its title, or the question of a check question; a recap has neither."""
+    value = card.get("question") if card.get("kind") == "check_question" else card.get("title")
+    if not isinstance(value, str):
+        return None
+    return " ".join(value.split()) or None
+
+
+def reprise(cards: list[dict[str, Any]], language: CourseLanguage = DEFAULT_COURSE_LANGUAGE) -> str | None:
+    """The note that ends a section's brief when it is taken up again after a séance that
+    left it unfinished (spec 018 D5): the cards already shown, in order, and what to do
+    with them. None without cards. Pure, so a replayed call says it byte for byte again."""
+    if not cards:
+        return None
+    w = REPRISE[language]
+    lines = [w.head]
+    shown = cards[-REPRISE_MAX_CARDS:]
+    if len(cards) > len(shown):
+        lines.append(w.older.format(count=len(cards) - len(shown)))
+    for card in shown:
+        kind = w.kinds.get(str(card.get("kind")), str(card.get("kind")))
+        title = _card_title(card)
+        lines.append(w.line.format(kind=kind, title=title) if title else w.line_untitled.format(kind=kind))
+    lines.append(w.tail)
+    return "\n".join(lines)
 
 
 def overview(

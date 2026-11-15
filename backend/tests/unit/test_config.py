@@ -10,7 +10,6 @@ def test_defaults_applied() -> None:
     assert s.openai_model == "gpt-6.1-sol"
     assert s.max_tool_rounds == 6
     assert s.max_message_chars == 4000
-    assert s.max_history_entries == 400
     assert s.history_token_budget == 30_000
     assert s.debug_log_prompts is False
 

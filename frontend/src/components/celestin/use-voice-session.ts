@@ -20,6 +20,7 @@ import { bridge, initialBridgeState, sumUsage, type BridgeAction } from "@/lib/t
 import {
   createVoiceSession as apiCreateSession,
   executeTool as apiExecuteTool,
+  reportTurn as apiReportTurn,
   reportUsage as apiReportUsage,
   VoiceRequestError,
 } from "@/lib/tutor/voice/client";
@@ -48,8 +49,7 @@ import {
   type VoiceSessionInfo,
   type VoiceUsage,
 } from "@/lib/tutor/voice/types";
-import { recordVoiceTurn } from "@/lib/tutor/discussion";
-import type { HistoryEntry, LessonScope } from "@/lib/tutor/types";
+import type { LessonScope } from "@/lib/tutor/types";
 import type { TutorSessionHandle } from "./use-tutor-session";
 
 /** How long a turn in progress may finish after the cap fires. */
@@ -81,9 +81,11 @@ export type VoiceDeps = {
     onClose: (reason: CloseReason) => void,
   ) => CallHandle;
   api: {
-    createVoiceSession: (scope: LessonScope, history: HistoryEntry[]) => Promise<VoiceSessionInfo>;
+    createVoiceSession: (scope: LessonScope) => Promise<VoiceSessionInfo>;
     executeTool: typeof apiExecuteTool;
     reportUsage: typeof apiReportUsage;
+    /** A spoken turn, to the mode's route (007 D1, 018). */
+    reportTurn: typeof apiReportTurn;
   };
   bus: () => BusChannel | null;
   now: () => number;
@@ -107,6 +109,7 @@ export function defaultVoiceDeps(): VoiceDeps {
       createVoiceSession: apiCreateSession,
       executeTool: apiExecuteTool,
       reportUsage: apiReportUsage,
+      reportTurn: apiReportTurn,
     },
     bus: () =>
       typeof BroadcastChannel === "function"
@@ -307,19 +310,20 @@ export function useVoiceSession(
 
   /**
    * A spoken turn reaches the browser and never the server (007 deviation D1), so
-   * in a discussion the browser reports what was said. Only what this call added
-   * is sent: everything before it is already stored, and re-reporting it would
-   * append the whole thread a second time. A failure is silent, because the
-   * learner has already heard the answer and a lost report costs only the thread.
+   * the browser reports what was said, in both modes: to the discussion's
+   * conversation, or to the parcours's live séance (018), which the server splits by
+   * section as it does a text turn. Only what this call added is sent: everything
+   * before it is already stored, and re-reporting it would append the whole thread a
+   * second time. A failure is silent, because the learner has already heard the
+   * answer and a lost report costs only the record.
    */
   const reportedRef = useRef(0);
   const reportSpokenTurn = useCallback(() => {
-    if (!scope.conversationId) return;
     const { history } = tutor.snapshot();
     const added = history.slice(reportedRef.current);
     reportedRef.current = history.length;
-    void recordVoiceTurn(scope, added).catch(() => {});
-  }, [scope, tutor]);
+    void deps.api.reportTurn(scope, added).catch(() => {});
+  }, [deps, scope, tutor]);
 
   const onEvent = useCallback(
     (ev: RealtimeServerEvent) => {
@@ -414,7 +418,8 @@ export function useVoiceSession(
     const call = deps.createCall(onEvent, onClose);
     let info: VoiceSessionInfo;
     try {
-      info = await deps.api.createVoiceSession(scope, tutor.snapshot().history);
+      // No transcript: the server seeds the call from what it has stored (018).
+      info = await deps.api.createVoiceSession(scope);
       infoRef.current = info;
       await call.connect(info.secret, mic, info.callsUrl);
     } catch (error) {

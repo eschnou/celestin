@@ -258,6 +258,12 @@ class WorkRateLimited(RateLimited):
     code = "work_rate_limited"
 
 
+class SeanceReportRateLimited(RateLimited):
+    """Too many reported parcours turns in an hour (spec 018 D10): the one write without a model call."""
+
+    code = "seance_report_rate"
+
+
 class CrossOrigin(TutorError):
     code = "cross_origin"
     status = 403
@@ -551,6 +557,42 @@ class ConversationBusy(TutorError):
 
 class EmptyTurnExpected(TutorError):
     code = "empty_conversation_expected"
+    status = 422
+
+
+# --- stored séances (spec 018) -----------------------------------------------------
+# The parcours keeps the discussion's codes (the wire contract names them) and says them in its own words.
+
+
+class SeanceStarted(EmptyTurnExpected):
+    """An opening turn on a séance that already holds something: the lesson restores it instead."""
+
+    @property
+    def message_key(self) -> str:
+        return "seance_started"
+
+
+class SeanceBusy(ConversationBusy):
+    """Another turn (a second tab) stored first: the optimistic guard of the live séance (D11)."""
+
+    @property
+    def message_key(self) -> str:
+        return "seance_busy"
+
+
+class SeanceFull(TutorError):
+    """A reported turn on a chapter that already holds `seance_max_rows` séances for the student (spec 018 D10).
+    Model turns are not refused: only the write that costs nothing is bounded."""
+
+    code = "seance_full"
+    status = 409
+
+
+class SeanceReportInvalid(TutorError):
+    """A reported turn naming a section the chapter does not have, or a tool the parcours does not offer
+    (spec 018 D10)."""
+
+    code = "seance_report_invalid"
     status = 422
 
 

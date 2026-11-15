@@ -1,14 +1,22 @@
 /**
  * Session state for the current page load, plus the chapter progress (002 R5).
  *
- * The conversation is not persisted: a reload starts a fresh one, opening turn
- * included. Progress is owned by the server since 004: it arrives with the
- * chapter, changes here only through the two section events (which the backend
- * has already stored), and a reset goes through the API.
+ * The server owns the transcript in both modes: a discussion's conversation (007) and
+ * the parcours's live séance (018). A turn posts the learner's message; a reload folds
+ * the stored entries back through `sessionFromEntries`. Progress is owned by the server
+ * since 004: it arrives with the chapter, changes here only through the two section
+ * events (which the backend has already stored), and a reset goes through the API.
  *
  * Two parallel views of the conversation are kept on purpose:
  *  - `entries` is what the learner sees, markers and errors included;
- *  - `history` is what goes back to the model, and holds tool calls instead.
+ *  - `history` is the model-facing view, tool calls instead of markers: what the browser
+ *    reports of a turn the server did not see to its end, a spoken one (007 D1) or, in
+ *    the parcours, one the learner stopped (018 D7).
+ *
+ * A turn that ends early is stored nowhere by the server, whatever ended it. Only a
+ * deliberate stop (`cancel`) reports what the learner kept of it, and the next turn,
+ * a retry or a reset waits for that report, so the server stores the two in her order.
+ * A failed turn reports nothing: `retry()` sends the same message again.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -16,6 +24,7 @@ import { genericError, streamTurn } from "@/lib/tutor/client";
 import { VOICE_OFF_MARKER, VOICE_ON_MARKER } from "@/lib/tutor/labels";
 import { m } from "@/paraglide/messages";
 import { resetChapter } from "@/lib/tutor/courses";
+import { reportTurn } from "@/lib/tutor/voice/client";
 import type { VoiceEndReason } from "@/lib/tutor/voice/types";
 import {
   EMPTY_PROGRESS,
@@ -62,6 +71,9 @@ export type SessionState = {
    *  dies with the next card; a closed section survives its recap card and dies
    *  when the next section starts or a new turn begins. */
   nextStep: NextStep;
+  /** The section the board belongs to: the last one started, review included, until
+   *  another one starts. Null before any. */
+  section: string | null;
   /** Where each streaming text block lives, so deltas append in place. */
   blocks: Record<number, { entry: string; history: number }>;
   /** A voice session is open: new tutor text is spoken, not written. */
@@ -75,6 +87,7 @@ export const EMPTY_SESSION: SessionState = {
   board: null,
   progress: EMPTY_PROGRESS,
   nextStep: null,
+  section: null,
   blocks: {},
   voice: false,
 };
@@ -170,6 +183,7 @@ export function reduce(state: SessionState, event: SessionEvent): SessionState {
         // the markers that pointed at the old boards stop being clickable.
         board: null,
         boards: [],
+        section: event.section_id,
         // A review leaves the path where it is (R3.6).
         progress: event.review ? state.progress : { ...state.progress, active: event.section_id },
         entries: [
@@ -183,6 +197,8 @@ export function reduce(state: SessionState, event: SessionEvent): SessionState {
             name: "start_section",
             arguments: { section_id: event.section_id },
             ok: true,
+            // Stored with the séance (018), so the cahier and the reprise note know.
+            review: event.review,
           },
         ],
       };
@@ -267,33 +283,60 @@ export function markInterrupted(state: SessionState): SessionState {
   return { ...state, entries };
 }
 
-/** What a turn needs. The parcours transport posts `history` and ignores
- *  `message`; the discussion transport posts `message` and ignores `history`, so
- *  neither shape can reach the wrong route (007 §3.11). */
-export type TurnInput = { history: HistoryEntry[]; message: string | null };
+/** A marker of the interface's own, at the end of the transcript: « séance reprise ». */
+export function appendMarker(state: SessionState, text: string): SessionState {
+  return { ...state, entries: [...state.entries, marker(text)] };
+}
+
+/** What a turn needs: the learner's message, or null for the opening turn. Both
+ *  transports post it; the server holds the transcript (007 §3.11, 018 D1). */
+export type TurnInput = { message: string | null };
 export type TurnTransport = (input: TurnInput, signal: AbortSignal) => AsyncGenerator<TutorEvent>;
+/** Where a stopped turn's entries go (018 D7): what the session's `history` gained since
+ *  the turn began, the learner's message first. */
+export type TurnReport = (entries: HistoryEntry[]) => Promise<void>;
 
 /**
- * A stored conversation as a session (007 §3.11). The entries are folded back
- * through the same `reduce` that built them live, so the transcript, the board
- * history and the markers cannot drift from what the learner saw.
+ * A stored conversation or séance as a session (007 §3.11, 018 D6). The entries are
+ * folded back through the same `reduce` that built them live, so the transcript, the
+ * board history, the markers and the page-turn button cannot drift from what the
+ * learner saw. A learner entry starts a turn, as her message did live: the
+ * `turn.start` that followed it is what put out a proposed step. The progress this
+ * computes is a by-product; the hook starts from the server's.
  */
 export function sessionFromEntries(entries: StoredEntry[]): SessionState {
   let state = EMPTY_SESSION;
   let block = 0;
   for (const entry of entries) {
+    const marker = entry.marker ?? "";
+    const sectionId = entry.arguments?.["section_id"];
     if (entry.kind === "learner") {
       state = appendLearner(state, entry.text ?? "");
+      state = reduce(state, { event: "turn.start", turn_id: "" });
     } else if (entry.kind === "tutor") {
       state = reduce(state, { event: "text.delta", block_id: block, text: entry.text ?? "" });
       block += 1;
     } else if (entry.name === "display_board") {
       const card = entry.arguments?.["card"] as BoardCard | undefined;
-      if (card) {
-        state = reduce(state, { event: "board.set", card, marker: entry.marker ?? "" });
-      }
+      if (card) state = reduce(state, { event: "board.set", card, marker });
     } else if (entry.name === "clear_board") {
-      state = reduce(state, { event: "board.clear", marker: entry.marker ?? "" });
+      state = reduce(state, { event: "board.clear", marker });
+    } else if (entry.name === "start_section" && typeof sectionId === "string") {
+      state = reduce(state, {
+        event: "section.start",
+        section_id: sectionId,
+        review: entry.review === true,
+        marker,
+      });
+    } else if (entry.name === "complete_section" && typeof sectionId === "string") {
+      state = reduce(state, {
+        event: "section.done",
+        section_id: sectionId,
+        next_section_id: entry.next_section_id ?? null,
+        marker,
+      });
+    } else if (entry.name === "propose_next_step") {
+      state = reduce(state, { event: "step.ready", marker });
     }
   }
   return state;
@@ -301,9 +344,15 @@ export function sessionFromEntries(entries: StoredEntry[]): SessionState {
 
 export type TutorSessionOptions = LessonScope & {
   initialProgress: Progress;
-  /** Defaults to the parcours transport: `POST /api/chat` with the transcript. */
+  /** Defaults to the parcours transport: `POST /api/chat` with the message. */
   transport?: TurnTransport;
-  /** A restored conversation (007 R4.2); defaults to an empty session. */
+  /** Where a turn the learner stopped is reported (018 D7). Defaults, with the default
+   *  transport, to the parcours's `POST /api/seance/report`; a session given its own
+   *  transport (the discussion, whose policy is to store complete turns only) reports
+   *  nothing unless it passes one. */
+  report?: TurnReport;
+  /** A restored conversation (007 R4.2) or séance (018 D6); defaults to an empty
+   *  session. Its progress is replaced by `initialProgress`, the server's. */
   initialState?: SessionState;
 };
 
@@ -318,8 +367,17 @@ export function useTutorSession({
   chapterId,
   initialProgress,
   transport,
+  report,
   initialState,
 }: TutorSessionOptions) {
+  const reporter = useMemo<TurnReport | null>(
+    () =>
+      report ??
+      (transport
+        ? null
+        : (entries) => reportTurn({ courseId, chapterId, mode: "parcours" }, entries)),
+    [chapterId, courseId, report, transport],
+  );
   const [state, setState] = useState<SessionState>(() => ({
     ...(initialState ?? EMPTY_SESSION),
     progress: initialProgress,
@@ -340,7 +398,15 @@ export function useTutorSession({
   /** State as the current turn began, so a failed turn can be rolled back. */
   const turnStartRef = useRef<SessionState>(EMPTY_SESSION);
   /** The last turn's input, so `retry()` re-sends it rather than guessing. */
-  const lastInputRef = useRef<TurnInput>({ history: [], message: null });
+  const lastInputRef = useRef<TurnInput>({ message: null });
+  /** Where the current turn begins in `history` (before its learner message): what a
+   *  stop reports is everything after it. */
+  const turnHistoryRef = useRef(0);
+  /** The report of a stopped turn still in flight (018 D7), null once it has settled: the
+   *  next turn, a retry or a reset waits for it, so the server stores the two in the order
+   *  she did them. Always settles: a failed report is swallowed, and that partial turn is
+   *  simply not stored. */
+  const pendingReportRef = useRef<Promise<void> | null>(null);
   /** True while the reset round trip is in flight: `abortRef` is null then, and
    *  a turn started in that window would be orphaned by the wipe that follows. */
   const resettingRef = useRef(false);
@@ -377,20 +443,29 @@ export function useTutorSession({
   );
 
   const run = useCallback(
-    async (input: TurnInput) => {
+    async (input: TurnInput, historyStart: number) => {
       const controller = new AbortController();
       abortRef.current = controller;
       turnStartRef.current = stateRef.current;
-      // Kept so `retry()` re-sends the same turn: a discussion turn is its
-      // message, not the transcript, so replaying the history would send nothing.
+      turnHistoryRef.current = historyStart;
+      // Kept so `retry()` re-sends the same turn: a turn is its message, the
+      // server holding the transcript.
       lastInputRef.current = input;
       setStatus("streaming");
       let failed = false;
       try {
+        // A stopped turn's report goes first (018 D7): the server stores it before this one.
+        if (pendingReportRef.current) {
+          await pendingReportRef.current;
+          if (controller.signal.aborted) return;
+        }
         const stream =
           transport?.(input, controller.signal) ??
-          streamTurn({ courseId, chapterId }, input.history, controller.signal);
+          streamTurn({ courseId, chapterId }, input.message, controller.signal);
         for await (const event of stream) {
+          // Frames parsed from a chunk that arrived before a stop are not applied:
+          // the stop's report holds exactly what the learner saw.
+          if (controller.signal.aborted) break;
           if (event.event === "error") failed = true;
           push(event);
         }
@@ -416,29 +491,44 @@ export function useTutorSession({
     (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || abortRef.current || resettingRef.current) return;
+      const historyStart = stateRef.current.history.length;
       apply((prev) => appendLearner(prev, trimmed));
-      void run({ history: stateRef.current.history, message: trimmed });
+      void run({ message: trimmed }, historyStart);
     },
     [apply, run],
   );
 
+  /** The learner stops the turn. In the parcours what she kept of it is reported (018
+   *  D7): the server stores nothing of a stream that ends early on its own. */
   const cancel = useCallback(() => {
+    const stopped = abortRef.current !== null;
     abortRef.current?.abort();
     abortRef.current = null;
     flush();
     apply(markInterrupted);
     setStatus("idle");
-  }, [apply, flush]);
+    if (!stopped || !reporter) return;
+    const kept = stateRef.current.history.slice(turnHistoryRef.current);
+    if (kept.length === 0) return;
+    const previous = pendingReportRef.current;
+    const reported: Promise<void> = (
+      previous ? previous.then(() => reporter(kept)) : reporter(kept)
+    )
+      .catch(() => {})
+      .then(() => {
+        if (pendingReportRef.current === reported) pendingReportRef.current = null;
+      });
+    pendingReportRef.current = reported;
+  }, [apply, flush, reporter]);
 
   const retry = useCallback(() => {
     if (abortRef.current) return;
     // Roll the failed turn back rather than just hiding its error. Keeping the
     // half-finished reply would render it above the new one and, worse, hand the
     // model its own truncated sentence as a finished message.
-    // `turnStartRef` and the kept input were taken from the same snapshot, so the
-    // input's history is already the rolled-back one.
+    // A failed turn is stored nowhere (018 D7, 007), so the same message goes again.
     apply(() => turnStartRef.current);
-    void run(lastInputRef.current);
+    void run(lastInputRef.current, turnHistoryRef.current);
   }, [apply, run]);
 
   const showBoard = useCallback(
@@ -449,18 +539,27 @@ export function useTutorSession({
   );
 
   /** Back to section 1 and a fresh conversation (R5.5). The caller confirms first;
-   *  the server record is cleared before the new opening turn (004 R6.6). */
-  const resetProgress = useCallback(() => {
+   *  the server record is cleared before the new opening turn (004 R6.6), and the
+   *  stored séances with it (018 D9), so the session starts empty. Resolves to whether
+   *  the reset was saved. */
+  const resetProgress = useCallback((): Promise<boolean> => {
     abortRef.current?.abort();
     abortRef.current = null;
     resettingRef.current = true;
     setStatus("streaming");
-    void resetChapter(courseId, chapterId)
+    // A stopped turn's report lands first: after the reset it would bring the old séance back.
+    const pending = pendingReportRef.current;
+    return (
+      pending
+        ? pending.then(() => resetChapter(courseId, chapterId))
+        : resetChapter(courseId, chapterId)
+    )
       .then(() => {
         resettingRef.current = false;
         apply(() => EMPTY_SESSION);
         setStatus("idle");
-        void run({ history: [], message: null });
+        void run({ message: null }, 0);
+        return true;
       })
       .catch(() => {
         resettingRef.current = false;
@@ -468,6 +567,7 @@ export function useTutorSession({
           reduce(prev, { event: "error", code: "reset_failed", message: m.lesson_reset_failed() }),
         );
         setStatus("error");
+        return false;
       });
   }, [apply, chapterId, courseId, run]);
 
@@ -495,9 +595,9 @@ export function useTutorSession({
   useEffect(() => {
     if (!startedRef.current) {
       startedRef.current = true;
-      // A restored conversation already has its opening turn (007 R4.2); only an
-      // empty session needs Célestin to speak first.
-      if (stateRef.current.history.length === 0) void run({ history: [], message: null });
+      // A restored conversation or séance already has its opening turn (007 R4.2,
+      // 018 D6); only an empty session needs Célestin to speak first.
+      if (stateRef.current.history.length === 0) void run({ message: null }, 0);
     }
     return () => {
       startedRef.current = false;
@@ -516,6 +616,7 @@ export function useTutorSession({
     boards: state.boards,
     progress: state.progress,
     nextStep: state.nextStep,
+    section: state.section,
     status,
     send,
     cancel,

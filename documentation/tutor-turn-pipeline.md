@@ -9,7 +9,7 @@ capability will extend, so it is worth knowing where each concern lives.
 browser                     backend
 ───────                     ───────
 useTutorSession
-  history[] ──POST /api/chat──▶ chat controller       validate, frame SSE
+  message ──POST /api/chat──▶ chat controller        validate, read the séance, frame SSE, store
                                   │
                                   ▼
                                TutorService           the round loop
@@ -21,10 +21,13 @@ useTutorSession
   ◀────── text/event-stream ──────┘
 ```
 
-The browser owns the conversation. There is no `previous_response_id`; the whole transcript is
-posted back on every turn as `{course_id, chapter_id, history}`, and `store=false` means nothing is
-retained upstream either. A reload starts a fresh conversation by design. What survives is the
-chapter progress, which since spec 004 the server owns: the controller loads the student's
+The server owns the conversation (spec 018, [seances.md](./seances.md)). There is no
+`previous_response_id`, and `store=false` means nothing is retained upstream: a turn posts
+`{course_id, chapter_id, message}`, the controller reads the student's live séance (a
+`conversations` row with `mode = 'parcours'`), the model reads its entries then the message, and the
+turn is stored when it ends — or as far as it went when the learner left before the end — cut into
+one row per section séance. A reload restores the séance. The chapter progress, which since spec
+004 the server owns as well, is kept beside it: the controller loads the student's
 `{done, active}` record for the chapter, binds the store to the turn context, and the section tools
 persist their transition before the event is emitted (see
 [accounts-and-courses.md](./accounts-and-courses.md)). The request needs the signed-in student who
@@ -49,7 +52,8 @@ Assembled by `app/services/prompt_service.py`, in this order, every round:
 2. Tool declarations for the mode, in a fixed order: the two board tools, then — in the parcours
    only — the two section tools and `propose_next_step`. A discussion is offered the board pair
    and nothing else, so the declarations it shares with the parcours keep their exact bytes.
-3. The transcript, oldest first.
+3. The transcript, oldest first: in the parcours the live séance's entries then the learner's
+   message (nothing of earlier séances), in a discussion the stored conversation then the message.
 4. A short `developer` message with the date and time in the learner's timezone (`TIMEZONE`,
    default Europe/Brussels) and the state of the path (« État du parcours »), rendered from the
    stored progress. Both change every turn, which is exactly why they come last: nothing
@@ -106,11 +110,15 @@ Board tools have no server-side effect. They validate, and return the card to em
 the board, so a failed turn cannot corrupt it. Section tools are the same shape with one addition:
 their result text (the section brief, or the next section) goes back to the model as
 `{"ok": true, "result": …}`, and on later turns `registry.replay_output` recomputes that text from
-the curriculum, so the model keeps the beats in front of it without the browser ever seeing them.
+the curriculum and the stored entry (a `start_section` replays with the `review` it was called
+with, spec 018), so the model keeps the beats in front of it without the browser ever seeing them.
+A section taken up again after a séance that left it unfinished gets its brief ended by the
+reprise note, live and on replay alike (spec 018 D5, [seances.md](./seances.md#the-reprise-note)).
 
 ## The SSE contract
 
-`POST /api/chat` takes `{course_id, chapter_id, history}` and returns `text/event-stream`;
+`POST /api/chat` takes `{course_id, chapter_id, message}` (`message: null` opens the lesson, only while
+the séance is empty) and returns `text/event-stream`;
 `POST /api/discussion/turn` takes `{course_id, chapter_id, conversation_id, message}` and returns
 the same stream, framed by the same helper (`app/api/sse.py: stream_turn`). A discussion simply
 never emits the three path events. Nine events, and this
@@ -484,7 +492,7 @@ Known limits:
   prompt says the steps, their order and the questions are what the student looks for, yet about
   one build statement in four still spells them out (September 2026). No tool rule catches it. The
   hidden text never reaches the DOM, but it travels in the `board.set` JSON and, in the parcours,
-  in the history the browser posts back (as 008 D6; an accepted limit, deferred by the
+  in the stored transcript the model reads back (as 008 D6; an accepted limit, deferred by the
   verification of 29 September 2026).
 - A flowchart costs up to 84 hidden label renders (12 nodes × 5 widths + 24 exit labels). They are
   memoised, and crossing the 360 px compact threshold re-measures once.
@@ -873,10 +881,11 @@ oversights:
   card (`hidden_leak`). A plot's texts on an exercise may not state a relation, coordinates or an
   interval (`exercise_text`). A figure's labels never write coordinates or intervals
   (`label_notation`). What Célestin says, and paraphrase, stay prompt rules.
-- **No memory beyond the path, in the parcours.** A lesson's transcript does not survive a reload;
-  the section progress does. The tutor cannot plan from prior performance. A **discussion's**
-  transcript is stored (spec 007, [discussion.md](./discussion.md)) — that mode's whole point is
-  that the thread survives.
+- **Little memory beyond the séance, in the parcours.** Since spec 018 a lesson's transcript is
+  stored and survives a reload ([seances.md](./seances.md)), but a turn reads the live séance only:
+  of an earlier séance of the same section the tutor gets the list of cards already shown (the
+  reprise note), of other sections nothing but the path state. It cannot plan from prior
+  performance. A **discussion's** transcript is stored too (spec 007, [discussion.md](./discussion.md)).
 - **The tutor sees two board interactions.** Picking an option on a check question and pressing
   « Étape suivante » are sent as learner messages (« Ma réponse à la question : … »,
   « Étape suivante. »). Revealing a step stays client-local.

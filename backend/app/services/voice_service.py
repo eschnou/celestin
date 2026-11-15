@@ -7,6 +7,7 @@ executed in a TurnContext built from the posted progress.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 import time
@@ -178,7 +179,9 @@ class VoiceService:
         # Everything that can fail on our side fails before the provider is called.
         voice = self._voice()
         config = self.session_config(chapter, ctx.mode, voice)
-        seed = self.seed(entries, ctx, now=self._settings.local_now())
+        # Off the event loop: replaying a parcours `start_section` reads the section's
+        # earlier séances from the database for its reprise note (spec 018 D5).
+        seed = await asyncio.to_thread(self.seed, entries, ctx, self._settings.local_now())
         secret = await self._realtime.create_client_secret(
             session=config, ttl_s=self._settings.voice_secret_ttl_s
         )

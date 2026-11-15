@@ -3,10 +3,15 @@
 Once the first byte is out the status is already 200, so every later failure
 becomes an in-stream error event rather than an HTTP code (001 design 5).
 
-`on_complete` is how a discussion stores what was said: it runs after the turn's
-last event and before `turn.end` reaches the browser, so a failure to store is
+`on_complete` is how a turn stores what was said, in both modes: it runs after the
+turn's last event and before `turn.end` reaches the browser, so a failure to store is
 still an `error` event the learner sees, and a turn that ended badly — a provider
-failure, a disconnect, a cancellation — never calls it at all (007 NFR 4.4.1).
+failure, a disconnect, a cancellation — never calls it at all (007 NFR 4.4.1). There
+is no other hook, on purpose: a stream that ends early stores nothing, in any mode,
+which is what the browser's `retry()` assumes. A parcours turn the learner stopped is
+reported by the browser itself (`POST /api/seance/report`, spec 018 D7), and the
+browser holds its next turn until that report is answered, so the order of the two
+writes is the learner's.
 """
 
 from __future__ import annotations
@@ -65,8 +70,8 @@ async def stream_turn(
     locale = locale_of(request)
 
     async def pump() -> None:
-        # Only the discussion reads these back; the parcours must not pay to buffer
-        # a thousand deltas it will discard.
+        # Only a turn that stores reads these back; one that stores nothing must not
+        # pay to buffer a thousand deltas it would discard.
         produced: list[TurnEvent] = []
         try:
             async for event in generator:

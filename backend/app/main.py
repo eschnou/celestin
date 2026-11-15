@@ -15,7 +15,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api.locale import locale_of
 from app.api.middleware import BodyLimitMiddleware, SameOriginMiddleware
 from app.api.ratelimit import SlidingWindow
-from app.api.routes import admin, auth, chat, courses, dictation, discussion, health, setup, usage, voice, work
+from app.api.routes import admin, auth, chat, courses, dictation, discussion, health, seance, setup, usage, voice, work
 from app.config import Settings, get_settings
 from app.db.base import make_engine, make_session_factory
 from app.db.repositories import Repositories
@@ -154,6 +154,7 @@ def create_app(
     app.state.voice_scopes = VoiceSessionScopes()  # what each minted session was for (spec 015)
     app.state.dictation_limiter = SlidingWindow(settings.dictation_per_hour)
     app.state.work_limiter = SlidingWindow(settings.work_per_hour)
+    app.state.seance_report_limiter = SlidingWindow(settings.seance_reports_per_hour)  # spec 018 D10
     app.state.authoring_llm = hub.authoring_llm
     app.state.authoring = AuthoringRunner(
         AuthoringAgent(app.state.authoring_llm, app.state.prompts, settings, hub), app.state.repos, settings, hub
@@ -190,6 +191,7 @@ def create_app(
     app.include_router(courses.router, prefix="/api")
     app.include_router(chat.router, prefix="/api")
     app.include_router(discussion.router, prefix="/api")
+    app.include_router(seance.router, prefix="/api")
     app.include_router(voice.router, prefix="/api")
     app.include_router(dictation.router, prefix="/api")
     app.include_router(work.router, prefix="/api")

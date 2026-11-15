@@ -350,6 +350,56 @@
     ]
   },
   {
+    "key": "seance_started",
+    "params": {},
+    "fr": "Cette séance a déjà commencé.",
+    "make": [
+      "SeanceStarted",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "seance_busy",
+    "params": {},
+    "fr": "Célestin est déjà en train de te répondre dans cette séance, peut-être dans un autre onglet.",
+    "make": [
+      "SeanceBusy",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "seance_report_rate",
+    "params": {},
+    "fr": "Trop d'échanges enregistrés d'un coup. Attends un moment avant de continuer.",
+    "make": [
+      "SeanceReportRateLimited",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "seance_full",
+    "params": {},
+    "fr": "Ce chapitre garde déjà beaucoup de séances. Recommence le chapitre pour en garder de nouvelles.",
+    "make": [
+      "SeanceFull",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "seance_report_invalid",
+    "params": {},
+    "fr": "Cet échange ne correspond pas à ce chapitre et n'a pas été enregistré.",
+    "make": [
+      "SeanceReportInvalid",
+      [],
+      {}
+    ]
+  },
+  {
     "key": "content_invalid",
     "params": {},
     "fr": "Le contenu n'est pas valide. Corrige les points indiqués.",

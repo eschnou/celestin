@@ -6,7 +6,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.api.schemas.chat import ChatRequest, Id, ProgressDTO
+from app.api.schemas.chat import Id, ProgressDTO
 from app.domain.mode import DEFAULT_MODE, Mode
 
 
@@ -14,12 +14,13 @@ class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class VoiceSessionRequest(ChatRequest):
-    """Same shape as a chat turn: the transcript so far and where she is.
+class VoiceSessionRequest(_Model):
+    """Which chapter, in which mode. No transcript is posted in either mode (spec 018): a
+    parcours session is seeded from the stored live séance, a discussion from the
+    stored conversation its `conversation_id` names (007 §3.10)."""
 
-    In a discussion the transcript is not posted: the session is seeded from the
-    stored conversation the `conversation_id` names (007 §3.10)."""
-
+    course_id: Id
+    chapter_id: Id
     mode: Mode = DEFAULT_MODE
     conversation_id: Id | None = None
 

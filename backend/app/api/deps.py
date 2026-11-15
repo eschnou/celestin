@@ -22,6 +22,7 @@ from app.domain.errors import (
     Forbidden,
     NotAuthenticated,
     NotFound,
+    SeanceReportRateLimited,
     VoiceRateLimited,
     WorkRateLimited,
 )
@@ -35,6 +36,7 @@ from app.services.authoring.runner import AuthoringRunner
 from app.services.documents import DocumentService
 from app.services.chapters import CurriculumCache, to_lesson_chapter
 from app.services.discussion import DiscussionService
+from app.services.seance import SeanceService, card_loader
 from app.services.ai_settings import AiSettingsService
 from app.services.prompts import PromptLibrary
 from app.services.tools.context import TurnContext
@@ -144,6 +146,13 @@ def get_discussion_service(settings: SettingsDep, repos: ReposDep) -> Discussion
 DiscussionServiceDep = Annotated[DiscussionService, Depends(get_discussion_service)]
 
 
+def get_seance_service(settings: SettingsDep, repos: ReposDep) -> SeanceService:
+    return SeanceService(repos=repos, settings=settings)
+
+
+SeanceServiceDep = Annotated[SeanceService, Depends(get_seance_service)]
+
+
 COOKIE_NAME = "celestin_session"
 
 
@@ -251,6 +260,16 @@ def work_budget(request: Request, user: StudentDep) -> User:
 WorkBudgetDep = Annotated[User, Depends(work_budget)]
 
 
+def seance_report_budget(request: Request, user: StudentDep) -> User:
+    """One allowance per reported parcours turn, per user (spec 018 D10): the one write without a model call."""
+    if not request.app.state.seance_report_limiter.allow(user.id):
+        raise SeanceReportRateLimited()
+    return user
+
+
+SeanceReportBudgetDep = Annotated[User, Depends(seance_report_budget)]
+
+
 def owned_course(user: User, course_id: str, repos: Repositories) -> CourseRecord:
     """The course, if the user owns it; otherwise 404, never 403 (005 design 3.3)."""
     course = repos.courses.get_owned(user.id, course_id)
@@ -284,12 +303,16 @@ def load_context(
     tools (004 design 3.6).
 
     A discussion reads the progress and never writes it: `save` stays None, which
-    is the second lock behind not declaring the section tools (007 §3.6)."""
+    is the second lock behind not declaring the section tools (007 §3.6). The
+    parcours also gets the reader of its earlier séances, for the reprise note
+    `start_section` ends with (spec 018 D5)."""
     record = repos.progress.load(user.id, chapter.id)
     progress = record.progress if record else Progress()
     save = None
+    earlier_cards = None
     if mode == "parcours":
         save = lambda p: repos.progress.save(user.id, chapter.id, p, version=chapter.version)  # noqa: E731
+        earlier_cards = card_loader(repos, user.id, chapter.id, chapter.version)
     return TurnContext.from_progress(
         chapter.curriculum,
         list(progress.done),
@@ -302,6 +325,7 @@ def load_context(
         pack=chapter.pack,
         locale=user.locale,
         language=chapter.language,
+        earlier_cards=earlier_cards,
     )
 
 

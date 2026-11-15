@@ -45,6 +45,7 @@ from app.domain.errors import (
     StaleVersion,
 )
 from app.domain.locale import DEFAULT_LOCALE, Locale, is_locale
+from app.domain.mode import Mode
 from app.domain.progress import Progress
 from app.domain.usage import UsageEntry
 from app.domain.user import Role, User
@@ -895,14 +896,25 @@ class ProgressRepository(_Repo):
             row.updated_at = utcnow()
             s.commit()
 
-    def clear(self, user_id: str, chapter_id: str) -> None:
+    def reset(self, user_id: str, chapter_id: str) -> int:
+        """« Recommencer le chapitre » (spec 018 D9): the progress and the student's
+        parcours séances of the chapter, the notebook with them, in one transaction.
+        Her discussions stay. Returns how many séances went."""
         with self._factory() as s:
             s.execute(
                 delete(ProgressRow).where(
                     ProgressRow.user_id == user_id, ProgressRow.chapter_id == chapter_id
                 )
             )
+            removed = s.execute(
+                delete(ConversationRow).where(
+                    ConversationRow.user_id == user_id,
+                    ConversationRow.chapter_id == chapter_id,
+                    ConversationRow.mode == "parcours",
+                )
+            ).rowcount
             s.commit()
+            return removed or 0
 
     def for_chapters(self, user_id: str, chapter_ids: list[str]) -> dict[str, ProgressRecord]:
         if not chapter_ids:
@@ -1224,6 +1236,9 @@ class ConversationRecord:
     closed_reason: str | None
     created_at: datetime
     updated_at: datetime
+    # Spec 018: for a parcours séance, its section and its cards.
+    section_id: str | None = None
+    card_count: int = 0
 
     @property
     def live(self) -> bool:
@@ -1243,6 +1258,8 @@ def _conversation(row: ConversationRow) -> ConversationRecord:
         closed_reason=row.closed_reason,
         created_at=as_utc(row.created_at),
         updated_at=as_utc(row.updated_at),
+        section_id=row.section_id,
+        card_count=row.card_count or 0,
     )
 
 
@@ -1254,38 +1271,73 @@ def _entry_chars(entry: dict[str, Any]) -> int:
     return len(json.dumps(entry.get("arguments") or {}, ensure_ascii=False))
 
 
-class ConversationRepository(_Repo):
-    """Stored discussions (007 design 4.2). One live conversation per student and
-    chapter, the database enforcing it through a partial unique index."""
+@dataclass(frozen=True)
+class SeanceSegment:
+    """Part of a parcours turn, as the split rule cut it (spec 018 D3): the entries one row receives, the section
+    that row is about, how many cards those entries show (counted by the service, which knows the tools), and the
+    reason the row closes with, or None for the row that stays live."""
 
-    def live(self, user_id: str, chapter_id: str) -> ConversationRecord | None:
+    section_id: str | None
+    entries: list[dict[str, Any]]
+    card_count: int = 0
+    closed_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class StoredSeance:
+    """What `store_seance` wrote to one row: ids and counts, for the log line."""
+
+    id: str
+    section_id: str | None
+    closed_reason: str | None
+    entry_count: int
+    card_count: int
+
+
+# A row is one mode's transcript (`domain/mode.py`).
+ConversationMode = Mode
+
+
+class ConversationRepository(_Repo):
+    """Stored discussions (007 design 4.2) and parcours séances (spec 018). One live
+    row per student, chapter and mode, the database enforcing it through a partial
+    unique index. Every read names its mode: a discussion never sees a séance, and a
+    séance never sees a discussion."""
+
+    def live(self, user_id: str, chapter_id: str, *, mode: ConversationMode) -> ConversationRecord | None:
         with self._factory() as s:
             row = s.scalar(
                 select(ConversationRow).where(
                     ConversationRow.user_id == user_id,
                     ConversationRow.chapter_id == chapter_id,
+                    ConversationRow.mode == mode,
                     ConversationRow.state == "live",
                 )
             )
             return _conversation(row) if row else None
 
     def get_owned(
-        self, user_id: str, chapter_id: str, conversation_id: str
+        self, user_id: str, chapter_id: str, conversation_id: str, *, mode: ConversationMode
     ) -> ConversationRecord | None:
-        """Owner and chapter are in the query, so a valid id from another chapter
-        does not resolve (007 design 8)."""
+        """Owner, chapter and mode are in the query, so a valid id from another
+        chapter, or a séance's id named as a discussion, does not resolve (007 design 8)."""
         with self._factory() as s:
             row = s.scalar(
                 select(ConversationRow).where(
                     ConversationRow.id == conversation_id,
                     ConversationRow.user_id == user_id,
                     ConversationRow.chapter_id == chapter_id,
+                    ConversationRow.mode == mode,
                 )
             )
             return _conversation(row) if row else None
 
-    def start(self, user_id: str, chapter_id: str, content_version: int) -> ConversationRecord:
-        """Close any live one, insert a new empty one, in one transaction."""
+    def start(
+        self, user_id: str, chapter_id: str, content_version: int, *, mode: ConversationMode
+    ) -> ConversationRecord:
+        """A new empty row of `mode`, closing the live one of that mode as `replaced`, in
+        one transaction: « Nouvelle conversation ». A séance starts through
+        `store_seance` instead."""
         now = utcnow()
         with self._factory() as s:
             s.execute(
@@ -1293,24 +1345,12 @@ class ConversationRepository(_Repo):
                 .where(
                     ConversationRow.user_id == user_id,
                     ConversationRow.chapter_id == chapter_id,
+                    ConversationRow.mode == mode,
                     ConversationRow.state == "live",
                 )
                 .values(state="closed", closed_reason="replaced", updated_at=now)
             )
-            row = ConversationRow(
-                id=uuid.uuid4().hex,
-                user_id=user_id,
-                chapter_id=chapter_id,
-                mode="discussion",
-                content_version=content_version,
-                entries=[],
-                entry_count=0,
-                char_count=0,
-                state="live",
-                closed_reason=None,
-                created_at=now,
-                updated_at=now,
-            )
+            row = _new_row(user_id, chapter_id, mode, content_version, None, now)
             s.add(row)
             s.commit()
             s.refresh(row)
@@ -1333,22 +1373,20 @@ class ConversationRepository(_Repo):
         expected_count: int,
         max_entries: int,
         max_chars: int,
+        cards: int = 0,
     ) -> ConversationRecord:
         """One UPDATE, so a turn lands whole or not at all (007 NFR 4.4.1).
 
         `expected_count` is the optimistic guard: a mismatch means another turn
         appended first, which is `ConversationBusy` rather than an interleaved
-        transcript. Crossing either cap closes the row as `capped`.
+        transcript. Crossing either cap closes the row as `capped`. `cards` is how
+        many cards `entries` show, counted by the caller.
         """
         with self._factory() as s:
             row = s.get(ConversationRow, conversation_id)
             if row is None or row.entry_count != expected_count:
                 raise ConversationBusy()
-            merged = list(row.entries or []) + entries
-            row.entries = merged
-            row.entry_count = len(merged)
-            row.char_count += sum(_entry_chars(e) for e in entries)
-            row.updated_at = utcnow()
+            _extend(row, entries, cards, utcnow())
             if row.entry_count >= max_entries or row.char_count >= max_chars:
                 row.state = "closed"
                 row.closed_reason = "capped"
@@ -1358,7 +1396,7 @@ class ConversationRepository(_Repo):
             s.commit()
             return after
 
-    def started_since(self, user_id: str, since: datetime) -> int:
+    def started_since(self, user_id: str, since: datetime, *, mode: ConversationMode) -> int:
         with self._factory() as s:
             return (
                 s.scalar(
@@ -1366,11 +1404,182 @@ class ConversationRepository(_Repo):
                     .select_from(ConversationRow)
                     .where(
                         ConversationRow.user_id == user_id,
+                        ConversationRow.mode == mode,
                         ConversationRow.created_at >= since,
                     )
                 )
                 or 0
             )
+
+    # ------------------------------------------------------------- séances (spec 018)
+
+    def store_seance(
+        self,
+        user_id: str,
+        chapter_id: str,
+        content_version: int,
+        *,
+        live_id: str | None,
+        expected_count: int,
+        segments: list[SeanceSegment],
+    ) -> list[StoredSeance]:
+        """A parcours turn, cut by the split rule, in one transaction (spec 018 D3).
+
+        The first segment goes to the live row `live_id` (or to a new row when the
+        turn found none), every later one to a new row; each segment carrying a reason
+        is closed with it (every one but the last, for a turn). `expected_count` guards
+        the live row as `append` does, and a second live row inserted by another tab
+        trips the unique index: both are `ConversationBusy`. No cap closes a séance
+        here: a full one rolls over when the next turn opens (D10), which is this same
+        write with two segments: the full row, no entries, closed `capped`, then the
+        next row with its synthetic start."""
+        now = utcnow()
+        stored: list[StoredSeance] = []
+        try:
+            with self._factory() as s:
+                for index, segment in enumerate(segments):
+                    row: ConversationRow | None = None
+                    if index == 0 and live_id is not None:
+                        row = s.get(ConversationRow, live_id)
+                        if row is None or row.state != "live" or row.entry_count != expected_count:
+                            raise ConversationBusy()
+                        if row.section_id is None and segment.section_id is not None:
+                            row.section_id = segment.section_id  # a fresh row adopts its section
+                    else:
+                        row = _new_row(user_id, chapter_id, "parcours", content_version, segment.section_id, now)
+                        s.add(row)
+                    _extend(row, segment.entries, segment.card_count, now)
+                    if segment.closed_reason is not None:
+                        row.state = "closed"
+                        row.closed_reason = segment.closed_reason
+                    # The closed row must be closed in the database before the next live one is inserted.
+                    s.flush()
+                    stored.append(
+                        StoredSeance(row.id, row.section_id, row.closed_reason, row.entry_count, row.card_count)
+                    )
+                s.commit()
+        except IntegrityError:
+            raise ConversationBusy() from None
+        return stored
+
+    def seances(self, user_id: str, chapter_id: str, content_version: int) -> list[ConversationRecord]:
+        """The student's parcours rows of a chapter at one content version, oldest
+        first: the notebook (D8)."""
+        query = select(ConversationRow).where(
+            ConversationRow.user_id == user_id,
+            ConversationRow.chapter_id == chapter_id,
+            ConversationRow.mode == "parcours",
+            ConversationRow.content_version == content_version,
+        )
+        with self._factory() as s:
+            rows = s.scalars(query.order_by(ConversationRow.created_at, ConversationRow.id))
+            return [_conversation(row) for row in rows]
+
+    def closed_seance_ids(
+        self, user_id: str, chapter_id: str, content_version: int, section_id: str
+    ) -> list[str]:
+        """The ids of a section's closed séances at one content version that hold a card,
+        oldest first: the key of what the reprise note lists (D5). Ids only, no transcript."""
+        with self._factory() as s:
+            return list(
+                s.scalars(
+                    select(ConversationRow.id)
+                    .where(
+                        ConversationRow.user_id == user_id,
+                        ConversationRow.chapter_id == chapter_id,
+                        ConversationRow.mode == "parcours",
+                        ConversationRow.content_version == content_version,
+                        ConversationRow.section_id == section_id,
+                        ConversationRow.state == "closed",
+                        ConversationRow.card_count > 0,
+                    )
+                    .order_by(ConversationRow.created_at, ConversationRow.id)
+                )
+            )
+
+    def seances_by_id(self, user_id: str, ids: list[str]) -> list[ConversationRecord]:
+        """The student's parcours rows among `ids`, in the order of `ids` (one that is gone is left out)."""
+        if not ids:
+            return []
+        with self._factory() as s:
+            rows = {
+                row.id: row
+                for row in s.scalars(
+                    select(ConversationRow).where(
+                        ConversationRow.id.in_(ids),
+                        ConversationRow.user_id == user_id,
+                        ConversationRow.mode == "parcours",
+                    )
+                )
+            }
+            return [_conversation(rows[i]) for i in ids if i in rows]
+
+    def count_seances(self, user_id: str, chapter_id: str) -> int:
+        """How many parcours rows a chapter holds for a student, every content version (the cap, D10)."""
+        with self._factory() as s:
+            return (
+                s.scalar(
+                    select(func.count())
+                    .select_from(ConversationRow)
+                    .where(
+                        ConversationRow.user_id == user_id,
+                        ConversationRow.chapter_id == chapter_id,
+                        ConversationRow.mode == "parcours",
+                    )
+                )
+                or 0
+            )
+
+    def card_counts(self, user_id: str, chapter_id: str, content_version: int) -> dict[str, int]:
+        """Section id -> cards stored in its séances at this content version, for each
+        section that has one (the chapter view, spec 018). An SQL aggregate: no
+        transcript is read."""
+        with self._factory() as s:
+            rows = s.execute(
+                select(ConversationRow.section_id, func.coalesce(func.sum(ConversationRow.card_count), 0))
+                .where(
+                    ConversationRow.user_id == user_id,
+                    ConversationRow.chapter_id == chapter_id,
+                    ConversationRow.mode == "parcours",
+                    ConversationRow.content_version == content_version,
+                    ConversationRow.section_id.is_not(None),
+                )
+                .group_by(ConversationRow.section_id)
+            ).all()
+            return {section: int(cards) for section, cards in rows}
+
+
+def _new_row(
+    user_id: str, chapter_id: str, mode: str, content_version: int, section_id: str | None, now: datetime
+) -> ConversationRow:
+    return ConversationRow(
+        id=uuid.uuid4().hex,
+        user_id=user_id,
+        chapter_id=chapter_id,
+        mode=mode,
+        content_version=content_version,
+        entries=[],
+        entry_count=0,
+        char_count=0,
+        section_id=section_id,
+        card_count=0,
+        state="live",
+        closed_reason=None,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def _extend(row: ConversationRow, entries: list[dict[str, Any]], cards: int, now: datetime) -> None:
+    """Append to a row and keep its counters in step: entries, characters, cards (`cards`
+    of them in `entries`: the caller knows which tool shows one, the repository does not)."""
+    if entries:  # a row closed by a rollover gets none: its transcript blob is not rewritten
+        merged = list(row.entries or []) + entries
+        row.entries = merged
+        row.entry_count = len(merged)
+    row.char_count = (row.char_count or 0) + sum(_entry_chars(e) for e in entries)
+    row.card_count = (row.card_count or 0) + cards
+    row.updated_at = now
 
 
 class AppSettingsRepository(_Repo):

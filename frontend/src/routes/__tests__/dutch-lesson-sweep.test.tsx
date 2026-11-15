@@ -84,11 +84,14 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function mountLesson() {
+function mountLesson(seance: unknown = null) {
   mockApi(
     (_method, path) => {
       if (path.endsWith("/api/health")) return { body: { voice: false } };
       if (path.endsWith("/api/courses/maths/chapters/suites")) return { body: CHAPTER };
+      // Boards stored for the first section (018): its row offers to reread them.
+      if (path.endsWith("/api/courses/maths/chapters/suites/seance"))
+        return { body: { seance, progress: CHAPTER.progress, seances: { s1: { cards: 3 } } } };
       return undefined;
     },
     { locale: "nl", name: "Lea" },
@@ -121,9 +124,35 @@ describe.each([
         screen.getByRole("button", { name: "Het traject van het hoofdstuk bekijken" }),
       );
       await screen.findByRole("dialog");
+      expect(screen.getByRole("link", { name: "Herlezen" })).toBeTruthy();
       expect(foreignTextOutside("nl")).toEqual([]);
       fireEvent.click(screen.getByRole("button", { name: "Het hoofdstuk opnieuw beginnen" }));
       await screen.findByRole("alertdialog");
+      expect(foreignTextOutside("nl")).toEqual([]);
+    }));
+});
+
+describe("the Dutch sweep: a resumed séance (018)", () => {
+  beforeEach(() => stubLayoutApis({ desktop: true }));
+
+  it("the restored transcript and its « séance reprise » marker", () =>
+    withLocale("nl", async () => {
+      mountLesson({
+        id: "row1",
+        section_id: "s2",
+        entries: [
+          { kind: "tutor", text: "On reprend le calcul d'un terme." },
+          {
+            kind: "tool",
+            name: "start_section",
+            arguments: { section_id: "s2" },
+            review: false,
+            marker: "vraag gesteld",
+          },
+          { kind: "learner", text: "D'accord." },
+        ],
+      });
+      await screen.findByText(/sessie hervat/);
       expect(foreignTextOutside("nl")).toEqual([]);
     }));
 });

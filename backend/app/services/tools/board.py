@@ -18,7 +18,8 @@ from typing import Any, Literal, Union, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from app.domain.board import CLEAR_MARKER, BoardCard, DefinitionBlock, ExerciseCard, card_blocks
+from app.api.schemas.chat import ToolEntry
+from app.domain.board import CLEAR_MARKER, BoardCard, DefinitionBlock, ExerciseCard, card_blocks, card_marker
 from app.domain.chart import ChartBlock
 from app.domain.errors import ToolValidationError
 from app.domain.figure import FigureBlock
@@ -30,7 +31,7 @@ from app.services.tools.charts import Refusal, charts_refusal
 from app.services.tools.figures import figures_refusal, figures_summary
 from app.services.tools.flowcharts import flowcharts_refusal, flowcharts_summary
 from app.services.tools.plots import plots_refusal, plots_summary
-from app.services.tools.context import TurnContext
+from app.services.tools.context import Shown, StoredView, TurnContext
 from app.services.tools.text import MATH, spaced
 
 log = logging.getLogger(__name__)
@@ -393,3 +394,12 @@ def display_board(args: DisplayBoardArgs, ctx: TurnContext) -> BoardSet:
 
 def clear_board(_: ClearBoardArgs, __: TurnContext) -> BoardCleared:
     return BoardCleared(marker=CLEAR_MARKER)
+
+
+def shown_display(entry: ToolEntry, _: StoredView) -> Shown:
+    """A stored `display_board` call: its card's marker, as the live call returned it."""
+    return Shown(card_marker(entry.arguments))
+
+
+def shown_clear(_: ToolEntry, __: StoredView) -> Shown:
+    return Shown(CLEAR_MARKER)

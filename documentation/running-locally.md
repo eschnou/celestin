@@ -67,8 +67,9 @@ wins if both exist, and both are gitignored.
 | `OPENAI_MODEL` | `gpt-6.1-sol` | The tutor model (any model name the provider serves). `gpt-6-astra` (the flagship) if pedagogical quality disappoints, `gpt-6-luna` (much cheaper) if cost or latency matters. The other roles' models and efforts: `AUTHORING_*`, `TRANSCRIPTION_*`, `VOICE_*`, `TUTOR_REASONING_EFFORT` (empty = not sent; the built-in efforts apply to OpenAI only). |
 | `MAX_TOOL_ROUNDS` | `6` | Rounds of tool use per turn before the turn ends with a notice. |
 | `MAX_MESSAGE_CHARS` | `4000` | Per learner message. |
-| `MAX_HISTORY_ENTRIES` | `400` | Per request. |
-| `HISTORY_TOKEN_BUDGET` | `30000` | Transcript trimming threshold. The prompt prefix is never trimmed. |
+| `HISTORY_TOKEN_BUDGET` | `30000` | Transcript trimming threshold. The prompt prefix is never trimmed, nor, in the parcours, the section's brief (spec 018). |
+| `SEANCE_MAX_ROWS` | `200` | Stored séances a chapter may hold per student (spec 018, every content version): past it a reported turn (spoken, or stopped by the learner) is refused `409 seance_full`; model turns are not. « Recommencer le chapitre » deletes them. |
+| `SEANCE_REPORTS_PER_HOUR` | `600` | Reported parcours turns per student and hour (`429 seance_report_rate`). |
 | `CORS_ORIGINS` | empty | Comma-separated. Only needed if you stop using the proxy. |
 | `DEBUG_LOG_PROMPTS` | `false` | Off by default: prompt and pack content stay out of the logs. |
 | `MAX_COURSES_PER_STUDENT`, `MAX_CHAPTERS_PER_COURSE` | `30`, `40` | Courses per student, chapters per course. |

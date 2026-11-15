@@ -40,7 +40,10 @@ def next_section(curriculum: Curriculum, progress: Progress) -> Section | None:
     return None
 
 
-def _startable(curriculum: Curriculum, progress: Progress) -> Section | None:
+def startable(curriculum: Curriculum, progress: Progress) -> Section | None:
+    """Where the page turns: the section in progress, else the next one of the path;
+    None once the chapter is finished. What a locked section's refusal points to, what a
+    completion leads to, and what a stored `complete_section` says now (spec 018)."""
     if progress.active is not None:
         return curriculum.get(progress.active)
     return next_section(curriculum, progress)
@@ -100,8 +103,8 @@ def can_start(
         return _unknown(curriculum, section_id, language)
     if section_states(curriculum, progress)[section_id] != "locked":
         return None
-    startable = _startable(curriculum, progress)
-    hint = w.hint.format(label=startable.label, id=startable.id) if startable else ""
+    turn = startable(curriculum, progress)
+    hint = w.hint.format(label=turn.label, id=turn.id) if turn else ""
     return w.locked.format(label=section.label, hint=hint)
 
 

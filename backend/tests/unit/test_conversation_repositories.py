@@ -35,23 +35,23 @@ def _say(text: str) -> dict:
 def test_start_creates_a_live_empty_conversation(repos: Repositories) -> None:
     user = _student(repos)
     chapter = _chapter(repos, user)
-    assert repos.conversations.live(user, chapter) is None
+    assert repos.conversations.live(user, chapter, mode="discussion") is None
 
-    conv = repos.conversations.start(user, chapter, content_version=3)
+    conv = repos.conversations.start(user, chapter, content_version=3, mode="discussion")
     assert conv.live and conv.entries == [] and conv.entry_count == 0
     assert conv.content_version == 3 and conv.closed_reason is None
-    assert repos.conversations.live(user, chapter) == conv
+    assert repos.conversations.live(user, chapter, mode="discussion") == conv
 
 
 def test_starting_again_closes_the_previous_one_as_replaced(repos: Repositories) -> None:
     user = _student(repos)
     chapter = _chapter(repos, user)
-    first = repos.conversations.start(user, chapter, 1)
-    second = repos.conversations.start(user, chapter, 1)
+    first = repos.conversations.start(user, chapter, 1, mode="discussion")
+    second = repos.conversations.start(user, chapter, 1, mode="discussion")
 
     assert second.id != first.id
-    assert repos.conversations.live(user, chapter) == second
-    stale = repos.conversations.get_owned(user, chapter, first.id)
+    assert repos.conversations.live(user, chapter, mode="discussion") == second
+    stale = repos.conversations.get_owned(user, chapter, first.id, mode="discussion")
     assert stale and not stale.live and stale.closed_reason == "replaced"
 
 
@@ -59,7 +59,7 @@ def test_only_one_live_row_per_student_and_chapter(repos: Repositories, db_engin
     """The partial unique index, not a read-then-write race (007 §4.1)."""
     user = _student(repos)
     chapter = _chapter(repos, user)
-    repos.conversations.start(user, chapter, 1)
+    repos.conversations.start(user, chapter, 1, mode="discussion")
     with pytest.raises(Exception):  # IntegrityError under any driver
         with db_engine.begin() as conn:
             conn.execute(
@@ -76,25 +76,25 @@ def test_a_closed_conversation_does_not_block_a_new_live_one(repos: Repositories
     user = _student(repos)
     chapter = _chapter(repos, user)
     for _ in range(3):
-        repos.conversations.start(user, chapter, 1)
-    assert repos.conversations.live(user, chapter) is not None
+        repos.conversations.start(user, chapter, 1, mode="discussion")
+    assert repos.conversations.live(user, chapter, mode="discussion") is not None
 
 
 def test_conversations_are_per_student_and_per_chapter(repos: Repositories) -> None:
     a, b = _student(repos, "a@b.be"), _student(repos, "b@b.be")
     chapter_a, chapter_b = _chapter(repos, a), _chapter(repos, b)
-    conv = repos.conversations.start(a, chapter_a, 1)
+    conv = repos.conversations.start(a, chapter_a, 1, mode="discussion")
 
-    assert repos.conversations.live(b, chapter_b) is None
-    assert repos.conversations.get_owned(b, chapter_a, conv.id) is None
-    assert repos.conversations.get_owned(a, chapter_b, conv.id) is None
-    assert repos.conversations.get_owned(a, chapter_a, conv.id) == conv
+    assert repos.conversations.live(b, chapter_b, mode="discussion") is None
+    assert repos.conversations.get_owned(b, chapter_a, conv.id, mode="discussion") is None
+    assert repos.conversations.get_owned(a, chapter_b, conv.id, mode="discussion") is None
+    assert repos.conversations.get_owned(a, chapter_a, conv.id, mode="discussion") == conv
 
 
 def test_append_adds_entries_and_counts_them(repos: Repositories) -> None:
     user = _student(repos)
     chapter = _chapter(repos, user)
-    conv = repos.conversations.start(user, chapter, 1)
+    conv = repos.conversations.start(user, chapter, 1, mode="discussion")
 
     after = repos.conversations.append(
         conv.id,
@@ -112,7 +112,7 @@ def test_append_adds_entries_and_counts_them(repos: Repositories) -> None:
 
 def test_a_tool_entry_costs_its_arguments(repos: Repositories) -> None:
     user = _student(repos)
-    conv = repos.conversations.start(user, _chapter(repos, user), 1)
+    conv = repos.conversations.start(user, _chapter(repos, user), 1, mode="discussion")
     tool = {"kind": "tool", "name": "display_board", "arguments": {"card": {"kind": "title"}}}
     after = repos.conversations.append(conv.id, [tool], expected_count=0, **BIG)
     assert after.char_count == len('{"card": {"kind": "title"}}')
@@ -120,13 +120,13 @@ def test_a_tool_entry_costs_its_arguments(repos: Repositories) -> None:
 
 def test_a_stale_expected_count_is_busy_and_writes_nothing(repos: Repositories) -> None:
     user = _student(repos)
-    conv = repos.conversations.start(user, _chapter(repos, user), 1)
+    conv = repos.conversations.start(user, _chapter(repos, user), 1, mode="discussion")
     repos.conversations.append(conv.id, [_say("un")], expected_count=0, **BIG)
 
     with pytest.raises(ConversationBusy):
         repos.conversations.append(conv.id, [_say("deux")], expected_count=0, **BIG)
 
-    current = repos.conversations.get_owned(user, conv.chapter_id, conv.id)
+    current = repos.conversations.get_owned(user, conv.chapter_id, conv.id, mode="discussion")
     assert current and current.entry_count == 1
 
 
@@ -137,17 +137,17 @@ def test_an_unknown_conversation_is_busy_rather_than_a_crash(repos: Repositories
 
 def test_crossing_the_entry_cap_closes_the_conversation(repos: Repositories) -> None:
     user = _student(repos)
-    conv = repos.conversations.start(user, _chapter(repos, user), 1)
+    conv = repos.conversations.start(user, _chapter(repos, user), 1, mode="discussion")
     after = repos.conversations.append(
         conv.id, [_say("a"), _say("b")], expected_count=0, max_entries=2, max_chars=200_000
     )
     assert not after.live and after.closed_reason == "capped"
-    assert repos.conversations.live(user, conv.chapter_id) is None
+    assert repos.conversations.live(user, conv.chapter_id, mode="discussion") is None
 
 
 def test_crossing_the_character_cap_closes_the_conversation(repos: Repositories) -> None:
     user = _student(repos)
-    conv = repos.conversations.start(user, _chapter(repos, user), 1)
+    conv = repos.conversations.start(user, _chapter(repos, user), 1, mode="discussion")
     after = repos.conversations.append(
         conv.id, [_say("x" * 50)], expected_count=0, max_entries=400, max_chars=40
     )
@@ -156,10 +156,10 @@ def test_crossing_the_character_cap_closes_the_conversation(repos: Repositories)
 
 def test_close_is_idempotent_and_keeps_the_first_reason(repos: Repositories) -> None:
     user = _student(repos)
-    conv = repos.conversations.start(user, _chapter(repos, user), 1)
+    conv = repos.conversations.start(user, _chapter(repos, user), 1, mode="discussion")
     repos.conversations.close(conv.id, "content_changed")
     repos.conversations.close(conv.id, "replaced")
-    stored = repos.conversations.get_owned(user, conv.chapter_id, conv.id)
+    stored = repos.conversations.get_owned(user, conv.chapter_id, conv.id, mode="discussion")
     assert stored and stored.closed_reason == "content_changed"
 
 
@@ -167,33 +167,33 @@ def test_started_since_counts_for_the_quota(repos: Repositories) -> None:
     user = _student(repos)
     chapter = _chapter(repos, user)
     for _ in range(3):
-        repos.conversations.start(user, chapter, 1)
-    assert repos.conversations.started_since(user, NOW - timedelta(days=400)) == 3
-    assert repos.conversations.started_since(user, datetime.now(UTC) + timedelta(days=1)) == 0
+        repos.conversations.start(user, chapter, 1, mode="discussion")
+    assert repos.conversations.started_since(user, NOW - timedelta(days=400), mode="discussion") == 3
+    assert repos.conversations.started_since(user, datetime.now(UTC) + timedelta(days=1), mode="discussion") == 0
     other = _student(repos, "b@b.be")
-    assert repos.conversations.started_since(other, NOW - timedelta(days=400)) == 0
+    assert repos.conversations.started_since(other, NOW - timedelta(days=400), mode="discussion") == 0
 
 
 def test_conversations_go_with_the_chapter(repos: Repositories) -> None:
     user = _student(repos)
     course, chapter = _course_and_chapter(repos, user)
-    conv = repos.conversations.start(user, chapter, 1)
+    conv = repos.conversations.start(user, chapter, 1, mode="discussion")
     assert repos.chapters.delete(user, course, chapter)
-    assert repos.conversations.get_owned(user, chapter, conv.id) is None
+    assert repos.conversations.get_owned(user, chapter, conv.id, mode="discussion") is None
 
 
 def test_conversations_go_with_the_course(repos: Repositories) -> None:
     user = _student(repos)
     course, chapter = _course_and_chapter(repos, user)
-    conv = repos.conversations.start(user, chapter, 1)
+    conv = repos.conversations.start(user, chapter, 1, mode="discussion")
     assert repos.courses.delete(user, course)
-    assert repos.conversations.get_owned(user, chapter, conv.id) is None
+    assert repos.conversations.get_owned(user, chapter, conv.id, mode="discussion") is None
 
 
 def test_conversations_go_with_the_account(repos: Repositories, db_engine) -> None:
     user = _student(repos)
     chapter = _chapter(repos, user)
-    conv = repos.conversations.start(user, chapter, 1)
+    conv = repos.conversations.start(user, chapter, 1, mode="discussion")
     with db_engine.begin() as conn:
         conn.execute(sql_text("delete from users where id = :u"), {"u": user})
-    assert repos.conversations.get_owned(user, chapter, conv.id) is None
+    assert repos.conversations.get_owned(user, chapter, conv.id, mode="discussion") is None

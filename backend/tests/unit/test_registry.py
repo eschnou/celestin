@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from app.api.schemas.chat import ToolEntry
 from app.domain.errors import ToolValidationError
 from app.services.tools import registry
 from app.domain.board import marker_for
@@ -508,23 +509,23 @@ def test_every_card_kind_declares_a_marker() -> None:
 
 
 def test_replay_output_is_bare_for_board_tools() -> None:
-    assert registry.replay_output("display_board", {"card": CARD}, CTX) == {"ok": True}
-    assert registry.replay_output("clear_board", {}, CTX) == {"ok": True}
+    assert registry.replay_output(ToolEntry(kind="tool", name="display_board", arguments={"card": CARD}), CTX) == {"ok": True}
+    assert registry.replay_output(ToolEntry(kind="tool", name="clear_board", arguments={}), CTX) == {"ok": True}
 
 
 def test_replay_output_recomputes_a_section_brief() -> None:
-    out = registry.replay_output("start_section", {"section_id": "intro"}, CTX)
+    out = registry.replay_output(ToolEntry(kind="tool", name="start_section", arguments={"section_id": "intro"}), CTX)
     assert out["ok"] is True
     assert "Déroulé" in out["result"]
 
 
 def test_replay_output_never_raises() -> None:
-    assert "inconnue" in registry.replay_output("start_section", {"nope": 1}, CTX)["result"]
-    assert registry.replay_output("teleport", {}, CTX) == {"ok": True}
+    assert "inconnue" in registry.replay_output(ToolEntry(kind="tool", name="start_section", arguments={"nope": 1}), CTX)["result"]
+    assert registry.replay_output(ToolEntry(kind="tool", name="teleport", arguments={}), CTX) == {"ok": True}
 
 
 def test_replayed_completion_needs_only_the_section_id() -> None:
-    out = registry.replay_output("complete_section", {"section_id": "intro"}, CTX)
+    out = registry.replay_output(ToolEntry(kind="tool", name="complete_section", arguments={"section_id": "intro"}), CTX)
     assert out["ok"] is True and "Section terminée" in out["result"]
 
 

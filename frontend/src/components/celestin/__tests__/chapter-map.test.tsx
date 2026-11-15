@@ -3,10 +3,11 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChapterMapSheet } from "../chapter-map";
 import { CourseLanguageProvider } from "@/lib/course-language";
-import type { Chapter, Progress } from "@/lib/tutor/types";
+import type { ChapterView, Progress } from "@/lib/tutor/types";
 
-const CHAPTER: Chapter = {
+const CHAPTER: Pick<ChapterView, "id" | "course_id" | "title" | "sections"> = {
   id: "suites",
+  course_id: "maths",
   title: "Les suites numériques",
   sections: [
     { id: "s1", index: 1, kind: "teach", title: "Suites numériques", goal: "Savoir lire uₙ." },
@@ -29,6 +30,7 @@ function mount(progress: Progress, overrides: Partial<Parameters<typeof ChapterM
       streaming={false}
       onSend={onSend}
       onReset={onReset}
+      rereadable={new Set()}
       {...overrides}
     />,
   );
@@ -106,6 +108,7 @@ describe("ChapterMapSheet in an English course", () => {
           streaming={false}
           onSend={onSend}
           onReset={vi.fn()}
+          rereadable={new Set()}
         />
       </CourseLanguageProvider>,
     );

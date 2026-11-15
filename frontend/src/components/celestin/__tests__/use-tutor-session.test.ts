@@ -161,7 +161,14 @@ describe("session reducer", () => {
     );
     expect(state.progress).toEqual({ done: ["suites"], active: null });
     expect(state.history).toEqual([
-      { kind: "tool", name: "start_section", arguments: { section_id: "suites" }, ok: true },
+      // `review` travels with the stored séance (018); the model never reads it.
+      {
+        kind: "tool",
+        name: "start_section",
+        arguments: { section_id: "suites" },
+        ok: true,
+        review: false,
+      },
       { kind: "tool", name: "complete_section", arguments: { section_id: "suites" }, ok: true },
     ]);
   });

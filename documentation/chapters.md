@@ -250,8 +250,15 @@ events, and resets it through `DELETE …/progress`. Every read of the lesson vi
 against the current curriculum.
 
 Since spec 007 a chapter also carries the student's stored **discussions** — a separate record, in
-`conversations`, that no discussion turn can write progress into. The two are independent: resetting
-progress leaves conversations alone, and a conversation never moves the path. Details in [accounts-and-courses.md](./accounts-and-courses.md).
+`conversations`, that no discussion turn can write progress into: resetting progress leaves them
+alone, and a discussion never moves the path. Details in [accounts-and-courses.md](./accounts-and-courses.md).
+
+Since spec 018 it carries her **séances** as well: the parcours transcript, in `conversations` with
+`mode = 'parcours'`, one row per stretch of work on one section, so a lesson resumes after a reload
+and the cahier can show the boards again. They belong with the progress: « Recommencer le
+chapitre » deletes both in one transaction, and a content change hides them (the cahier reads the
+current version only). The lesson's read of its séance (`GET …/seance`) says which sections have
+stored cards (`seances`), with the progress it was read with. Details in [seances.md](./seances.md).
 
 ## What the interface shows
 

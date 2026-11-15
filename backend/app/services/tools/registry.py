@@ -14,6 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
+from app.api.schemas.chat import ToolEntry
 from app.domain.errors import ToolValidationError, format_validation_errors
 from app.domain.language import COURSE_LANGUAGES, DEFAULT_COURSE_LANGUAGE, CourseLanguage, by_language
 from app.domain.mode import DEFAULT_MODE, MODES, Mode
@@ -25,9 +26,11 @@ from app.services.tools.board import (
     clear_board,
     display_board,
     log_schema_refusal,
+    shown_clear,
+    shown_display,
 )
-from app.services.tools.context import TurnContext
-from app.services.tools.pace import NextStepProposed, ProposeNextStepArgs, propose_next_step
+from app.services.tools.context import Shown, StoredView, TurnContext
+from app.services.tools.pace import NextStepProposed, ProposeNextStepArgs, propose_next_step, shown_propose
 from app.services.tools.section import (
     CompleteSectionArgs,
     SectionCompleted,
@@ -36,6 +39,8 @@ from app.services.tools.section import (
     complete_section,
     replay_complete,
     replay_start,
+    shown_complete,
+    shown_start,
     start_section,
 )
 
@@ -49,9 +54,14 @@ class Tool:
     args_model: type[BaseModel]
     handler: Callable[[Any, TurnContext], ToolOutcome]
     strict: bool
-    # What a replayed, successful call answers on later turns (design 3.8), from
-    # the raw stored arguments. None means a bare {"ok": true}.
-    replay: Callable[[dict[str, Any], TurnContext], str] | None = None
+    # What a replayed, successful call answers on later turns (design 3.8), from the
+    # stored entry: what the call was at the time (its arguments, `review`). None means
+    # a bare {"ok": true}.
+    replay: Callable[[ToolEntry, TurnContext], str] | None = None
+    # What a stored call shows when a transcript is read back (spec 018): its marker,
+    # built by the function the live handler uses, and its entry's extra wire fields.
+    # None shows no marker. `StoredEntry` asks here, so a new tool needs no DTO edit.
+    shown: Callable[[ToolEntry, StoredView], Shown] | None = None
     # Told about arguments Pydantic refused, before the model is: for the logs only.
     on_invalid: Callable[[ValidationError, TurnContext], None] | None = None
 
@@ -88,6 +98,7 @@ _TOOLS: dict[str, Tool] = {
             handler=display_board,
             strict=False,
             on_invalid=log_schema_refusal,
+            shown=shown_display,
         ),
         Tool(
             name="clear_board",
@@ -95,6 +106,7 @@ _TOOLS: dict[str, Tool] = {
             args_model=ClearBoardArgs,
             handler=clear_board,
             strict=True,
+            shown=shown_clear,
         ),
         Tool(
             name="start_section",
@@ -107,6 +119,7 @@ _TOOLS: dict[str, Tool] = {
             handler=start_section,
             strict=True,
             replay=replay_start,
+            shown=shown_start,
         ),
         Tool(
             name="complete_section",
@@ -118,6 +131,7 @@ _TOOLS: dict[str, Tool] = {
             handler=complete_section,
             strict=True,
             replay=replay_complete,
+            shown=shown_complete,
         ),
         Tool(
             name="propose_next_step",
@@ -129,6 +143,7 @@ _TOOLS: dict[str, Tool] = {
             args_model=ProposeNextStepArgs,
             handler=propose_next_step,
             strict=True,
+            shown=shown_propose,
         ),
     )
 }
@@ -140,6 +155,11 @@ _MODE_TOOLS: dict[Mode, tuple[str, ...]] = {
     "parcours": tuple(_TOOLS),
     "discussion": ("display_board", "clear_board"),
 }
+
+
+def offered(mode: Mode) -> tuple[str, ...]:
+    """The tools `mode` offers, in declaration order: what a reported turn may name (spec 018 D10)."""
+    return _MODE_TOOLS[mode]
 
 
 # What the model reads in the tool declarations, per course language (spec 011 §4.7):
@@ -300,13 +320,23 @@ def arguments_valid(name: str, arguments_json: str) -> bool:
     return True
 
 
-def replay_output(name: str, arguments: dict[str, Any], ctx: TurnContext) -> dict[str, Any]:
+def replay_output(entry: ToolEntry, ctx: TurnContext) -> dict[str, Any]:
     """The tool result a successful call from an earlier turn answers now (design 3.8).
     Never raises: an unknown tool replays as a bare success."""
-    tool = _TOOLS.get(name)
+    tool = _TOOLS.get(entry.name)
     if tool is None or tool.replay is None:
         return {"ok": True}
-    return {"ok": True, "result": tool.replay(arguments, ctx)}
+    return {"ok": True, "result": tool.replay(entry, ctx)}
+
+
+def shown(entry: ToolEntry, mode: Mode, view: StoredView = StoredView()) -> Shown:
+    """What a stored call shows when a transcript of `mode` is read back (spec 018).
+    A tool the mode does not offer shows nothing (no marker, no extra field), as an
+    unknown one does: a discussion reads its board calls only."""
+    tool = _TOOLS.get(entry.name)
+    if tool is None or tool.shown is None or entry.name not in _MODE_TOOLS[mode]:
+        return Shown()
+    return tool.shown(entry, view)
 
 
 def output_of(outcome: ToolOutcome) -> dict[str, Any]:

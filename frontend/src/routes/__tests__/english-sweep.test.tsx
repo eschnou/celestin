@@ -13,6 +13,7 @@ import { withLocale } from "@/test/locale";
 import { mockApi, mountRoutes, type Handler } from "@/test/route-harness";
 import { Route as ChapterFile } from "../_auth/courses/$courseId/chapters/$chapterId/index";
 import { Route as ContentFile } from "../_auth/courses/$courseId/chapters/$chapterId/content";
+import { Route as NotebookFile } from "../_auth/courses/$courseId/chapters/$chapterId/notebook";
 import { Route as CourseFile } from "../_auth/courses/$courseId/index";
 import { Route as CoursesFile } from "../_auth/courses/index";
 import { Route as SettingsFile } from "../_auth/settings";
@@ -167,6 +168,7 @@ const ROUTES = [
   { path: "/courses/$courseId/", file: CourseFile },
   { path: "/courses/$courseId/chapters/$chapterId/", file: ChapterFile },
   { path: "/courses/$courseId/chapters/$chapterId/content", file: ContentFile },
+  { path: "/courses/$courseId/chapters/$chapterId/notebook", file: NotebookFile },
   { path: "/settings", file: SettingsFile },
 ];
 
@@ -351,3 +353,78 @@ describe("the English sweep: settings and the user menu", () => {
 });
 
 import { within } from "@testing-library/react";
+
+// --- the cahier (spec 018) ------------------------------------------------------------------
+
+const NOTEBOOK_CHAPTER = {
+  id: "h1",
+  title: "Le mouvement rectiligne uniforme",
+  position: 1,
+  course_id: "c1",
+  course_name: "Physics Year 4",
+  language: "fr",
+  subject: "sciences",
+  sections: [
+    { id: "s1", index: 1, kind: "teach", title: "Vitesse moyenne", goal: "Définir la vitesse." },
+    { id: "s2", index: 2, kind: "practise", title: "Calculer une durée", goal: "g2" },
+  ],
+  progress: { done: ["s1"], active: "s2" },
+};
+
+const NOTEBOOK = {
+  sections: [
+    {
+      section_id: "s1",
+      items: [
+        {
+          kind: "card",
+          card: { kind: "title", eyebrow: "Section 1", title: "Vitesse", objective: "o" },
+        },
+        { kind: "tutor", text: "Voici la définition de la vitesse moyenne." },
+        {
+          kind: "card",
+          card: {
+            kind: "check_question",
+            question: "Quelle est l'unité de la vitesse ?",
+            options: [
+              { id: "a", text: "Le mètre par seconde" },
+              { id: "b", text: "La seconde" },
+            ],
+            correct_option_id: "a",
+            feedback: "Exact : une distance divisée par une durée.",
+          },
+        },
+        { kind: "learner", text: "Le mètre par seconde, je pense." },
+      ],
+    },
+  ],
+};
+
+const notebookApi: Handler = (method, path) => {
+  if (method === "GET" && path.endsWith("/chapters/h1/notebook")) return { body: NOTEBOOK };
+  if (method === "GET" && path.endsWith("/api/courses/c1/chapters/h1"))
+    return { body: NOTEBOOK_CHAPTER };
+  return undefined;
+};
+
+describe("the English sweep: the cahier", () => {
+  it("its sections, the exchange, a revealed answer and the empty state", () =>
+    withLocale("en", async () => {
+      open("/courses/c1/chapters/h1/notebook", notebookApi);
+      await screen.findByRole("heading", { name: "Vitesse moyenne" });
+      clean();
+      fireEvent.click(screen.getByRole("switch", { name: "Show the conversation" }));
+      await screen.findByText("Le mètre par seconde, je pense.");
+      fireEvent.click(screen.getByRole("button", { name: /La seconde/ }));
+      await screen.findByText(/une distance divisée/);
+      clean();
+      cleanup();
+      open("/courses/c1/chapters/h1/notebook", (method, path) =>
+        method === "GET" && path.endsWith("/chapters/h1/notebook")
+          ? { body: { sections: [] } }
+          : notebookApi(method, path, undefined),
+      );
+      await screen.findByText(/Your notebook is still empty/);
+      clean();
+    }));
+});

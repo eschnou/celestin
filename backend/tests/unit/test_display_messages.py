@@ -11,7 +11,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.api.routes.courses import authoring_message, display_title
-from app.api.schemas.discussion import StoredEntry
+from app.api.stored import stored_entry
 from app.domain import board
 from app.domain.board import CLEAR_MARKER, marker_for
 from app.api.schemas.chat import ToolEntry
@@ -142,8 +142,8 @@ def test_a_stored_call_is_marked_in_the_readers_language() -> None:
     assert marker_for("clear_board", {}, "en") == "board cleared"
     assert marker_for("display_board", {"card": {"kind": "nonsense"}}, "en") is None
     entry = ToolEntry(kind="tool", name="clear_board", arguments={})
-    assert StoredEntry.of(entry).marker == "tableau effacé"
-    assert StoredEntry.of(entry, "en").marker == "board cleared"
+    assert stored_entry(entry).marker == "tableau effacé"
+    assert stored_entry(entry, "en").marker == "board cleared"
 
 
 def test_a_marker_survives_copy_and_pickle() -> None:

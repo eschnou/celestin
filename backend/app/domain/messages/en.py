@@ -59,6 +59,11 @@ MESSAGES: dict[str, str] = {
     "conversation_full": "This discussion has become very long. Start a new discussion to continue.",
     "conversation_busy": "Célestin is already answering you in this discussion.",
     "empty_conversation_expected": "This discussion has already started.",
+    "seance_started": "This lesson has already started.",
+    "seance_busy": "Célestin is already answering you in this lesson, maybe in another tab.",
+    "seance_report_rate": "Too many exchanges saved at once. Wait a moment before you continue.",
+    "seance_full": "This chapter already keeps a lot of lessons. Restart the chapter to keep new ones.",
+    "seance_report_invalid": "This exchange doesn't match this chapter and wasn't saved.",
     "discussion_quota": "You've started {maximum} discussions today. Pick up the one that's open, or try again tomorrow.",
     # --- the password policy (domain/password.py) ------------------------------------
     "weak_password.too_short": "The password must be at least {min_length} characters long.",

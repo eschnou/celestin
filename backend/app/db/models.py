@@ -23,6 +23,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
 from app.domain.ai_config import ROLES as AI_ROLES
+from app.domain.mode import MODES
 from app.domain.subject import SUBJECT_IDS
 from app.domain.usage import FEATURES, STATUSES
 from app.domain.user import ROLES
@@ -202,16 +203,21 @@ class ProgressRow(Base):
 
 
 CONVERSATION_STATES = ("live", "closed")
-CLOSED_REASONS = ("replaced", "content_changed", "capped")
+# `done` and `left` close a parcours séance (spec 018 D3): its section was finished, or another one started.
+CLOSED_REASONS = ("replaced", "content_changed", "capped", "done", "left")
+# A row is one mode's transcript: the modes are declared once, in `domain/mode.py`.
+CONVERSATION_MODES = MODES
 
 
 class ConversationRow(Base):
-    """One discussion on one chapter for one student (007 design 4.1).
+    """One discussion, or one séance of the parcours, on one chapter for one student
+    (007 design 4.1, spec 018 D1-D2).
 
     `entries` is the transcript as a JSON array of the DTO shapes the turn already
     uses, like `chapters.curriculum`: one blob, so appending a turn is a single
-    UPDATE and therefore atomic. `mode` is stored although only `discussion` is
-    written today — révision will add a value, not a table.
+    UPDATE and therefore atomic. A parcours row holds one stretch of work on one
+    section (`section_id`, null until its first `start_section`), and `card_count`
+    counts its `display_board` entries so the chapter view need not parse transcripts.
     """
 
     __tablename__ = "conversations"
@@ -219,14 +225,18 @@ class ConversationRow(Base):
         CheckConstraint(
             "state in ('" + "','".join(CONVERSATION_STATES) + "')", name="ck_conversations_state"
         ),
-        CheckConstraint("mode in ('discussion')", name="ck_conversations_mode"),
+        CheckConstraint(
+            "mode in ('" + "','".join(CONVERSATION_MODES) + "')", name="ck_conversations_mode"
+        ),
         Index("ix_conversations_user_chapter", "user_id", "chapter_id"),
-        # At most one live conversation per student and chapter, enforced by the
-        # database rather than by a read-then-write race.
+        # At most one live conversation per student, chapter and mode, enforced by the
+        # database rather than by a read-then-write race: a discussion and a parcours
+        # séance can both be live on the same chapter (spec 018).
         Index(
             "uq_conversations_live",
             "user_id",
             "chapter_id",
+            "mode",
             unique=True,
             sqlite_where=text("state = 'live'"),
             postgresql_where=text("state = 'live'"),
@@ -247,6 +257,9 @@ class ConversationRow(Base):
     entries: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
     entry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     char_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Spec 018: the section a parcours séance is about (always null for a discussion), and its cards.
+    section_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    card_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     state: Mapped[str] = mapped_column(String(8), nullable=False, default="live")
     closed_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

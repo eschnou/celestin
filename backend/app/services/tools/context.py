@@ -1,4 +1,5 @@
-"""What a tool handler may read during a turn (design 3.6).
+"""What a tool handler may read during a turn (design 3.6), and what a stored call is
+read back against (spec 018).
 
 `progress` is replaced, never mutated in place, when a section tool succeeds, so a
 second call in the same turn sees the new state.
@@ -7,8 +8,9 @@ second call in the same turn sees the new state.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+from typing import Any
 
 from app.domain import progress as progress_domain
 from app.domain.curriculum import Curriculum
@@ -16,6 +18,7 @@ from app.domain.mode import DEFAULT_MODE, Mode
 from app.domain.errors import ToolValidationError
 from app.domain.language import DEFAULT_COURSE_LANGUAGE, CourseLanguage, by_language
 from app.domain.locale import DEFAULT_LOCALE, Locale
+from app.domain.marker import Marker
 from app.domain.progress import Progress
 
 log = logging.getLogger(__name__)
@@ -50,6 +53,10 @@ class TurnContext:
     locale: Locale = DEFAULT_LOCALE
     # The course's language (spec 011): what the model path reads. Never the interface's.
     language: CourseLanguage = DEFAULT_COURSE_LANGUAGE
+    # Spec 018 D5: section id -> the cards shown in the closed, non-review séances of that section at the current
+    # content version, oldest first; what the reprise note at the end of `start_section` lists. Bound by the
+    # controller for the parcours, like `save`. None in unit tests and scripts: no note.
+    earlier_cards: Callable[[str], list[dict[str, Any]]] | None = None
 
     @classmethod
     def from_progress(
@@ -65,6 +72,7 @@ class TurnContext:
         locale: Locale = DEFAULT_LOCALE,
         language: CourseLanguage = DEFAULT_COURSE_LANGUAGE,
         course_id: str | None = None,
+        earlier_cards: Callable[[str], list[dict[str, Any]]] | None = None,
     ) -> TurnContext:
         """From the stored record: inconsistent progress is repaired, never rejected."""
         return cls(
@@ -78,6 +86,7 @@ class TurnContext:
             pack=pack,
             locale=locale,
             language=language,
+            earlier_cards=earlier_cards,
         )
 
     def commit(self, progress: Progress) -> None:
@@ -95,3 +104,24 @@ class TurnContext:
                 extra={**where, "active": progress.active, "done_count": len(progress.done)},
             )
         self.progress = progress
+
+
+@dataclass(frozen=True)
+class StoredView:
+    """What a stored tool call is read back against when a transcript is restored
+    (spec 018): the chapter's current curriculum (a section's label) and the progress
+    now (where the page turns). A discussion has neither: it reads board calls only."""
+
+    curriculum: Curriculum | None = None
+    progress: Progress | None = None
+
+
+@dataclass(frozen=True)
+class Shown:
+    """What a stored call of a tool shows (the registry's `shown` hook): the marker the
+    live call carried, built by the same function, and the wire fields its entry carries
+    beside it (`review`, `next_section_id`). Rendered at the edge, in the reader's
+    interface language."""
+
+    marker: Marker | None = None
+    fields: Mapping[str, Any] = field(default_factory=dict)

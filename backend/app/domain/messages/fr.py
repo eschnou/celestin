@@ -59,6 +59,11 @@ MESSAGES: dict[str, str] = {
     "conversation_full": "Cette discussion est devenue très longue. Ouvre une nouvelle discussion pour continuer.",
     "conversation_busy": "Célestin est déjà en train de te répondre dans cette discussion.",
     "empty_conversation_expected": "Cette discussion a déjà commencé.",
+    "seance_started": "Cette séance a déjà commencé.",
+    "seance_busy": "Célestin est déjà en train de te répondre dans cette séance, peut-être dans un autre onglet.",
+    "seance_report_rate": "Trop d'échanges enregistrés d'un coup. Attends un moment avant de continuer.",
+    "seance_full": "Ce chapitre garde déjà beaucoup de séances. Recommence le chapitre pour en garder de nouvelles.",
+    "seance_report_invalid": "Cet échange ne correspond pas à ce chapitre et n'a pas été enregistré.",
     "discussion_quota": "Tu as ouvert {maximum} discussions aujourd'hui. Reprends celle qui est en cours, ou réessaie demain.",
     # --- the password policy (domain/password.py) ------------------------------------
     "weak_password.too_short": "Le mot de passe doit faire au moins {min_length} caractères.",

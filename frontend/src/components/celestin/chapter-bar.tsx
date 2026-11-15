@@ -1,11 +1,11 @@
 /**
  * The chapter's top bar, the same in the lesson and on the discussion route:
  * which course (and the way back to it), which chapter, which of its two modes
- * is on screen, its content, who is signed in, the way out (005, 007).
+ * is on screen, its cahier (018), its content, who is signed in, the way out (005, 007).
  */
 
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft, BookOpen, FileText } from "lucide-react";
 
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useIsDesktop } from "@/hooks/use-is-desktop";
@@ -54,6 +54,14 @@ export function ChapterBar({
         <UserMenu user={user} compact>
           <DropdownMenuItem asChild>
             <Link
+              to="/courses/$courseId/chapters/$chapterId/notebook"
+              params={{ courseId: chapter.course_id, chapterId: chapter.id }}
+            >
+              <BookOpen /> {m.chapter_notebook()}
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link
               to="/courses/$courseId/chapters/$chapterId/content"
               params={{ courseId: chapter.course_id, chapterId: chapter.id }}
             >
@@ -85,6 +93,13 @@ export function ChapterBar({
         {AUTONYM[language]}
       </span>
       <ModeSwitch chapter={chapter} mode={mode} onMode={onMode} />
+      <Link
+        to="/courses/$courseId/chapters/$chapterId/notebook"
+        params={{ courseId: chapter.course_id, chapterId: chapter.id }}
+        className="shrink-0 text-muted-foreground hover:underline"
+      >
+        {m.chapter_notebook()}
+      </Link>
       <Link
         to="/courses/$courseId/chapters/$chapterId/content"
         params={{ courseId: chapter.course_id, chapterId: chapter.id }}

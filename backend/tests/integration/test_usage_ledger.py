@@ -78,7 +78,7 @@ async def test_a_turn_is_a_row_per_round_for_the_student(make_app) -> None:
     app = make_app(scripted)
     student, headers = sign_in(app)
     async with http_client(app, headers) as client:
-        r = await client.post("/api/chat", json={**LESSON, "history": []})
+        r = await client.post("/api/chat", json={**LESSON, "message": None})
     assert r.status_code == 200
     first, second = await ledger(app)
     for entry in (first, second):
@@ -212,7 +212,7 @@ async def test_a_ledger_that_cannot_be_written_does_not_touch_the_lesson(make_ap
     _, headers = sign_in(app)
     async with http_client(app, headers) as client:
         with caplog.at_level("ERROR"):
-            r = await client.post("/api/chat", json={**LESSON, "history": []})
+            r = await client.post("/api/chat", json={**LESSON, "message": None})
             await app.state.usage_recorder.drain()
             health = await client.get("/api/health")
     assert r.status_code == 200 and "turn.end" in r.text and health.json()["status"] == "ok"

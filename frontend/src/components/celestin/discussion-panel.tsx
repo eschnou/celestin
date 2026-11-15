@@ -14,6 +14,7 @@ import { SquarePen } from "lucide-react";
 import { useCallback, useEffect, useMemo } from "react";
 
 import { ConfirmDialog } from "@/components/celestin/confirm-dialog";
+import { ErrorRetry } from "@/components/celestin/not-found";
 import { TutorBoardSplit } from "@/components/celestin/tutor-board-split";
 import { TutorColumn } from "@/components/celestin/tutor-column";
 import { sessionFromEntries, useTutorSession } from "@/components/celestin/use-tutor-session";
@@ -52,19 +53,15 @@ export function DiscussionPanel({ chapter }: { chapter: ChapterView }) {
   if (query.isError || create.isError) {
     return (
       <Empty>
-        {apiMessage(query.error ?? create.error, m.discussion_failed())}{" "}
-        <button
-          type="button"
-          className="underline"
-          onClick={() => {
+        <ErrorRetry
+          message={apiMessage(query.error ?? create.error, m.discussion_failed())}
+          onRetry={() => {
             // The mutation has to go back to idle, or the auto-create effect stays
             // parked on its error and « Réessayer » does nothing.
             reset();
             void query.refetch();
           }}
-        >
-          {m.error_retry()}
-        </button>
+        />
       </Empty>
     );
   }

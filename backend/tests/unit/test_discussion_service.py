@@ -8,7 +8,9 @@ from app.api.schemas.chat import LearnerEntry, ToolEntry, TutorEntry
 from app.api.schemas.events import (
     BoardClearEvent,
     BoardSetEvent,
+    SectionDoneEvent,
     SectionStartEvent,
+    StepReadyEvent,
     TextDeltaEvent,
     TurnEnd,
     TurnStart,
@@ -25,7 +27,8 @@ from app.domain.errors import (
     EmptyTurnExpected,
     NotFound,
 )
-from app.services.discussion import DiscussionService, entries_from_events
+from app.services.conversations import entries_from_events
+from app.services.discussion import DiscussionService
 from tests.fixtures.curricula import curriculum
 
 CARD = ExplanationCard.model_validate(
@@ -98,8 +101,21 @@ def test_an_empty_text_block_is_not_recorded() -> None:
     assert entries_from_events([TextDeltaEvent(block_id=0, text="")]) == []
 
 
-def test_section_events_are_ignored_they_cannot_happen_here() -> None:
-    assert entries_from_events([SectionStartEvent(section_id="intro", review=False, marker="m")]) == []
+def test_the_parcours_events_are_recorded_as_the_lesson_records_them() -> None:
+    """Spec 018: the function is shared with the stored séances. A discussion still never
+    produces these events: it is not offered the tools."""
+    entries = entries_from_events(
+        [
+            SectionStartEvent(section_id="intro", review=True, marker="m"),
+            SectionDoneEvent(section_id="intro", next_section_id="exos", marker="m"),
+            StepReadyEvent(marker="m"),
+        ]
+    )
+    assert entries == [
+        ToolEntry(kind="tool", name="start_section", arguments={"section_id": "intro"}, review=True),
+        ToolEntry(kind="tool", name="complete_section", arguments={"section_id": "intro"}),
+        ToolEntry(kind="tool", name="propose_next_step", arguments={}),
+    ]
 
 
 # --- conversations ------------------------------------------------------------
@@ -109,7 +125,7 @@ def test_live_returns_none_until_one_is_started(repos: Repositories, settings: S
     user = _student(repos)
     chapter = _chapter(repos, user)
     other = _chapter(repos, user)
-    repos.conversations.start(user, other.id, 1)
+    repos.conversations.start(user, other.id, 1, mode="discussion")
     assert _service(repos, settings).live(user, chapter) is None
 
 
@@ -224,7 +240,7 @@ def test_a_message_is_read_after_the_stored_entries(
         conv,
         [LearnerEntry(kind="learner", text="salut"), TutorEntry(kind="tutor", text="bonjour")],
     )
-    conv = repos.conversations.live(user, conv.chapter_id)
+    conv = repos.conversations.live(user, conv.chapter_id, mode="discussion")
     assert conv is not None
 
     read, added = service.turn_entries(conv, "et les suites ?")
@@ -240,7 +256,7 @@ def test_an_opening_turn_on_a_started_conversation_is_refused(
     service = _service(repos, settings)
     conv = service.start(user, _chapter(repos, user))
     service.append(conv, [LearnerEntry(kind="learner", text="salut")])
-    conv = repos.conversations.live(user, conv.chapter_id)
+    conv = repos.conversations.live(user, conv.chapter_id, mode="discussion")
     assert conv is not None
 
     with pytest.raises(EmptyTurnExpected):
@@ -254,7 +270,7 @@ def test_a_stored_tool_entry_round_trips(repos: Repositories, settings: Settings
     produced = entries_from_events([BoardSetEvent(card=CARD, marker="explication affichée")])
     service.append(conv, produced)
 
-    conv = repos.conversations.live(user, conv.chapter_id)
+    conv = repos.conversations.live(user, conv.chapter_id, mode="discussion")
     assert conv is not None
     read, _ = service.turn_entries(conv, "oui")
     assert isinstance(read[0], ToolEntry) and read[0].name == "display_board"
@@ -265,7 +281,7 @@ def test_append_of_nothing_writes_nothing(repos: Repositories, settings: Setting
     service = _service(repos, settings)
     conv = service.start(user, _chapter(repos, user))
     service.append(conv, [])
-    reloaded = repos.conversations.live(user, conv.chapter_id)
+    reloaded = repos.conversations.live(user, conv.chapter_id, mode="discussion")
     assert reloaded is not None and reloaded.entry_count == 0
 
 

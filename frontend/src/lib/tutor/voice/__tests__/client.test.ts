@@ -2,7 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { EMPTY_PROGRESS } from "../../types";
 
 const SCOPE = { courseId: "maths-5e", chapterId: "suites" };
-import { createVoiceSession, executeTool, reportUsage, VoiceRequestError } from "../client";
+import {
+  createVoiceSession,
+  executeTool,
+  reportTurn,
+  reportUsage,
+  VoiceRequestError,
+} from "../client";
 import { EMPTY_USAGE } from "../types";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -18,7 +24,7 @@ function mockFetch(status: number, body: unknown) {
 }
 
 describe("createVoiceSession", () => {
-  it("posts the scope and the history and maps the wire shape", async () => {
+  it("posts the scope, never a transcript, and maps the wire shape", async () => {
     const fetchMock = mockFetch(201, {
       session_id: "s1",
       secret: "ek_x",
@@ -30,11 +36,11 @@ describe("createVoiceSession", () => {
       seed: [{ type: "message" }],
       opening: false,
     });
-    const info = await createVoiceSession(SCOPE, [{ kind: "learner", text: "hi" }]);
+    const info = await createVoiceSession(SCOPE);
+    // The server seeds the call from the stored séance (018): no `history` in any mode.
     expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toEqual({
       course_id: "maths-5e",
       chapter_id: "suites",
-      history: [{ kind: "learner", text: "hi" }],
     });
     expect(info).toEqual({
       sessionId: "s1",
@@ -51,10 +57,57 @@ describe("createVoiceSession", () => {
 
   it("surfaces the server's French message on 429", async () => {
     mockFetch(429, { code: "voice_rate_limited", message: "Trop de séances vocales." });
-    await expect(createVoiceSession(SCOPE, [])).rejects.toMatchObject({
+    await expect(createVoiceSession(SCOPE)).rejects.toMatchObject({
       code: "voice_rate_limited",
       message: "Trop de séances vocales.",
     });
+  });
+});
+
+describe("reportTurn", () => {
+  it("reports a parcours turn, spoken or stopped, to the séance route, review included", async () => {
+    const fetchMock = mockFetch(204, {});
+    await reportTurn(SCOPE, [
+      { kind: "learner", text: "on commence ?" },
+      {
+        kind: "tool",
+        name: "start_section",
+        arguments: { section_id: "s1" },
+        ok: true,
+        review: false,
+      },
+    ]);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/seance/report");
+    expect(JSON.parse(init.body)).toEqual({
+      course_id: "maths-5e",
+      chapter_id: "suites",
+      entries: [
+        { kind: "learner", text: "on commence ?" },
+        {
+          kind: "tool",
+          name: "start_section",
+          arguments: { section_id: "s1" },
+          ok: true,
+          review: false,
+        },
+      ],
+    });
+  });
+
+  it("reports a discussion's spoken turn to its conversation", async () => {
+    const fetchMock = mockFetch(204, {});
+    await reportTurn({ ...SCOPE, mode: "discussion", conversationId: "conv" }, [
+      { kind: "tutor", text: "Oui." },
+    ]);
+    expect(fetchMock.mock.calls[0]![0]).toBe("/api/discussion/voice/turn");
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toMatchObject({ conversation_id: "conv" });
+  });
+
+  it("sends nothing when the call added nothing", async () => {
+    const fetchMock = mockFetch(204, {});
+    await reportTurn(SCOPE, []);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

@@ -381,7 +381,7 @@ export type LessonScope = {
   conversationId?: string;
 };
 
-/** Where the learner is. Held by the browser, posted with every turn. */
+/** Where the learner is. Owned by the server (004), which sends it with the chapter. */
 export type Progress = { done: string[]; active: string | null };
 
 export const EMPTY_PROGRESS: Progress = { done: [], active: null };
@@ -409,22 +409,51 @@ export type TutorEvent =
 
 /* ------------------------------ transcript ------------------------------- */
 
-/** What the browser posts back. Markers and errors are presentation only. */
+/** The model-facing view of the conversation, kept by the session: what a spoken turn
+ *  reports to the server (007 D1, 018). Markers and errors are presentation only. */
 export type HistoryEntry =
   | { kind: "learner"; text: string }
   | { kind: "tutor"; text: string }
-  | { kind: "tool"; name: string; arguments: Record<string, unknown>; ok: boolean };
+  | {
+      kind: "tool";
+      name: string;
+      arguments: Record<string, unknown>;
+      ok: boolean;
+      /** On a `start_section` entry only: whether the call was a review (spec 018). The
+       *  server keeps it with the stored séance and never sends it to the model. */
+      review?: boolean;
+    };
 
-/** A stored discussion entry, as the server reads it back (007 §4.3). The
- *  `marker` is the French label the transcript shows for a tool call; the backend
- *  owns its wording, so it comes over the wire rather than being rebuilt here. */
+/** A stored entry of a discussion (007 §4.3) or a parcours séance (018), as the server
+ *  reads it back. The `marker` is the label the transcript shows for a tool call, in the
+ *  account's interface language; the backend owns its wording, so it comes over the wire
+ *  rather than being rebuilt here. Only ok calls are returned. */
 export type StoredEntry = {
   kind: "learner" | "tutor" | "tool";
   text?: string | null;
   name?: string | null;
   arguments?: Record<string, unknown> | null;
   marker?: string | null;
+  /** `start_section` only: the call was a review. */
+  review?: boolean | null;
+  /** `complete_section` only: the section the page-turn button offers next, read from the
+   *  student's current progress. */
+  next_section_id?: string | null;
 };
+
+/** The live parcours séance of one chapter (spec 018 D2): the stretch of work the lesson
+ *  view is in. The server also sends its `id` and its `section_id` (null while it holds only
+ *  a greeting); the lesson reads only the entries it folds back. */
+export type Seance = { entries: StoredEntry[] };
+
+/** One thing the cahier shows for a section: a card as it was shown, or a line said. */
+export type NotebookItem =
+  { kind: "card"; card: BoardCard } | { kind: "tutor" | "learner"; text: string };
+
+/** `GET …/notebook` (spec 018 D8): per section in path order, everything shown and said in
+ *  its stored séances, oldest first; only sections with at least one item. */
+export type NotebookSection = { section_id: string; items: NotebookItem[] };
+export type Notebook = { sections: NotebookSection[] };
 
 /** One stored discussion on one chapter (007 §4.3). */
 export type Conversation = {

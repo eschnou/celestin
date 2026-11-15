@@ -11,7 +11,8 @@ selects three things and nothing else:
 |---|---|---|
 | Prompt layer | `prompts/modes/parcours.fr.md` + `.opening.fr.md` | `prompts/modes/discussion.fr.md` + `.opening.fr.md` |
 | Tool set | the five tools | `display_board`, `clear_board` |
-| Who owns the transcript | the browser, posted back on every turn | the server: a `conversations` row |
+| What a turn posts | the learner's message; the server reads the live séance (spec 018) | the learner's message, naming its conversation |
+| Who owns the transcript | the server: one `conversations` row per section séance ([seances.md](./seances.md)) | the server: a `conversations` row |
 
 ## The two locks on progress
 
@@ -77,7 +78,7 @@ chapter does not contain, he says so in one sentence.
 {
   "id": "…",                    // uuid4 hex
   "user_id": "…", "chapter_id": "…",   // both ON DELETE CASCADE
-  "mode": "discussion",         // a value, so révision adds one rather than a table
+  "mode": "discussion",         // 'discussion' | 'parcours' (spec 018: the séances share the table)
   "content_version": 3,         // the chapter version it was held against
   "entries": [ … ],             // the transcript, in the DTO shapes a turn already uses
   "entry_count": 12, "char_count": 4210,
@@ -87,7 +88,10 @@ chapter does not contain, he says so in one sentence.
 ```
 
 - **One live conversation per student and chapter**, enforced by a partial unique index
-  (`uq_conversations_live … where state = 'live'`), not by a read-then-write race.
+  (`uq_conversations_live` on `(user_id, chapter_id, mode) where state = 'live'`), not by a
+  read-then-write race. Since spec 018 the parcours keeps its séances in the same table: every read
+  names its mode, so a discussion never sees a séance, and a live discussion and a live séance
+  coexist on a chapter.
 - `entries` is one JSON blob, like `chapters.curriculum`: appending a turn is a single `UPDATE`, so
   a turn lands whole or not at all.
 - **A conversation belongs to one content version.** Editing a chapter bumps the version and leaves
@@ -98,12 +102,13 @@ chapter does not contain, he says so in one sentence.
   crosses one closes the row as `capped` — so the answer the student is reading is never lost, and
   the *next* turn is refused `409 conversation_closed`. Trimming for the model stays
   `history_token_budget`'s job.
-- **Quota**: `DISCUSSION_CONVERSATIONS_PER_DAY` (30) per student.
+- **Quota**: `DISCUSSION_CONVERSATIONS_PER_DAY` (30) per student, counting discussions only.
 
 ### The append policy
 
 The route buffers the turn's events and writes once, when the stream reaches `turn.end` with
-`end` or `max_rounds`. A provider failure, a disconnect or a cancellation appends **nothing**: the
+`end` or `max_rounds`. A provider failure, a disconnect or a cancellation appends **nothing** (the
+parcours differs since spec 018: a turn the learner left is stored as far as it went): the
 conversation is left exactly as it was, and the browser keeps its local copy so `retry()` re-sends
 without retyping. A half-finished reply is therefore never replayed to the model as a finished
 message. `app/api/sse.py`'s `on_complete` hook runs before `turn.end` reaches the browser, so a
@@ -136,7 +141,9 @@ conversation rather than a posted transcript, and the session declares
 
 **One deviation.** A spoken turn reaches the browser over WebRTC and never the server, so the
 browser reports it (`POST /api/discussion/voice/turn`) and the server appends it after validating
-shape, size and count. "The client cannot extend the conversation" therefore holds for the text
+shape, size and count: each text at most 20 000 characters, a tool call's arguments at most 40 000,
+a `display_board` card a valid board card (spec 018 D10; the same `ReportedTurn` checks as the
+parcours's `/api/seance/report`). "The client cannot extend the conversation" therefore holds for the text
 channel only. The exposure is that a student can write entries into **their own** conversation,
 which is the same trust level the parcours already has.
 
@@ -150,8 +157,9 @@ which is the same trust level the parcours already has.
 - **`/courses/$courseId/chapters/$chapterId/discussion`**: the standalone view; there « Parcours »
   is a link to the lesson.
 - **From the lesson**: the switch mounts `DiscussionPanel` *beside* the lesson and hides the lesson,
-  rather than navigating away. The séance's transcript and board live in memory only, so
-  unmounting would throw them away; switching back to « Parcours » brings it back exactly as it was.
+  rather than navigating away, so switching back to « Parcours » brings it back exactly as it was.
+  (Written when the séance lived in memory only; since spec 018 it is stored and a reload restores
+  it too, see [seances.md](./seances.md).)
 - The panel shows **no chapter strip and no map**: nothing said there can move the path, and
   showing it would imply otherwise. There is no « Étape suivante » button either — no page to turn.
 - « Nouvelle conversation » is an icon in the tutor column's header (`headerAction`). It confirms

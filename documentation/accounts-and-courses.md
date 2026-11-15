@@ -17,8 +17,9 @@ _auth layout (ssr: false)                 │ cookie celestin_session (httpOnly)
 /courses/$courseId ──GET /api/courses/{id}   · owned_course / owned_chapter (404 unless owner)
    + POST …/chapters ───────────────────▶ AuthoringRunner ─────────────────────────▶ chapters · authoring_runs
 /courses/$courseId/chapters/$chapterId ─▶ GET …/chapters/{id} → overview + progress
-   lesson ──POST /api/chat {course_id, chapter_id, history}──▶ open_lesson → TurnContext(save=…)
+   lesson ──POST /api/chat {course_id, chapter_id, message}──▶ open_lesson → TurnContext(save=…)
                                           section tools → ctx.commit() ──────────────▶ progress
+                                          the turn, once it ends ────────────────────▶ conversations (parcours)
 /…/$chapterId/content ──GET/PUT …/content · pack · curriculum · source
 ```
 
@@ -120,13 +121,16 @@ course answers `404`, never `403`, so ownership is not probeable. `lesson_chapte
 | `PUT …/chapters/{ch}/source` | owner | `{source_text}` (the corrected transcription) | `202 row`; `422 source_length`; `409 authoring_running`; `429 …` |
 | `POST …/chapters/{ch}/retry` | owner | — | `202 row`; `409 nothing_to_retry` / `authoring_running` / `document_needed` (failed before the pages were read: the document is not kept) |
 | `DELETE …/chapters/{ch}` | owner | — | `204` |
-| `DELETE …/chapters/{ch}/progress` | owner | — | `204` |
-| `POST /api/chat` | owner | `{course_id, chapter_id, history}` | SSE, unchanged |
+| `DELETE …/chapters/{ch}/progress` | owner | — | `204`, the chapter's parcours séances with it (spec 018) |
+| `POST /api/chat` | owner | `{course_id, chapter_id, message}` | SSE; `422 empty_conversation_expected` for an opening turn on a started séance (spec 018) |
+| `GET …/chapters/{ch}/seance` | owner | — | `{seance, progress, seances}`: the live séance or `null`, the progress, the card counts per section (spec 018, [seances.md](./seances.md)) |
+| `GET …/chapters/{ch}/notebook` | owner | — | `{sections}`: the cahier |
+| `POST /api/seance/report` | owner | `{course_id, chapter_id, entries}`: a spoken or stopped parcours turn | `204`; `422`, `422 seance_report_invalid`, `429 seance_report_rate`, `409 seance_full` |
 | `GET …/chapters/{ch}/discussion` | owner | — | `{conversation}` or `{conversation: null}` (spec 007) |
 | `POST …/chapters/{ch}/discussion` | owner | — | `201 {conversation}`; `429 discussion_quota` |
 | `POST /api/discussion/turn` | owner | `{course_id, chapter_id, conversation_id, message}` | SSE; `409 conversation_closed` / `conversation_full` / `conversation_busy`; `422 empty_conversation_expected` |
 | `POST /api/discussion/voice/turn` | owner | `{…, conversation_id, entries}` | `204` |
-| `POST /api/voice/session` / `/tool` | owner | + `course_id`, `chapter_id` | as spec 003 |
+| `POST /api/voice/session` / `/tool` | owner | + `course_id`, `chapter_id` | as spec 003; the session posts no transcript (spec 018) |
 
 A chapter **row** carries `position`, `title` (null until ready), `ready`, `section_count`,
 `done_count`, `state` (`not_started`, `in_progress`, `done`), `last` (newest `progress.updated_at`,
@@ -149,7 +153,10 @@ Every change of a chapter's content (an editor save, an authoring run adopted) d
 progress in the same transaction, so a stored record always matches the current curriculum. The
 lesson view still repairs it on read, the same normalisation the turn context applies. `progress`
 has a foreign key to `chapters`: deleting a chapter or its course deletes its progress. So do a
-chapter's stored discussions, which carry foreign keys to both the student and the chapter.
+chapter's stored discussions and parcours séances, which carry foreign keys to both the student and
+the chapter. « Recommencer le chapitre » (`DELETE …/progress`) deletes the progress and the séances
+together (`ProgressRepository.reset`, one transaction) and leaves the discussions (spec 018,
+[seances.md](./seances.md)).
 
 Repositories (`app/db/repositories.py`) are synchronous and open one short session per call. The
 routes run them through `run_in_threadpool`; the one write inside a section tool runs inline. That

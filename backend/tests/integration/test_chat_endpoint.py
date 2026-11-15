@@ -8,22 +8,29 @@ import pytest
 
 from app.providers.base import Completed, Failed, TextDelta
 from app.domain.errors import ProviderRateLimited
-from tests.conftest import CARD, seed_progress, sse_frames as frames, tool_call as call
+from tests.conftest import CARD, seed_progress, seed_seance, sse_frames as frames, tool_call as call
 from tests.fixtures.fake_llm import ExplodingLLM, FakeLLM
 
 BODY = LESSON
 
 
 async def post(
-    make_client, llm, history: list | None = None, progress: dict | None = None
+    make_client,
+    llm,
+    history: list | None = None,
+    progress: dict | None = None,
+    message: str | None = None,
 ) -> tuple[int, str, dict]:
     """Progress, when given, is stored for the signed-in user first (004 R6):
-    the request itself no longer carries it."""
+    the request itself no longer carries it. So is `history`, as the live séance the
+    turn continues (spec 018: the request carries the message, not the transcript)."""
     client, _ = make_client(llm)
     if progress is not None:
         seed_progress(client.app, client.user["id"], CHAPTER_ID, progress["done"], progress["active"])
+    if history:
+        seed_seance(client.app, client.user["id"], history)
     async with client:
-        r = await client.post("/api/chat", json={**BODY, "history": history or []})
+        r = await client.post("/api/chat", json={**BODY, "message": message})
         return r.status_code, r.text, dict(r.headers)
 
 
@@ -103,10 +110,12 @@ async def test_history_is_replayed_to_the_model(make_client) -> None:
         make_client,
         llm,
         history=[{"kind": "learner", "text": "salut"}, {"kind": "tutor", "text": "bonjour"}],
+        message="et ensuite ?",
     )
     items = llm.calls[0]["input"]
     assert {"role": "user", "content": "salut"} in items
     assert {"role": "assistant", "content": "bonjour"} in items
+    assert {"role": "user", "content": "et ensuite ?"} in items
 
 
 async def test_provider_failure_after_first_byte_is_an_in_stream_error(make_client) -> None:
@@ -147,7 +156,7 @@ async def test_chapter_not_ready_is_a_409_before_any_frame(make_client) -> None:
     async with client:
         repos = client.app.state.repos
         bare = repos.chapters.create(LESSON["course_id"], "texte collé", max_chapters=40)
-        r = await client.post("/api/chat", json={"course_id": LESSON["course_id"], "chapter_id": bare.id, "history": []})
+        r = await client.post("/api/chat", json={"course_id": LESSON["course_id"], "chapter_id": bare.id, "message": None})
     assert r.status_code == 409 and r.json()["code"] == "chapter_not_ready"
     assert "event:" not in r.text
     assert llm.rounds_used == 0
@@ -161,9 +170,9 @@ async def test_chat_is_scoped_to_the_owner(make_client) -> None:
         from tests.conftest import sign_in
 
         _, headers = sign_in(client.app, email="bob@example.be", name="Bob", lesson=False)
-        foreign = await client.post("/api/chat", json={**BODY, "history": []}, headers=headers)
-        wrong_chapter = await client.post("/api/chat", json={**BODY, "chapter_id": "ab" * 16, "history": []})
-        bad_id = await client.post("/api/chat", json={**BODY, "chapter_id": "suites", "history": []})
+        foreign = await client.post("/api/chat", json={**BODY, "message": None}, headers=headers)
+        wrong_chapter = await client.post("/api/chat", json={**BODY, "chapter_id": "ab" * 16, "message": None})
+        bad_id = await client.post("/api/chat", json={**BODY, "chapter_id": "suites", "message": None})
     assert foreign.status_code == 404 and wrong_chapter.status_code == 404
     assert bad_id.status_code == 422
     assert llm.rounds_used == 0
@@ -182,7 +191,7 @@ async def test_section_start_persists_progress(make_client) -> None:
     llm = FakeLLM([[call("start_section", {"section_id": "suites"}), Completed()], [Completed()]])
     client, _ = make_client(llm)
     async with client:
-        r = await client.post("/api/chat", json={**BODY, "history": []})
+        r = await client.post("/api/chat", json={**BODY, "message": None})
     assert r.status_code == 200 and "section.start" in r.text
     record = client.app.state.repos.progress.load(client.user["id"], CHAPTER_ID)
     assert record and record.progress.active == "suites"
@@ -192,7 +201,7 @@ async def test_refused_start_persists_nothing(make_client) -> None:
     llm = FakeLLM([[call("start_section", {"section_id": "sg-applications"}), Completed()], [Completed()]])
     client, _ = make_client(llm)
     async with client:
-        await client.post("/api/chat", json={**BODY, "history": []})
+        await client.post("/api/chat", json={**BODY, "message": None})
     assert client.app.state.repos.progress.load(client.user["id"], CHAPTER_ID) is None
 
 
@@ -205,7 +214,7 @@ async def test_failing_store_is_a_tool_error_not_an_event(make_client, monkeypat
 
     monkeypatch.setattr(client.app.state.repos.progress, "save", boom)
     async with client:
-        r = await client.post("/api/chat", json={**BODY, "history": []})
+        r = await client.post("/api/chat", json={**BODY, "message": None})
     assert r.status_code == 200 and "section.start" not in r.text
     answered = next(i for i in llm.calls[1]["input"] if i.get("type") == "function_call_output")
     output = json.loads(answered["output"])
@@ -213,20 +222,23 @@ async def test_failing_store_is_a_tool_error_not_an_event(make_client, monkeypat
 
 
 @pytest.mark.parametrize(
-    "history",
+    "extra",
     [
-        [{"kind": "learner", "text": "x" * 5000}],
-        [{"kind": "learner", "text": "ok"}] * 401,
-        [{"kind": "bogus", "text": "ok"}],
+        {"message": "x" * 5000},
+        {"message": ""},
+        {"message": 12},
+        # Spec 018: the transcript is the server's; a request that posts one is refused.
+        {"history": [{"kind": "learner", "text": "ok"}]},
+        {"history": []},
     ],
 )
 async def test_invalid_payloads_are_rejected_without_calling_the_provider(
-    make_client, history: list
+    make_client, extra: dict
 ) -> None:
     llm = FakeLLM([[Completed()]])
     client, _ = make_client(llm)
     async with client:
-        r = await client.post("/api/chat", json={**BODY, "history": history})
+        r = await client.post("/api/chat", json={**BODY, **extra})
     assert r.status_code == 422
     assert llm.rounds_used == 0
 
@@ -256,7 +268,7 @@ async def test_golden_section_start_and_done(make_client) -> None:
             [Completed()],
         ]
     )
-    _, body, _ = await post(make_client, llm, progress={"done": [], "active": "suites"})
+    _, body, _ = await post(make_client, llm, progress={"done": [], "active": "suites"}, message="c'est bon")
     got = frames(body)
     assert [name for name, _ in got] == ["turn.start", "section.done", "turn.end"]
     assert got[1][1] == {
@@ -309,7 +321,7 @@ async def test_progress_write_is_logged_with_who_and_where(make_client, caplog) 
     client, _ = make_client(llm)
     async with client:
         with caplog.at_level("INFO"):
-            await client.post("/api/chat", json={**BODY, "history": []})
+            await client.post("/api/chat", json={**BODY, "message": None})
     saved = next(r for r in caplog.records if r.getMessage() == "progress_saved")
     assert saved.chapter_id == CHAPTER_ID and saved.active == "suites"  # type: ignore[attr-defined]
     assert saved.user_id == client.user["id"]  # type: ignore[attr-defined]

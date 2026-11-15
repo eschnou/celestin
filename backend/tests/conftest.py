@@ -147,6 +147,38 @@ def seed_progress(app, user_id: str, chapter_id: str, done: list[str], active: s
     app.state.repos.progress.save(user_id, chapter_id, Progress(done=frozenset(done), active=active))
 
 
+def seed_seance(
+    app,
+    user_id: str,
+    entries: list[dict],
+    section_id: str | None = None,
+    chapter_id: str = CHAPTER_ID,
+    closed_reason: str | None = None,
+):
+    """A parcours séance stored for the student at the chapter's current version (spec 018), live unless a
+    closing reason is given. Returns what was stored (ids and counts)."""
+    from sqlalchemy import select
+
+    from pydantic import TypeAdapter
+
+    from app.api.schemas.chat import Entry
+    from app.db.models import ChapterRow
+    from app.db.repositories import SeanceSegment
+    from app.services import conversations
+
+    repos = app.state.repos
+    with repos.chapters._factory() as s:
+        version = s.scalar(select(ChapterRow.content_version).where(ChapterRow.id == chapter_id))
+    (record,) = repos.conversations.store_seance(
+        user_id, chapter_id, version, live_id=None, expected_count=0,
+        segments=[SeanceSegment(
+            section_id, entries, conversations.card_count([TypeAdapter(Entry).validate_python(e) for e in entries]),
+            closed_reason,
+        )],
+    )
+    return record
+
+
 def iter_api_routes(app):
     """Every `(path, APIRoute)` of the app. FastAPI 0.141 nests an included router behind one
     `_IncludedRouter`, so `app.routes` alone no longer lists them: walk into it."""

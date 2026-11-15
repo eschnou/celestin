@@ -60,6 +60,11 @@ MESSAGES: dict[str, str] = {
     "conversation_full": "Dit gesprek is erg lang geworden. Open een nieuw gesprek om verder te gaan.",
     "conversation_busy": "Célestin is je al aan het antwoorden in dit gesprek.",
     "empty_conversation_expected": "Dit gesprek is al begonnen.",
+    "seance_started": "Deze les is al begonnen.",
+    "seance_busy": "Célestin is je al aan het antwoorden in deze les, misschien in een ander tabblad.",
+    "seance_report_rate": "Te veel uitwisselingen tegelijk bewaard. Wacht even voor je verdergaat.",
+    "seance_full": "Dit hoofdstuk bewaart al veel lessen. Begin het hoofdstuk opnieuw om nieuwe te bewaren.",
+    "seance_report_invalid": "Deze uitwisseling hoort niet bij dit hoofdstuk en is niet bewaard.",
     "discussion_quota": "Je hebt vandaag {maximum} gesprekken geopend. Ga verder met het lopende gesprek, of probeer morgen opnieuw.",
     # --- the password policy (domain/password.py) ------------------------------------
     "weak_password.too_short": "Het wachtwoord moet minstens {min_length} tekens lang zijn.",

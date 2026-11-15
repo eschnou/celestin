@@ -1,8 +1,8 @@
-/** Transport for one turn: POST the transcript, yield typed events. */
+/** Transport for one turn: POST the message, yield typed events; and the JSON helpers. */
 
 import { m } from "@/paraglide/messages";
 import { parseChunk } from "./sse";
-import type { HistoryEntry, LessonScope, TutorEvent } from "./types";
+import type { LessonScope, TutorEvent } from "./types";
 
 export const CHAT_URL = "/api/chat";
 
@@ -34,6 +34,12 @@ export function apiMessage(error: unknown, fallback: string): string {
 /** The HTTP status of a refused request; a network or unknown failure counts as 500. */
 export function apiStatus(error: unknown): number {
   return error instanceof ApiError ? error.status : 500;
+}
+
+/** The status a chapter page's not-found card shows for a failed chapter read: a chapter
+ *  still being prepared (`chapter_not_ready`) counts as 409, whatever came over the wire. */
+export function chapterErrorStatus(error: unknown): number {
+  return error instanceof ApiError && error.code === "chapter_not_ready" ? 409 : apiStatus(error);
 }
 
 let onUnauthorized: (() => void) | null = null;
@@ -127,8 +133,8 @@ function asEvent(name: string, data: string): TutorEvent | null {
   }
 }
 
-/** One turn as typed events, whichever route serves it: the parcours posts its
- *  transcript here, a discussion posts its message (007 §3.11). */
+/** One turn as typed events, whichever route serves it: both modes post the learner's
+ *  message, the server holding the transcript (007 §3.11, 018 D1). */
 export async function* streamEvents(
   url: string,
   body: unknown,
@@ -176,14 +182,16 @@ export async function* streamEvents(
   }
 }
 
+/** A parcours turn (018 D1): the message, or null for the opening turn; never the
+ *  transcript, which the server keeps as the live séance. */
 export function streamTurn(
   scope: LessonScope,
-  history: HistoryEntry[],
+  message: string | null,
   signal?: AbortSignal,
 ): AsyncGenerator<TutorEvent> {
   return streamEvents(
     CHAT_URL,
-    { course_id: scope.courseId, chapter_id: scope.chapterId, history },
+    { course_id: scope.courseId, chapter_id: scope.chapterId, message },
     signal,
   );
 }
