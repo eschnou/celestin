@@ -1,7 +1,8 @@
 /**
  * The chapter's top bar, the same in the lesson and on the discussion route:
  * which course (and the way back to it), which chapter, which of its two modes
- * is on screen, its cahier (018), its content, who is signed in, the way out (005, 007).
+ * is on screen and the way to the course's révision (020), its cahier (018), its
+ * content, who is signed in, the way out (005, 007).
  */
 
 import { Link } from "@tanstack/react-router";
@@ -122,7 +123,8 @@ const TITLES: Record<ChapterMode, () => string> = {
   discussion: m.lesson_mode_discussion_title,
 };
 
-/** Which mode is on screen, and the way to the other one. */
+/** Which mode is on screen, and the way to the others. Révision (spec 020) is the course's,
+ *  not the chapter's: always a link, to the course's révision with this chapter ticked. */
 function ModeSwitch({
   chapter,
   mode,
@@ -175,6 +177,15 @@ function ModeSwitch({
     >
       {segment("parcours", m.lesson_mode_path())}
       {segment("discussion", m.lesson_mode_discussion())}
+      <Link
+        to="/courses/$courseId/revision"
+        params={{ courseId: chapter.course_id }}
+        search={{ chapter: chapter.id }}
+        title={m.lesson_mode_revision_title()}
+        className={cn(SEGMENT, IDLE, compact && "flex-1 py-2 text-center text-sm")}
+      >
+        {m.lesson_mode_revision()}
+      </Link>
     </div>
   );
 }

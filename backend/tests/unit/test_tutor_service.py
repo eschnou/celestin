@@ -420,3 +420,20 @@ async def test_a_failing_provider_round_is_a_failed_row_and_the_usual_error() ->
     with pytest.raises(ProviderRateLimited):
         await drain_for(service, "u1")
     assert [(e.status, e.error_code) for e in sink.entries] == [("failed", "provider_rate_limited")]
+
+
+async def test_a_revision_turn_has_its_own_feature_a_course_and_no_chapter() -> None:
+    """Spec 020: a révision is a course's, not a chapter's; the ledger records its turns with role tutor."""
+    from app.services.prompts import PromptLibrary
+    from app.config import get_settings
+    from app.services.tools.context import TurnContext as Context
+    from scripts.chapter_files import load_revision
+
+    sink = _Sink()
+    service = recorded([[TextDelta("x"), Completed()]], sink)
+    scope = load_revision("mathematics", PromptLibrary(get_settings().prompts_dir))
+    ctx = Context(user_id="u1", course_id="c1", mode="revision", revision=scope)
+    [event async for event in service.run_turn([], ctx)]
+    assert [(e.feature, e.role, e.course_id, e.chapter_id) for e in sink.entries] == [
+        ("revision_turn", "tutor", "c1", None)
+    ]

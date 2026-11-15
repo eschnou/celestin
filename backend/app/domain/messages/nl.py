@@ -66,6 +66,16 @@ MESSAGES: dict[str, str] = {
     "seance_full": "Dit hoofdstuk bewaart al veel lessen. Begin het hoofdstuk opnieuw om nieuwe te bewaren.",
     "seance_report_invalid": "Deze uitwisseling hoort niet bij dit hoofdstuk en is niet bewaard.",
     "discussion_quota": "Je hebt vandaag {maximum} gesprekken geopend. Ga verder met het lopende gesprek, of probeer morgen opnieuw.",
+    # --- révision (spec 020) ---
+    "revision_closed.replaced": "Deze herhaling is vervangen door een nieuwe. Begin een nieuwe herhaling om verder te gaan.",
+    "revision_closed.capped": "Deze herhaling is aan haar einde gekomen. Begin een nieuwe herhaling om verder te gaan.",
+    "revision_closed.content_changed": "Een van de hoofdstukken is veranderd sinds het begin van deze herhaling. Begin een nieuwe herhaling om verder te gaan.",
+    "revision_full": "Deze herhaling is erg lang geworden. Begin een nieuwe herhaling om verder te gaan.",
+    "revision_busy": "Célestin is je al aan het antwoorden in deze herhaling, misschien in een ander tabblad.",
+    "revision_started": "Deze herhaling is al begonnen.",
+    "revision_no_chapter": "Kies minstens één hoofdstuk om te herhalen.",
+    "revision_too_large": "Deze hoofdstukken bevatten te veel leerstof voor één herhaling. Kies er minder.",
+    "revision_quota": "Je bent vandaag al {maximum} herhalingen begonnen. Ga verder met de lopende, of probeer morgen opnieuw.",
     # --- the password policy (domain/password.py) ------------------------------------
     "weak_password.too_short": "Het wachtwoord moet minstens {min_length} tekens lang zijn.",
     "weak_password.personal": "Het wachtwoord mag je voornaam of je e-mailadres niet bevatten.",
@@ -112,6 +122,9 @@ MESSAGES: dict[str, str] = {
     "marker.section_done": "sectie afgerond · {label}",
     "marker.section_skipped": "sectie overgeslagen · {label}",
     "marker.step_ready": "volgende stap voorgesteld",
+    "marker.revision_result.solid": "genoteerd: gekend · {label}",
+    "marker.revision_result.shaky": "genoteerd: wankel · {label}",
+    "marker.revision_result.todo": "genoteerd: te herhalen · {label}",
     # --- why a pack or a curriculum edit is refused (domain/pack.py, curriculum.py, references.py) --
     "issue.pack.too_long": "het document is langer dan {max_chars} tekens ({length})",
     "issue.pack.wrong_language": "het document volgt het model in het {found_language}, maar deze cursus is in het {expected_language}",

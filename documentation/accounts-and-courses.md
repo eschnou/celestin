@@ -128,6 +128,9 @@ course answers `404`, never `403`, so ownership is not probeable. `lesson_chapte
 | `POST /api/seance/report` | owner | `{course_id, chapter_id, entries}`: a spoken or stopped parcours turn | `204`; `422`, `422 seance_report_invalid`, `429 seance_report_rate`, `409 seance_full` |
 | `GET …/chapters/{ch}/discussion` | owner | — | `{conversation}` or `{conversation: null}` (spec 007) |
 | `POST …/chapters/{ch}/discussion` | owner | — | `201 {conversation}`; `429 discussion_quota` |
+| `GET /api/courses/{id}/revision` | owner | — | `{revision, chapters, results}`: the live révision or `null`, every chapter with its sections' states, the latest self-assessment per section (spec 020, [revision.md](./revision.md)) |
+| `POST /api/courses/{id}/revision` | owner | `{chapter_ids}` | `201 {revision, chapters, results}` (the GET's body); `422 revision_no_chapter`, `422 revision_too_large`, `409 chapter_not_ready`, `404`, `429 revision_quota` |
+| `POST /api/revision/turn` | owner | `{course_id, revision_id, message}` | SSE; `409 conversation_closed`, `422 empty_conversation_expected` |
 | `POST /api/discussion/turn` | owner | `{course_id, chapter_id, conversation_id, message}` | SSE; `409 conversation_closed` / `conversation_full` / `conversation_busy`; `422 empty_conversation_expected` |
 | `POST /api/discussion/voice/turn` | owner | `{…, conversation_id, entries}` | `204` |
 | `POST /api/voice/session` / `/tool` | owner | + `course_id`, `chapter_id` | as spec 003; the session posts no transcript (spec 018) |
@@ -160,7 +163,11 @@ has a foreign key to `chapters`: deleting a chapter or its course deletes its pr
 chapter's stored discussions and parcours séances, which carry foreign keys to both the student and
 the chapter. « Recommencer le chapitre » (`DELETE …/progress`) deletes the progress and the séances
 together (`ProgressRepository.reset`, one transaction) and leaves the discussions (spec 018,
-[seances.md](./seances.md)).
+[seances.md](./seances.md)) and the révisions. A révision (spec 020) is a `conversations` row that names
+its course and no chapter: it goes with the course and the account; a chapter deleted from its scope, or
+whose content changed, closes it (`content_changed`) the next time it is read. Its self-assessments
+(`revision_results`) go with the account, the course and the chapter they are about; a content change
+leaves them behind, unread (only results of the current content version are read).
 
 Repositories (`app/db/repositories.py`) are synchronous and open one short session per call. The
 routes run them through `run_in_threadpool`; the one write inside a section tool runs inline. That
@@ -179,7 +186,9 @@ uv run alembic revision --autogenerate -m "…"    # after editing app/db/models
 ```
 
 Tables: `users` (with `locale`, `enabled` and `last_seen_at`), `sessions`, `courses`, `chapters`, `authoring_runs`, `progress`,
-`conversations` (spec 007, [discussion.md](./discussion.md)), `ai_usage` (spec 015, [ai-usage.md](./ai-usage.md); it replaced `voice_usage`).
+`conversations` (spec 007, [discussion.md](./discussion.md); since `0014` a révision's row has `course_id`
+and `scope` and no `chapter_id`, spec 020), `revision_results` (spec 020, [revision.md](./revision.md)),
+`ai_usage` (spec 015, [ai-usage.md](./ai-usage.md); it replaced `voice_usage`).
 Migration `0003` (spec 005) dropped `enrolments` and recreated `progress` with its chapter foreign
 key; no data was carried over. SQLite enforces foreign keys (`PRAGMA foreign_keys=ON`), which the
 course and chapter cascades rely on.

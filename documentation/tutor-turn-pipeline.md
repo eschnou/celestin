@@ -33,6 +33,12 @@ persist their transition before the event is emitted (see
 [accounts-and-courses.md](./accounts-and-courses.md)). The request needs the signed-in student who
 owns the course, and a chapter with content (`409 chapter_not_ready` otherwise).
 
+A **révision** (spec 020, [revision.md](./revision.md)) is the one turn that is not a chapter's: it
+posts `{course_id, revision_id, message}`, reads the course-scoped `conversations` row it names and
+the chosen chapters only, and goes through the same loop, events and store hook; the hook writes
+the turn's `record_result` results with its transcript, in one transaction, so a turn that ends early
+leaves neither.
+
 ## What the model receives
 
 Assembled by `app/services/prompt_service.py`, in this order, every round:
@@ -49,17 +55,31 @@ Assembled by `app/services/prompt_service.py`, in this order, every round:
    course every file above is its `*.en.md` twin and the path overview, the state message and the
    tool declarations are the English ones (`chapter.language`, `ctx.language`); the English
    rendering has its own pins (`system_text_sha_en*.txt`). See [course-language.md](./course-language.md).
+   In a révision (spec 020) the pack marker carries every chosen chapter's pack in course order,
+   each under a one-line header (« # Chapitre 2 — … »), and the curriculum marker one read-only
+   overview per chapter (`prompt_service.revision_system_text`, `curriculum_render.revision_packs`
+   and `revision_overview`): one cached prefix per selection, pinned per language by
+   `system_text_sha*_revision.txt`.
 2. Tool declarations for the mode, in a fixed order: the two board tools, then — in the parcours
-   only — the two section tools, `propose_next_step` and `skip_section` (spec 019, declared last so
-   the five before it keep their bytes): six tools. A discussion is offered the board pair and nothing
-   else, so the declarations it shares with the parcours keep their exact bytes. The board pair is
+   only — the two section tools, `propose_next_step` and `skip_section` (spec 019, declared after
+   them so the five before it keep their bytes): six tools. A discussion is offered the board pair and nothing
+   else, so the declarations it shares with the parcours keep their exact bytes. A révision (spec 020)
+   is offered the board pair and `record_result`, declared after every other tool. The board pair is
    pinned by `tests/fixtures/board_declarations.json`, the four after it by `path_declarations.json`.
+
+   | Mode | Tools |
+   |---|---|
+   | parcours | `display_board`, `clear_board`, `start_section`, `complete_section`, `propose_next_step`, `skip_section` |
+   | discussion | `display_board`, `clear_board` |
+   | revision | `display_board`, `clear_board`, `record_result` |
 3. The transcript, oldest first: in the parcours the live séance's entries then the learner's
-   message (nothing of earlier séances), in a discussion the stored conversation then the message.
+   message (nothing of earlier séances), in a discussion or a révision the stored conversation then the message.
 4. A short `developer` message with the date and time in the learner's timezone (`TIMEZONE`,
    default Europe/Brussels) and the state of the path (« État du parcours »), rendered from the
    stored progress. Both change every turn, which is exactly why they come last: nothing
-   that varies may sit in front of the cache breakpoint.
+   that varies may sit in front of the cache breakpoint. A révision's says, per chosen chapter,
+   which sections are done, skipped and never done, the latest self-assessment per section with
+   its date, and this révision's tally (`curriculum_render.revision_state`).
 
 **This ordering is the single most consequential detail in the backend.** The prefix for chapter 1 is
 about 13,500 tokens and is re-sent on every round. OpenAI's automatic caching matches on an exact prefix (another provider caches by its own rules, or not at all; the breakpoint field is sent to OpenAI only, spec 014), so as
@@ -126,7 +146,9 @@ the séance is empty) and returns `text/event-stream`;
 `POST /api/discussion/turn` takes `{course_id, chapter_id, conversation_id, message}` and returns
 the same stream, framed by the same helper (`app/api/sse.py: stream_turn`). A discussion simply
 never emits the four path events (`section.start`, `section.done`, `section.skipped`, `step.ready`).
-Ten events, and this
+`POST /api/revision/turn` takes `{course_id, revision_id, message}` (spec 020) and returns the same
+stream, which never carries the path events either and adds `revision.result`.
+Eleven events, and this
 set is a two-sided contract:
 changing it means changing `frontend/src/lib/tutor/types.ts`, the golden transcript tests in
 `backend/tests/integration/test_chat_endpoint.py`, and the design document together.
@@ -141,6 +163,7 @@ changing it means changing `frontend/src/lib/tutor/types.ts`, the golden transcr
 | `section.done` | `section_id`, `next_section_id`, `marker` | move the section to done, clear active, insert the marker |
 | `section.skipped` | `section_id`, `next_section_id`, `active_section_id`, `marker` | spec 019: add the section to skipped, clear active if it was that section; while `active_section_id` names the section still being worked, leave the page-turn button as it is; otherwise light it for `next_section_id`, or put it out when that is null too (both null: the skip finished the chapter); insert the marker |
 | `step.ready` | `marker` | light the « Étape suivante » button on the board until the next card or turn |
+| `revision.result` | `chapter_id`, `section_id`, `outcome`, `marker` | spec 020, révision only: the student's self-assessment of a section was noted (`solid`, `shaky` or `todo`); insert the marker (« noté : fragile · 2. … »), so everything recorded about the student is seen |
 | `turn.end` | `reason`, `usage` | `end`, `max_rounds` or `cancelled` |
 | `error` | `code`, `message` | French message, transcript preserved |
 
@@ -172,6 +195,13 @@ blocks: `chart`, `flowchart`, `figure`, `plot`), with `$…$` for inline maths i
 prose. Nothing the model writes is ever turned into HTML: prose becomes React text nodes and maths
 goes through KaTeX with `trust: false`. Rendering model-authored Markdown would mean an HTML pipeline
 and a sanitizer, which is an injection surface this design simply does not have.
+
+The one piece of Markdown read anywhere is emphasis in Célestin's chat text: in the transcript and a
+phone's caption, `RichText bold` sets the prose between pairs of `**` in bold (`markBold` in
+`board-blocks.tsx`, run on the parts `splitInlineMath` made, so `$…$` stays maths and a `**` inside
+maths is never read; an odd last `**` stays literal, as a pair still streaming does). Still React
+text nodes, still nothing else: no lists, no headings, no links. The learner's own text stays
+literal, and the board's cards do not read it.
 
 Some text would show raw on the board, so `display_board` refuses it before anything else, as a
 French tool error that names every field at fault, and the model rewrites the card. There are three
@@ -237,7 +267,9 @@ whitespace, never inside maths). No markup comes from the model: the bold is der
   spacing, Markdown emphasis and notation (`$u_n$` against `uₙ`, `\neq` against `≠`) may differ
   while the wording may not. A reworded definition belongs in a `text` block.
 
-The pack reaches the handler as `TurnContext.pack`, set by `load_context` for both modes; with no
+The pack reaches the handler as `TurnContext.pack`, set by `load_context` for both chapter modes and by
+`revision_context` to every chosen pack of a révision (spec 020: a definition may quote any of them, and
+the plots' `pack_function` reads the same text); with no
 pack (unit tests, some scripts) only the term is checked. Like the LaTeX check, this runs when the
 tool runs, so a stored card keeps replaying after the pack is edited. `quote` stays for the rest of
 what the course highlights: formulas and verbatim sentences that are not definitions, unchecked.

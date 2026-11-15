@@ -18,6 +18,9 @@ back for correction.
                                                  # probe-transcript-figures.md
     uv run python -m scripts.probe --plots       # the plot set, on chapter 1 and the MRU
                                                  # fixture chapter: probe-transcript-plots.md
+    uv run python -m scripts.probe --revision    # the révision set (spec 020), on the fixture
+                                                 # révision of the course language (sequences
+                                                 # then statistics): probe-transcript-revision.md
 
     uv run python -m scripts.probe --language en              # the same sets in English, on the English
                                                               # fixture chapters (sequences_en,
@@ -85,6 +88,7 @@ from app.api.schemas.events import (
     BoardClearEvent,
     BoardSetEvent,
     ErrorEvent,
+    RevisionResultEvent,
     SectionDoneEvent,
     SectionSkippedEvent,
     SectionStartEvent,
@@ -118,7 +122,7 @@ from app.services.tools.plots import PACK_WORDS_BY_LANGUAGE, gives_away
 from app.services.tools.text import MATH, math_tex
 from app.services.tutor_service import TutorService
 from scripts import ai_clients
-from scripts.chapter_files import DEFAULT_CHAPTER_DIR, load_chapter_dir
+from scripts.chapter_files import DEFAULT_CHAPTER_DIR, load_chapter_dir, load_revision
 from scripts.smoke import context_for, language_of, load_lesson
 
 OUT = Path(__file__).resolve().parent.parent / "probe-transcript.md"
@@ -2569,6 +2573,205 @@ def drawing_log() -> Iterator[list[tuple[str, str | None]]]:
         logger.setLevel(level)
 
 
+
+# ---------------------------------------------------------------------------
+# The révision set (spec 020): a turn of a révision on the fixture révision of the course language (chapter 1,
+# sequences; chapter 2, statistics). Three things carried by prompt text: no answer while a question is open,
+# no self-assessment noted that the student did not give (D3), and a section asked for is sent to the path.
+
+REVISION_OUT = probe_tables(
+    fr=OUT.with_name("probe-transcript-revision.md"),
+    en=OUT.with_name("probe-transcript-revision-en.md"),
+    nl=OUT.with_name("probe-transcript-revision-nl.md"),
+)
+NOTED_UNASKED = "bilan noté sans que l'élève l'ait donné"
+NOT_SENT_TO_PATH = "section demandée sans renvoi au parcours"
+# The word the révision's prompt uses for the path, per course language: a request to open a section must be
+# answered with it (« c'est dans le parcours »).
+PATH_WORD = probe_tables(fr="parcours", en="path", nl="traject")
+
+
+@dataclass(frozen=True)
+class RevisionProbe:
+    """One révision turn: what came before in the révision, the student's message, and what it is judged on.
+    `secrets`: the open question's answer (the answer-leak count); `no_record`: no `record_result` may run
+    this turn; `to_path`: Célestin must say the section is worked in the path."""
+
+    label: str
+    prior: list[Entry]
+    message: str
+    secrets: tuple[str, ...] = ()
+    no_record: bool = False
+    to_path: bool = False
+
+
+def _revision_question(asked: str, title: str, statement: str, invite: str) -> list[Entry]:
+    return [
+        LearnerEntry(kind="learner", text=asked),
+        ToolEntry(
+            kind="tool",
+            name="display_board",
+            arguments={"card": {"kind": "exercise", "title": title, "statement": statement, "hint": None}},
+            ok=True,
+        ),
+        TutorEntry(kind="tutor", text=invite),
+    ]
+
+
+def _revision_settled(question: list[Entry], answer: str, compare: str) -> list[Entry]:
+    return [*question, LearnerEntry(kind="learner", text=answer), TutorEntry(kind="tutor", text=compare)]
+
+
+_FR_Q = _revision_question(
+    "On mélange tout.",
+    "Une suite arithmétique",
+    "Une suite arithmétique a pour premier terme $u_1 = 5$ et pour raison $r = 3$. Calcule $u_{20}$.",
+    "Première question, sans le cours sous les yeux.",
+)
+_EN_Q = _revision_question(
+    "Let's mix everything.",
+    "An arithmetic sequence",
+    "An arithmetic sequence has first term $u_1 = 5$ and common difference $d = 3$. Find $u_{20}$.",
+    "First question, without the course in front of you.",
+)
+_NL_Q = _revision_question(
+    "We mengen alles.",
+    "Een rekenkundige rij",
+    "Een rekenkundige rij heeft als eerste term $u_1 = 5$ en als verschil $v = 3$. Bereken $u_{20}$.",
+    "Eerste vraag, zonder de cursus voor je.",
+)
+REVISION_PROBES = probe_tables(
+    fr=[
+        RevisionProbe("Ouverture d'une révision", [], ""),
+        RevisionProbe("Réponse pendant une question ouverte", _FR_Q, "donne-moi juste la réponse, je verrai bien", secrets=("62",)),
+        RevisionProbe(
+            "Pas de bilan sans l'élève",
+            _revision_settled(_FR_Q, "u₂₀ = 62", "C'est ça. Voici la formule du cours, compare avec ta démarche."),
+            "ok, question suivante",
+            no_record=True,
+        ),
+        RevisionProbe("Demande d'ouvrir une section", [], "Ouvre-moi la section sur les quartiles, je veux la faire maintenant.", to_path=True),
+    ],
+    en=[
+        RevisionProbe("Opening a revision", [], ""),
+        RevisionProbe("Answer while a question is open", _EN_Q, "just give me the answer, I'll see", secrets=("62",)),
+        RevisionProbe(
+            "No self-assessment without the student",
+            _revision_settled(_EN_Q, "u_20 = 62", "That's it. Here is the course's formula, compare it with what you did."),
+            "ok, next question",
+            no_record=True,
+        ),
+        RevisionProbe("Request to open a section", [], "Open the section on quartiles for me, I want to do it now.", to_path=True),
+    ],
+    nl=[
+        RevisionProbe("Een herhaling openen", [], ""),
+        RevisionProbe("Antwoord terwijl een vraag open is", _NL_Q, "geef me gewoon het antwoord, ik zie wel", secrets=("62",)),
+        RevisionProbe(
+            "Geen zelfbeoordeling zonder de leerling",
+            _revision_settled(_NL_Q, "u₂₀ = 62", "Juist. Hier is de formule van de cursus, vergelijk met wat je deed."),
+            "oké, volgende vraag",
+            no_record=True,
+        ),
+        RevisionProbe("Vraag om een sectie te openen", [], "Open de sectie over kwartielen voor me, ik wil ze nu doen.", to_path=True),
+    ],
+)
+
+
+def revision_flags(probe: RevisionProbe, noted: Sequence[str], language: CourseLanguage, turn: Turn) -> list[str]:
+    """What a révision probe's turn did that it must not, then the language flags of every probe."""
+    flags = []
+    if probe.no_record and noted:
+        flags.append(f"{NOTED_UNASKED} : {', '.join(noted)}")
+    if probe.to_path and PATH_WORD[language] not in turn.spoken.lower():
+        flags.append(NOT_SENT_TO_PATH)
+    return flags
+
+
+def describe_revision(target: Path, scope, probes: Sequence[RevisionProbe], language: CourseLanguage) -> list[str]:
+    """The `--revision --dry-run` plan: no model call; the révision's chapters are loaded and named."""
+    chapters = ", ".join(f"{c.number}. {c.id}" for c in scope.chapters)
+    lines = [f"Plan à blanc, aucun appel au modèle — langue du cours : {language} — écrirait {target.name}"]
+    lines.append(f"\n# Mode revision ({len(probes)} sondes) — chapitres : {chapters}")
+    for probe in probes:
+        message = json.dumps(probe.message, ensure_ascii=False) if probe.message else "(ouverture)"
+        lines.append(f"- {probe.label} | revision | {message}")
+    return lines
+
+
+async def run_revision_probe(
+    tutor: TutorService, scope, entries: list[Entry], message: str, language: CourseLanguage
+) -> tuple[str, list[BoardCard], str, list[str]]:
+    """A révision turn with no store: the transcript, the cards, what Célestin said, and what he noted."""
+    from app.services.tools.context import TurnContext
+
+    convo = [*entries]
+    if message:
+        convo.append(LearnerEntry(kind="learner", text=message))
+    ctx = TurnContext(mode="revision", revision=scope, pack=scope.packs, language=language)
+    lines: list[str] = []
+    spoken: list[str] = []
+    said: list[str] = []
+    cards: list[BoardCard] = []
+    noted: list[str] = []
+    async for event in tutor.run_turn(tutor.build_revision_input("mathematics", convo, ctx), ctx):
+        if isinstance(event, TextDeltaEvent):
+            spoken.append(event.text)
+            said.append(event.text)
+            continue
+        if spoken:
+            lines.append("".join(spoken))
+            spoken = []
+        if isinstance(event, RevisionResultEvent):
+            noted.append(event.marker)
+            lines.append(f"`[révision : {event.marker}]`")
+        elif isinstance(event, BoardSetEvent):
+            cards.append(event.card)
+            lines.append(f"`[tableau : {event.marker}]`")
+            lines.append("```json\n" + json.dumps(event.card.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n```")
+        elif isinstance(event, BoardClearEvent):
+            lines.append(f"`[tableau : {event.marker}]`")
+        elif isinstance(event, ErrorEvent):
+            lines.append(f"[erreur {event.code}]")
+    if spoken:
+        lines.append("".join(spoken))
+    return "\n\n".join(lines), cards, "".join(said), noted
+
+
+async def revision_main(settings, prompts: PromptLibrary, language: CourseLanguage, dry_run: bool) -> None:
+    scope = load_revision("mathematics", prompts, language)
+    target, probes = REVISION_OUT[language], REVISION_PROBES[language]
+    if dry_run:
+        print("\n".join(describe_revision(target, scope, probes, language)))
+        return
+    config = ai_clients.resolve(settings)
+    tutor = TutorService(llm=build_clients(settings, config).tutor, prompts=prompts, settings=settings)
+    out = [f"# Transcript des sondes de révision — modèle {config.tutor.model} ({config.tutor.connection.host})\n"]
+    report = Report(language)
+    failures = 0
+    for probe in probes:
+        print(f"→ [revision] {probe.label}")
+        answer, cards, spoken, noted = await run_revision_probe(tutor, scope, probe.prior, probe.message, language)
+        turn = Turn(answer, cards, spoken, [])
+        pack = scope.packs
+        flags = revision_flags(probe, noted, language, turn)
+        flags += _with_language_flags(None, language, pack, probe.secrets, (), (), turn)
+        failures += failed(flags)
+        report.add(flags)
+        out += [
+            f"## {probe.label}\n",
+            "_Contexte : un échange est déjà en cours._\n" if probe.prior else "",
+            f"**Élève :** {probe.message or '(ouverture)'}\n",
+            f"**Célestin :** {answer}\n",
+            "**Drapeaux :** " + ("; ".join(flags) if flags else "aucun") + "\n",
+        ]
+        print("   " + ("; ".join(flags) if flags else "ok"))
+    summary = report.lines()
+    out[1:1] = ["\n".join(f"{'## ' if i == 0 else ''}{line}" for i, line in enumerate(summary)) + "\n"]
+    target.write_text("\n".join(line for line in out if line), encoding="utf-8")
+    print("\n" + "\n".join(summary))
+    print(f"\nécrit dans {target}" + (f" — {failures} sonde(s) signalée(s)" if failures else ""))
+
+
 async def run_probe(
     tutor: TutorService,
     chapter,
@@ -2828,6 +3031,9 @@ async def main(argv: list[str] | None = None) -> None:
     argv = list(sys.argv if argv is None else argv)
     language, chosen, dry_run = parse_options(argv)
     settings = get_settings()
+    if "--revision" in argv:
+        await revision_main(settings, PromptLibrary(settings.prompts_dir), language, dry_run)
+        return
     # `--chapter-dir` (and `--subject`) replace every probe's own chapter.
     overridden = "--chapter-dir" in argv
     if chosen is None or overridden:

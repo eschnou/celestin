@@ -15,7 +15,7 @@ from fastapi import Depends, Request
 
 from app.config import Settings
 from app.db.repositories import Repositories
-from app.domain.mode import DEFAULT_MODE, Mode
+from app.domain.mode import DEFAULT_MODE, ChapterMode
 from app.domain.errors import (
     AiNotConfigured,
     DictationRateLimited,
@@ -36,6 +36,7 @@ from app.services.authoring.runner import AuthoringRunner
 from app.services.documents import DocumentService
 from app.services.chapters import CurriculumCache, to_lesson_chapter
 from app.services.discussion import DiscussionService
+from app.services.revision import OpenRevision, RevisionService
 from app.services.seance import SeanceService, card_loader
 from app.services.ai_settings import AiSettingsService
 from app.services.prompts import PromptLibrary
@@ -151,6 +152,13 @@ def get_seance_service(settings: SettingsDep, repos: ReposDep) -> SeanceService:
 
 
 SeanceServiceDep = Annotated[SeanceService, Depends(get_seance_service)]
+
+
+def get_revision_service(settings: SettingsDep, repos: ReposDep, curricula: CurriculumCacheDep) -> RevisionService:
+    return RevisionService(repos=repos, settings=settings, curricula=curricula)
+
+
+RevisionServiceDep = Annotated[RevisionService, Depends(get_revision_service)]
 
 
 COOKIE_NAME = "celestin_session"
@@ -297,7 +305,7 @@ def lesson_chapter(
 
 
 def load_context(
-    user: User, chapter: LessonChapter, repos: Repositories, mode: Mode = DEFAULT_MODE, course_id: str | None = None
+    user: User, chapter: LessonChapter, repos: Repositories, mode: ChapterMode = DEFAULT_MODE, course_id: str | None = None
 ) -> TurnContext:
     """The stored progress as a turn context, the store bound for the section
     tools (004 design 3.6).
@@ -336,9 +344,28 @@ def open_lesson(
     chapter_id: str,
     repos: Repositories,
     cache: CurriculumCache,
-    mode: Mode = DEFAULT_MODE,
+    mode: ChapterMode = DEFAULT_MODE,
 ) -> tuple[LessonChapter, TurnContext]:
     """Everything a chat or voice request needs before touching the model: the
     ownership check, the content and the stored progress, in one threadpool hop."""
     chapter = lesson_chapter(user, course_id, chapter_id, repos, cache)
     return chapter, load_context(user, chapter, repos, mode, course_id)
+
+
+def revision_context(user: User, course: CourseRecord, opened: OpenRevision) -> TurnContext:
+    """A révision turn's context (spec 020): its scope and what it noted so far, and the two locks of a discussion:
+    no section tool is offered (`registry`) and `save` stays None, so nothing here can write a progress. No store
+    either: `record_result` notes in the turn's memory, and the route writes the turn's results with its transcript
+    when it ends (D6). A definition on the board must quote one of the chosen packs."""
+    return TurnContext(
+        save=None,
+        user_id=user.id,
+        chapter_id=None,
+        course_id=course.id,
+        mode="revision",
+        pack=opened.scope.packs,
+        locale=user.locale,
+        language=course.language,
+        revision=opened.scope,
+        noted=opened.noted,
+    )

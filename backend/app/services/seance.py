@@ -43,7 +43,7 @@ from app.config import Settings
 from app.db.repositories import ConversationRecord, Repositories, SeanceSegment, StoredSeance
 from app.domain.chapter import LessonChapter
 from app.domain.errors import ConversationBusy, SeanceBusy, SeanceFull, SeanceReportInvalid, SeanceStarted
-from app.domain.mode import Mode
+from app.domain.mode import ChapterMode
 from app.domain.progress import Progress
 from app.services import conversations
 from app.services.tools import registry
@@ -51,7 +51,7 @@ from app.services.tools.context import StoredView
 
 log = logging.getLogger(__name__)
 
-MODE: Mode = "parcours"
+MODE: ChapterMode = "parcours"
 
 
 def _section_of(entry: Entry) -> str | None:
@@ -244,7 +244,8 @@ class SeanceService:
     def live(self, user_id: str, chapter: LessonChapter) -> ConversationRecord | None:
         """The live séance, or None. A pure read apart from the lazy `content_changed`
         close (D9): a full one is returned as it is and rolls over on the next turn."""
-        return conversations.live_row(self._repos, user_id, chapter, MODE, "seance_closed")
+        found = self._repos.conversations.live(user_id, chapter.id, mode=MODE)
+        return conversations.live_row(self._repos, found, conversations.older_than(chapter), "seance_closed")
 
     def current(self, user_id: str, chapter: LessonChapter, progress: Progress) -> ConversationRecord | None:
         """The séance a turn continues: the live one, rolled over first when it is full

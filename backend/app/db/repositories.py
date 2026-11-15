@@ -11,11 +11,26 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import asdict, dataclass, fields, replace
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
-from sqlalchemy import DateTime, Integer, Boolean, String, delete, exists, func, insert, literal, select, update
+from sqlalchemy import (
+    Boolean,
+    ColumnElement,
+    DateTime,
+    Integer,
+    String,
+    and_,
+    delete,
+    exists,
+    func,
+    insert,
+    literal,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, defer, sessionmaker
 
@@ -29,6 +44,7 @@ from app.db.models import (
     ConversationRow,
     CourseRow,
     ProgressRow,
+    RevisionResultRow,
     SessionRow,
     UserRow,
 )
@@ -45,8 +61,9 @@ from app.domain.errors import (
     StaleVersion,
 )
 from app.domain.locale import DEFAULT_LOCALE, Locale, is_locale
-from app.domain.mode import Mode
+from app.domain.mode import ChapterMode, Mode
 from app.domain.progress import Progress
+from app.domain.revision import NewResult, Noted
 from app.domain.usage import UsageEntry
 from app.domain.user import Role, User
 
@@ -541,6 +558,17 @@ class ChapterRepository(_Repo):
             if pair is None:
                 return None
             return OwnedChapter(course=_course(pair[1]), chapter=_chapter_full(pair[0], source))
+
+    def with_content(self, course_id: str, ids: Iterable[str] | None = None) -> list[ChapterRecord]:
+        """The chapters of a course with their content (not their pasted text), in course order: every one, or those
+        of `ids` (an id not in the course is simply absent). What a révision reads (spec 020). The caller has checked
+        that the course is the student's."""
+        query = select(ChapterRow).where(ChapterRow.course_id == course_id)
+        if ids is not None:
+            query = query.where(ChapterRow.id.in_(list(ids)))
+        with self._factory() as s:
+            rows = s.scalars(query.options(defer(ChapterRow.source_text)).order_by(ChapterRow.position, ChapterRow.id))
+            return [_chapter_full(row, source=False) for row in rows]
 
     def owns(self, user_id: str, course_id: str, chapter_id: str) -> bool:
         """Ownership alone, reading no content."""
@@ -1230,7 +1258,7 @@ def _entry(row: AiUsageRow) -> UsageEntry:
 class ConversationRecord:
     id: str
     user_id: str
-    chapter_id: str
+    chapter_id: str | None  # None for a révision (spec 020), which names its course instead
     content_version: int
     entries: list[dict[str, Any]]
     entry_count: int
@@ -1242,6 +1270,9 @@ class ConversationRecord:
     # Spec 018: for a parcours séance, its section and its cards.
     section_id: str | None = None
     card_count: int = 0
+    # Spec 020: a révision's course, and the chapters it covers, `[{chapter_id, content_version}]` in course order.
+    course_id: str | None = None
+    scope: list[dict[str, Any]] | None = None
 
     @property
     def live(self) -> bool:
@@ -1263,6 +1294,8 @@ def _conversation(row: ConversationRow) -> ConversationRecord:
         updated_at=as_utc(row.updated_at),
         section_id=row.section_id,
         card_count=row.card_count or 0,
+        course_id=row.course_id,
+        scope=list(row.scope) if row.scope is not None else None,
     )
 
 
@@ -1301,63 +1334,79 @@ class StoredSeance:
 ConversationMode = Mode
 
 
-class ConversationRepository(_Repo):
-    """Stored discussions (007 design 4.2) and parcours séances (spec 018). One live
-    row per student, chapter and mode, the database enforcing it through a partial
-    unique index. Every read names its mode: a discussion never sees a séance, and a
-    séance never sees a discussion."""
+def _owned(
+    user_id: str, mode: Mode, *, chapter_id: str | None = None, course_id: str | None = None
+) -> tuple[ColumnElement[bool], ...]:
+    """The rows of one student, one mode and one owner: a chapter (parcours, discussion) or, for a révision (spec
+    020), a course. Exactly one of `chapter_id` and `course_id` is given, as the table's check holds."""
+    owner = ConversationRow.chapter_id == chapter_id if course_id is None else ConversationRow.course_id == course_id
+    return (ConversationRow.user_id == user_id, owner, ConversationRow.mode == mode)
 
-    def live(self, user_id: str, chapter_id: str, *, mode: ConversationMode) -> ConversationRecord | None:
+
+class ConversationRepository(_Repo):
+    """Stored discussions (007 design 4.2), parcours séances (spec 018) and révisions (spec 020). One live row per
+    student, owner and mode, the database enforcing it through a partial unique index. Every read names its mode: a
+    discussion never sees a séance, and a séance never sees a discussion. A révision names its course and no
+    chapter, so no chapter read meets one; the chapter entry points take a `ChapterMode`, so none can ask for one.
+    Both kinds share one where-builder (`_owned`) and one implementation per operation."""
+
+    def _live(self, where: tuple[ColumnElement[bool], ...]) -> ConversationRecord | None:
         with self._factory() as s:
-            row = s.scalar(
-                select(ConversationRow).where(
-                    ConversationRow.user_id == user_id,
-                    ConversationRow.chapter_id == chapter_id,
-                    ConversationRow.mode == mode,
-                    ConversationRow.state == "live",
-                )
-            )
+            row = s.scalar(select(ConversationRow).where(*where, ConversationRow.state == "live"))
             return _conversation(row) if row else None
 
+    def _get(self, conversation_id: str, where: tuple[ColumnElement[bool], ...]) -> ConversationRecord | None:
+        with self._factory() as s:
+            row = s.scalar(select(ConversationRow).where(ConversationRow.id == conversation_id, *where))
+            return _conversation(row) if row else None
+
+    def _start(
+        self,
+        where: tuple[ColumnElement[bool], ...],
+        user_id: str,
+        mode: Mode,
+        *,
+        chapter_id: str | None = None,
+        content_version: int = 0,
+        course_id: str | None = None,
+        scope: list[dict[str, Any]] | None = None,
+    ) -> ConversationRecord:
+        """A new empty row, closing the live one of the same owner and mode as `replaced`, in one transaction.
+        Another tab starting one at the same instant trips the unique index: busy."""
+        now = utcnow()
+        try:
+            with self._factory() as s:
+                s.execute(
+                    update(ConversationRow)
+                    .where(*where, ConversationRow.state == "live")
+                    .values(state="closed", closed_reason="replaced", updated_at=now)
+                )
+                row = _new_row(user_id, chapter_id, mode, content_version, None, now, course_id=course_id, scope=scope)
+                s.add(row)
+                s.commit()
+                s.refresh(row)
+                return _conversation(row)
+        except IntegrityError:
+            raise ConversationBusy() from None
+
+    def live(self, user_id: str, chapter_id: str, *, mode: ChapterMode) -> ConversationRecord | None:
+        return self._live(_owned(user_id, mode, chapter_id=chapter_id))
+
     def get_owned(
-        self, user_id: str, chapter_id: str, conversation_id: str, *, mode: ConversationMode
+        self, user_id: str, chapter_id: str, conversation_id: str, *, mode: ChapterMode
     ) -> ConversationRecord | None:
         """Owner, chapter and mode are in the query, so a valid id from another
         chapter, or a séance's id named as a discussion, does not resolve (007 design 8)."""
-        with self._factory() as s:
-            row = s.scalar(
-                select(ConversationRow).where(
-                    ConversationRow.id == conversation_id,
-                    ConversationRow.user_id == user_id,
-                    ConversationRow.chapter_id == chapter_id,
-                    ConversationRow.mode == mode,
-                )
-            )
-            return _conversation(row) if row else None
+        return self._get(conversation_id, _owned(user_id, mode, chapter_id=chapter_id))
 
     def start(
-        self, user_id: str, chapter_id: str, content_version: int, *, mode: ConversationMode
+        self, user_id: str, chapter_id: str, content_version: int, *, mode: ChapterMode
     ) -> ConversationRecord:
         """A new empty row of `mode`, closing the live one of that mode as `replaced`, in
         one transaction: « Nouvelle conversation ». A séance starts through
         `store_seance` instead."""
-        now = utcnow()
-        with self._factory() as s:
-            s.execute(
-                update(ConversationRow)
-                .where(
-                    ConversationRow.user_id == user_id,
-                    ConversationRow.chapter_id == chapter_id,
-                    ConversationRow.mode == mode,
-                    ConversationRow.state == "live",
-                )
-                .values(state="closed", closed_reason="replaced", updated_at=now)
-            )
-            row = _new_row(user_id, chapter_id, mode, content_version, None, now)
-            s.add(row)
-            s.commit()
-            s.refresh(row)
-            return _conversation(row)
+        where = _owned(user_id, mode, chapter_id=chapter_id)
+        return self._start(where, user_id, mode, chapter_id=chapter_id, content_version=content_version)
 
     def close(self, conversation_id: str, reason: str) -> None:
         with self._factory() as s:
@@ -1377,19 +1426,36 @@ class ConversationRepository(_Repo):
         max_entries: int,
         max_chars: int,
         cards: int = 0,
+        results: Sequence[NewResult] = (),
     ) -> ConversationRecord:
-        """One UPDATE, so a turn lands whole or not at all (007 NFR 4.4.1).
+        """One transaction, so a turn lands whole or not at all (007 NFR 4.4.1).
 
         `expected_count` is the optimistic guard: a mismatch means another turn
         appended first, which is `ConversationBusy` rather than an interleaved
         transcript. Crossing either cap closes the row as `capped`. `cards` is how
-        many cards `entries` show, counted by the caller.
+        many cards `entries` show, counted by the caller. `results` are a révision's
+        self-assessments from the calls in `entries` (spec 020 D6), written with them
+        or not at all, owned by the row's student and course.
         """
+        now = utcnow()
         with self._factory() as s:
             row = s.get(ConversationRow, conversation_id)
             if row is None or row.entry_count != expected_count:
                 raise ConversationBusy()
-            _extend(row, entries, cards, utcnow())
+            _extend(row, entries, cards, now)
+            for result in results:  # inserted in order: the latest per section is the last one written
+                s.add(
+                    RevisionResultRow(
+                        user_id=row.user_id,
+                        course_id=row.course_id,
+                        chapter_id=result.chapter_id,
+                        section_id=result.section_id,
+                        outcome=result.outcome,
+                        content_version=result.content_version,
+                        conversation_id=row.id,
+                        created_at=now,
+                    )
+                )
             if row.entry_count >= max_entries or row.char_count >= max_chars:
                 row.state = "closed"
                 row.closed_reason = "capped"
@@ -1413,6 +1479,20 @@ class ConversationRepository(_Repo):
                 )
                 or 0
             )
+
+    # ------------------------------------------------------------ révisions (spec 020)
+
+    def live_revision(self, user_id: str, course_id: str) -> ConversationRecord | None:
+        return self._live(_owned(user_id, "revision", course_id=course_id))
+
+    def get_revision(self, user_id: str, course_id: str, conversation_id: str) -> ConversationRecord | None:
+        """Owner, course and mode are in the query: a discussion's id, or another course's révision, does not resolve."""
+        return self._get(conversation_id, _owned(user_id, "revision", course_id=course_id))
+
+    def start_revision(self, user_id: str, course_id: str, scope: list[dict[str, Any]]) -> ConversationRecord:
+        """A new empty révision on `scope`, closing the live one of the course as `replaced` (« Nouvelle révision »)."""
+        where = _owned(user_id, "revision", course_id=course_id)
+        return self._start(where, user_id, "revision", course_id=course_id, scope=scope)
 
     # ------------------------------------------------------------- séances (spec 018)
 
@@ -1553,12 +1633,22 @@ class ConversationRepository(_Repo):
 
 
 def _new_row(
-    user_id: str, chapter_id: str, mode: str, content_version: int, section_id: str | None, now: datetime
+    user_id: str,
+    chapter_id: str | None,
+    mode: str,
+    content_version: int,
+    section_id: str | None,
+    now: datetime,
+    *,
+    course_id: str | None = None,
+    scope: list[dict[str, Any]] | None = None,
 ) -> ConversationRow:
     return ConversationRow(
         id=uuid.uuid4().hex,
         user_id=user_id,
         chapter_id=chapter_id,
+        course_id=course_id,
+        scope=scope,
         mode=mode,
         content_version=content_version,
         entries=[],
@@ -1583,6 +1673,48 @@ def _extend(row: ConversationRow, entries: list[dict[str, Any]], cards: int, now
     row.char_count = (row.char_count or 0) + sum(_entry_chars(e) for e in entries)
     row.card_count = (row.card_count or 0) + cards
     row.updated_at = now
+
+
+class RevisionResultRepository(_Repo):
+    """The self-assessments noted in révisions (spec 020): a section and one of three words, per student. They are
+    written with their turn's transcript (`ConversationRepository.append`). The latest per section counts, and only
+    results recorded against a chapter's current content version are read."""
+
+    def latest(
+        self, user_id: str, course_id: str, versions: dict[str, int], *, conversation_id: str | None = None
+    ) -> tuple[dict[tuple[str, str], Noted], dict[tuple[str, str], Noted]]:
+        """`(every révision's, this révision's)`: (chapter id, section id) -> its latest result, for the chapters of
+        `versions` at those content versions (filtered in the query); the second among `conversation_id`'s results
+        only (its tally), empty without one. One query."""
+        if not versions:
+            return {}, {}
+        query = select(
+            RevisionResultRow.chapter_id,
+            RevisionResultRow.section_id,
+            RevisionResultRow.outcome,
+            RevisionResultRow.created_at,
+            RevisionResultRow.conversation_id,
+        ).where(
+            RevisionResultRow.user_id == user_id,
+            RevisionResultRow.course_id == course_id,
+            or_(
+                *(
+                    and_(RevisionResultRow.chapter_id == chapter_id, RevisionResultRow.content_version == version)
+                    for chapter_id, version in versions.items()
+                )
+            ),
+        )
+        every: dict[tuple[str, str], Noted] = {}
+        here: dict[tuple[str, str], Noted] = {}
+        with self._factory() as s:
+            for chapter_id, section_id, outcome, created_at, of in s.execute(
+                query.order_by(RevisionResultRow.created_at, RevisionResultRow.id)
+            ):
+                noted = Noted(outcome, as_utc(created_at))
+                every[(chapter_id, section_id)] = noted
+                if conversation_id is not None and of == conversation_id:
+                    here[(chapter_id, section_id)] = noted
+        return every, here
 
 
 class AppSettingsRepository(_Repo):
@@ -1616,6 +1748,7 @@ class Repositories:
     conversations: ConversationRepository
     ai_usage: AiUsageRepository
     app_settings: AppSettingsRepository
+    revision_results: RevisionResultRepository
 
     @classmethod
     def from_factory(cls, factory: sessionmaker[Session]) -> Repositories:
@@ -1629,4 +1762,5 @@ class Repositories:
             conversations=ConversationRepository(factory),
             ai_usage=AiUsageRepository(factory),
             app_settings=AppSettingsRepository(factory),
+            revision_results=RevisionResultRepository(factory),
         )

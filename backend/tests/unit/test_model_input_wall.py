@@ -34,6 +34,8 @@ MODEL_FACING = [
     # Spec 018: what a parcours turn reads is built here, and so is the reprise note's data.
     APP / "services" / "seance.py",
     APP / "services" / "conversations.py",
+    # Spec 020: what a révision turn reads (its scope, what was noted) is built here.
+    APP / "services" / "revision.py",
     *sorted((APP / "services" / "tools").glob("*.py")),
 ]
 FORBIDDEN = {"app.domain.messages", "app.domain.messages.fr", "app.domain.messages.en"}

@@ -8,20 +8,19 @@ import { NotFoundCard } from "@/components/celestin/not-found";
 import { chapterQuery } from "@/lib/tutor/chapter";
 import { ApiError, apiMessage, apiStatus } from "@/lib/tutor/client";
 import { courseQuery, retryChapter } from "@/lib/tutor/courses";
-import { lessonStartQuery } from "@/lib/tutor/seance";
 import { m } from "@/paraglide/messages";
 
 const authRoute = getRouteApi("/_auth");
 
 export const Route = createFileRoute("/_auth/courses/$courseId/chapters/$chapterId/")({
   head: () => ({ meta: [{ title: m.chapter_head_title() }] }),
-  // The lesson mounts once the chapter is here (004 R6.4); the séance it resumes, and the
-  // progress read with it (018 D6), are fetched beside it rather than behind it.
+  // The lesson mounts once the chapter is here (004 R6.4). The séance it resumes, and the
+  // progress read with it (018 D6), are read by the lesson itself, once: prefetched here,
+  // the entry (`gcTime: 0`) was dropped before the lesson subscribed and read a second time.
   loader: ({ context, params }) =>
-    Promise.all([
-      context.queryClient.ensureQueryData(chapterQuery(params.courseId, params.chapterId)),
-      context.queryClient.ensureQueryData(lessonStartQuery(params.courseId, params.chapterId)),
-    ]).catch(() => null),
+    context.queryClient
+      .ensureQueryData(chapterQuery(params.courseId, params.chapterId))
+      .catch(() => null),
   component: ChapterPage,
 });
 

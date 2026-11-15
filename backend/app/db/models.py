@@ -24,6 +24,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 from app.domain.ai_config import ROLES as AI_ROLES
 from app.domain.mode import MODES
+from app.domain.revision import OUTCOMES
 from app.domain.subject import SUBJECT_IDS
 from app.domain.usage import FEATURES, STATUSES
 from app.domain.user import ROLES
@@ -205,7 +206,8 @@ class ProgressRow(Base):
 
 
 CONVERSATION_STATES = ("live", "closed")
-# `done` and `left` close a parcours séance (spec 018 D3): its section was finished, or another one started.
+# `done` and `left` close a parcours séance (spec 018 D3): its section was finished, or another one started. A révision
+# closes `replaced`, `content_changed` or `capped`, as a discussion does.
 CLOSED_REASONS = ("replaced", "content_changed", "capped", "done", "left")
 # A row is one mode's transcript: the modes are declared once, in `domain/mode.py`.
 CONVERSATION_MODES = MODES
@@ -213,7 +215,9 @@ CONVERSATION_MODES = MODES
 
 class ConversationRow(Base):
     """One discussion, or one séance of the parcours, on one chapter for one student
-    (007 design 4.1, spec 018 D1-D2).
+    (007 design 4.1, spec 018 D1-D2); or one révision, on chosen chapters of one course
+    (spec 020): `course_id` and `scope` set, `chapter_id` null, `ck_conversations_scope`
+    keeping each mode on its own side.
 
     `entries` is the transcript as a JSON array of the DTO shapes the turn already
     uses, like `chapters.curriculum`: one blob, so appending a turn is a single
@@ -243,18 +247,39 @@ class ConversationRow(Base):
             sqlite_where=text("state = 'live'"),
             postgresql_where=text("state = 'live'"),
         ),
+        # A chapter mode names its chapter; a révision names its course and not a chapter (spec 020).
+        CheckConstraint(
+            "(mode <> 'revision' and chapter_id is not null and course_id is null) or "
+            "(mode = 'revision' and chapter_id is null and course_id is not null)",
+            name="ck_conversations_scope",
+        ),
+        # One live révision per student and course (spec 020 D6). A révision's `chapter_id` is null, so it never
+        # meets `uq_conversations_live` (null is distinct from null in a unique index, in both databases).
+        Index(
+            "uq_conversations_live_revision",
+            "user_id",
+            "course_id",
+            unique=True,
+            sqlite_where=text("state = 'live' and mode = 'revision'"),
+            postgresql_where=text("state = 'live' and mode = 'revision'"),
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     user_id: Mapped[str] = mapped_column(
         String(32), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    chapter_id: Mapped[str] = mapped_column(
-        String(32), ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False
+    chapter_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("chapters.id", ondelete="CASCADE"), nullable=True
     )
+    # Spec 020: a révision's course, and the chapters it covers as `[{chapter_id, content_version}]` in course order.
+    course_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("courses.id", ondelete="CASCADE", name="fk_conversations_course_id"), nullable=True
+    )
+    scope: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     mode: Mapped[str] = mapped_column(String(12), nullable=False, default="discussion")
     # The chapter version the conversation was held against: a content change makes
-    # it unusable, because its pack is gone (007 R8.3).
+    # it unusable, because its pack is gone (007 R8.3). 0 for a révision: its versions are in `scope`.
     content_version: Mapped[int] = mapped_column(Integer, nullable=False)
     entries: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
     entry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -266,6 +291,36 @@ class ConversationRow(Base):
     closed_reason: Mapped[str | None] = mapped_column(String(16), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class RevisionResultRow(Base):
+    """One self-assessment noted in a révision (spec 020): a section of a chapter, and one of three words. No free
+    text. Recorded against the chapter's content version: a content change leaves the old results behind, and
+    reads keep only those of the current version. The latest per section is the one that counts."""
+
+    __tablename__ = "revision_results"
+    __table_args__ = (
+        CheckConstraint("outcome in ('" + "','".join(OUTCOMES) + "')", name="ck_revision_results_outcome"),
+        Index("ix_revision_results_user_course", "user_id", "course_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    course_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
+    )
+    chapter_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("chapters.id", ondelete="CASCADE"), nullable=False
+    )
+    section_id: Mapped[str] = mapped_column(String(40), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(8), nullable=False)
+    content_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    conversation_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class AiUsageRow(Base):

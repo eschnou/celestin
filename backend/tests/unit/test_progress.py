@@ -59,3 +59,9 @@ def test_starting_another_section_parks_the_active_one() -> None:
     assert Progress(done=frozenset({"intro"}), active="exos").with_active("bilan") == Progress(
         done=frozenset({"intro"}), active="bilan"
     )
+
+
+def test_state_of_names_where_a_section_stands_for_a_revision() -> None:
+    """Spec 020: one rule, read by the révision's page and its state message. An active section is `todo`."""
+    progress = Progress(done=frozenset({"a"}), active="c", skipped=frozenset({"b"}))
+    assert [progress.state_of(s) for s in ("a", "b", "c", "d")] == ["done", "skipped", "todo", "todo"]

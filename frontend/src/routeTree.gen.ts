@@ -19,6 +19,7 @@ import { Route as AuthAdminIndexRouteImport } from './routes/_auth/admin/index'
 import { Route as AuthAdminUsageRouteImport } from './routes/_auth/admin/usage'
 import { Route as AuthCoursesIndexRouteImport } from './routes/_auth/courses/index'
 import { Route as AuthCoursesCourseIdIndexRouteImport } from './routes/_auth/courses/$courseId/index'
+import { Route as AuthCoursesCourseIdRevisionRouteImport } from './routes/_auth/courses/$courseId/revision'
 import { Route as AuthCoursesCourseIdChaptersChapterIdIndexRouteImport } from './routes/_auth/courses/$courseId/chapters/$chapterId/index'
 import { Route as AuthCoursesCourseIdChaptersChapterIdContentRouteImport } from './routes/_auth/courses/$courseId/chapters/$chapterId/content'
 import { Route as AuthCoursesCourseIdChaptersChapterIdDiscussionRouteImport } from './routes/_auth/courses/$courseId/chapters/$chapterId/discussion'
@@ -74,6 +75,12 @@ const AuthCoursesCourseIdIndexRoute =
     path: '/courses/$courseId/',
     getParentRoute: () => AuthRoute,
   } as any)
+const AuthCoursesCourseIdRevisionRoute =
+  AuthCoursesCourseIdRevisionRouteImport.update({
+    id: '/courses/$courseId/revision',
+    path: '/courses/$courseId/revision',
+    getParentRoute: () => AuthRoute,
+  } as any)
 const AuthCoursesCourseIdChaptersChapterIdIndexRoute =
   AuthCoursesCourseIdChaptersChapterIdIndexRouteImport.update({
     id: '/courses/$courseId/chapters/$chapterId/',
@@ -108,6 +115,7 @@ export interface FileRoutesByFullPath {
   '/admin/usage': typeof AuthAdminUsageRoute
   '/admin/': typeof AuthAdminIndexRoute
   '/courses/': typeof AuthCoursesIndexRoute
+  '/courses/$courseId/revision': typeof AuthCoursesCourseIdRevisionRoute
   '/courses/$courseId/': typeof AuthCoursesCourseIdIndexRoute
   '/courses/$courseId/chapters/$chapterId/content': typeof AuthCoursesCourseIdChaptersChapterIdContentRoute
   '/courses/$courseId/chapters/$chapterId/discussion': typeof AuthCoursesCourseIdChaptersChapterIdDiscussionRoute
@@ -123,6 +131,7 @@ export interface FileRoutesByTo {
   '/admin/usage': typeof AuthAdminUsageRoute
   '/admin': typeof AuthAdminIndexRoute
   '/courses': typeof AuthCoursesIndexRoute
+  '/courses/$courseId/revision': typeof AuthCoursesCourseIdRevisionRoute
   '/courses/$courseId': typeof AuthCoursesCourseIdIndexRoute
   '/courses/$courseId/chapters/$chapterId/content': typeof AuthCoursesCourseIdChaptersChapterIdContentRoute
   '/courses/$courseId/chapters/$chapterId/discussion': typeof AuthCoursesCourseIdChaptersChapterIdDiscussionRoute
@@ -140,6 +149,7 @@ export interface FileRoutesById {
   '/_auth/admin/usage': typeof AuthAdminUsageRoute
   '/_auth/admin/': typeof AuthAdminIndexRoute
   '/_auth/courses/': typeof AuthCoursesIndexRoute
+  '/_auth/courses/$courseId/revision': typeof AuthCoursesCourseIdRevisionRoute
   '/_auth/courses/$courseId/': typeof AuthCoursesCourseIdIndexRoute
   '/_auth/courses/$courseId/chapters/$chapterId/content': typeof AuthCoursesCourseIdChaptersChapterIdContentRoute
   '/_auth/courses/$courseId/chapters/$chapterId/discussion': typeof AuthCoursesCourseIdChaptersChapterIdDiscussionRoute
@@ -157,6 +167,7 @@ export interface FileRouteTypes {
     | '/admin/usage'
     | '/admin/'
     | '/courses/'
+    | '/courses/$courseId/revision'
     | '/courses/$courseId/'
     | '/courses/$courseId/chapters/$chapterId/content'
     | '/courses/$courseId/chapters/$chapterId/discussion'
@@ -172,6 +183,7 @@ export interface FileRouteTypes {
     | '/admin/usage'
     | '/admin'
     | '/courses'
+    | '/courses/$courseId/revision'
     | '/courses/$courseId'
     | '/courses/$courseId/chapters/$chapterId/content'
     | '/courses/$courseId/chapters/$chapterId/discussion'
@@ -188,6 +200,7 @@ export interface FileRouteTypes {
     | '/_auth/admin/usage'
     | '/_auth/admin/'
     | '/_auth/courses/'
+    | '/_auth/courses/$courseId/revision'
     | '/_auth/courses/$courseId/'
     | '/_auth/courses/$courseId/chapters/$chapterId/content'
     | '/_auth/courses/$courseId/chapters/$chapterId/discussion'
@@ -275,6 +288,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCoursesCourseIdIndexRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_auth/courses/$courseId/revision': {
+      id: '/_auth/courses/$courseId/revision'
+      path: '/courses/$courseId/revision'
+      fullPath: '/courses/$courseId/revision'
+      preLoaderRoute: typeof AuthCoursesCourseIdRevisionRouteImport
+      parentRoute: typeof AuthRoute
+    }
     '/_auth/courses/$courseId/chapters/$chapterId/': {
       id: '/_auth/courses/$courseId/chapters/$chapterId/'
       path: '/courses/$courseId/chapters/$chapterId'
@@ -311,6 +331,7 @@ interface AuthRouteChildren {
   AuthAdminUsageRoute: typeof AuthAdminUsageRoute
   AuthAdminIndexRoute: typeof AuthAdminIndexRoute
   AuthCoursesIndexRoute: typeof AuthCoursesIndexRoute
+  AuthCoursesCourseIdRevisionRoute: typeof AuthCoursesCourseIdRevisionRoute
   AuthCoursesCourseIdIndexRoute: typeof AuthCoursesCourseIdIndexRoute
   AuthCoursesCourseIdChaptersChapterIdContentRoute: typeof AuthCoursesCourseIdChaptersChapterIdContentRoute
   AuthCoursesCourseIdChaptersChapterIdDiscussionRoute: typeof AuthCoursesCourseIdChaptersChapterIdDiscussionRoute
@@ -323,6 +344,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthAdminUsageRoute: AuthAdminUsageRoute,
   AuthAdminIndexRoute: AuthAdminIndexRoute,
   AuthCoursesIndexRoute: AuthCoursesIndexRoute,
+  AuthCoursesCourseIdRevisionRoute: AuthCoursesCourseIdRevisionRoute,
   AuthCoursesCourseIdIndexRoute: AuthCoursesCourseIdIndexRoute,
   AuthCoursesCourseIdChaptersChapterIdContentRoute:
     AuthCoursesCourseIdChaptersChapterIdContentRoute,

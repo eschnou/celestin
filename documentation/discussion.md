@@ -14,6 +14,12 @@ selects three things and nothing else:
 | What a turn posts | the learner's message; the server reads the live séance (spec 018) | the learner's message, naming its conversation |
 | Who owns the transcript | the server: one `conversations` row per section séance ([seances.md](./seances.md)) | the server: a `conversations` row |
 
+Since spec 020 there is a third mode, the **révision** ([revision.md](./revision.md)): the chosen
+chapters of a whole course, the board and `record_result` (the student's own self-assessment of a
+section), a course-scoped `conversations` row with this page's caps, append policy and two locks on
+progress. It is the one mode that is not a chapter's: `domain/mode.py` calls the first two
+`ChapterMode`, and the routes that take a chapter and a mode from the browser (voice) accept only those.
+
 ## The two locks on progress
 
 A discussion cannot move the student's path, and that is enforced twice, in code, not in prompt
@@ -81,7 +87,7 @@ chapter does not contain, he says so in one sentence.
 {
   "id": "…",                    // uuid4 hex
   "user_id": "…", "chapter_id": "…",   // both ON DELETE CASCADE
-  "mode": "discussion",         // 'discussion' | 'parcours' (spec 018: the séances share the table)
+  "mode": "discussion",         // 'discussion' | 'parcours' (spec 018) | 'revision' (spec 020: course_id set, chapter_id null)
   "content_version": 3,         // the chapter version it was held against
   "entries": [ … ],             // the transcript, in the DTO shapes a turn already uses
   "entry_count": 12, "char_count": 4210,

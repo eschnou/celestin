@@ -8,6 +8,7 @@
  */
 
 import { useCourseLanguage, type CourseLanguage } from "@/lib/course-language";
+import type { RevisionOutcome } from "@/lib/tutor/types";
 
 export const REVIEW_MESSAGE = (title: string) => `Je voudrais revoir la section « ${title} ».`;
 export const START_MESSAGE = (title: string) => `On commence la section « ${title} » ?`;
@@ -19,6 +20,12 @@ export const NEXT_STEP_MESSAGE = "Étape suivante.";
 export const NEXT_SECTION_MESSAGE = "Section suivante.";
 export const ANSWER_MESSAGE = (text: string) => `Ma réponse à la question : « ${text} ».`;
 export const WORK_MESSAGE = (text: string) => `Voici mon travail, lu sur ma photo :\n${text}`;
+/** A révision's quick replies (spec 020 D3): the student's own judgement of a question. */
+export const ASSESS_MESSAGE: Record<RevisionOutcome, string> = {
+  solid: "Pour moi, c'est acquis.",
+  shaky: "Pour moi, c'est fragile.",
+  todo: "Pour moi, c'est à revoir.",
+};
 
 /** The tool result the voice session returns to the model when the board tool failed. */
 export const VOICE_TOOL_FAILED = "Outil indisponible. Dis-le à l'élève et continue sans.";
@@ -34,6 +41,8 @@ export type LearnerSentences = {
   answer: (text: string) => string;
   /** What she sends after a photo of her work was read into text (and she corrected it). */
   work: (text: string) => string;
+  /** A révision's quick reply: how the question went, in the student's own words. */
+  assess: (outcome: RevisionOutcome) => string;
   voiceToolFailed: string;
 };
 
@@ -47,6 +56,7 @@ export const LEARNER_SENTENCES: Record<CourseLanguage, LearnerSentences> = {
     nextSection: NEXT_SECTION_MESSAGE,
     answer: ANSWER_MESSAGE,
     work: WORK_MESSAGE,
+    assess: (outcome) => ASSESS_MESSAGE[outcome],
     voiceToolFailed: VOICE_TOOL_FAILED,
   },
   en: {
@@ -58,6 +68,12 @@ export const LEARNER_SENTENCES: Record<CourseLanguage, LearnerSentences> = {
     nextSection: "Next section.",
     answer: (text) => `My answer to the question: “${text}”.`,
     work: (text) => `Here is my work, read from my photo:\n${text}`,
+    assess: (outcome) =>
+      ({
+        solid: "I'd say it's solid.",
+        shaky: "I'd say it's shaky.",
+        todo: "I'd say I need to review it.",
+      })[outcome],
     voiceToolFailed: "Tool unavailable. Tell the student and carry on without it.",
   },
   nl: {
@@ -69,6 +85,12 @@ export const LEARNER_SENTENCES: Record<CourseLanguage, LearnerSentences> = {
     nextSection: "Volgende sectie.",
     answer: (text) => `Mijn antwoord op de vraag: “${text}”.`,
     work: (text) => `Hier is mijn werk, ingelezen van mijn foto:\n${text}`,
+    assess: (outcome) =>
+      ({
+        solid: "Voor mij is dat gekend.",
+        shaky: "Voor mij is dat wankel.",
+        todo: "Voor mij is dat te herhalen.",
+      })[outcome],
     voiceToolFailed: "Hulpmiddel niet beschikbaar. Zeg het aan de leerling en ga verder zonder.",
   },
 };

@@ -197,3 +197,158 @@ def test_conversations_go_with_the_account(repos: Repositories, db_engine) -> No
     with db_engine.begin() as conn:
         conn.execute(sql_text("delete from users where id = :u"), {"u": user})
     assert repos.conversations.get_owned(user, chapter, conv.id, mode="discussion") is None
+
+
+# --- révisions (spec 020) ------------------------------------------------------------------------------------
+
+
+def _revision(repos: Repositories, user: str, course: str, chapter: str):
+    return repos.conversations.start_revision(user, course, [{"chapter_id": chapter, "content_version": 1}])
+
+
+def test_a_revision_names_its_course_and_no_chapter(repos: Repositories) -> None:
+    user = _student(repos)
+    course, chapter = _course_and_chapter(repos, user)
+    revision = _revision(repos, user, course, chapter)
+    assert (revision.chapter_id, revision.course_id, revision.content_version) == (None, course, 0)
+    assert revision.scope == [{"chapter_id": chapter, "content_version": 1}]
+    assert repos.conversations.live_revision(user, course) == revision
+    assert repos.conversations.get_revision(user, course, revision.id) == revision
+
+
+def test_starting_a_revision_replaces_the_live_one_of_the_course_only(repos: Repositories) -> None:
+    user = _student(repos)
+    course, chapter = _course_and_chapter(repos, user)
+    other_course, other_chapter = _course_and_chapter(repos, user)
+    first = _revision(repos, user, course, chapter)
+    elsewhere = _revision(repos, user, other_course, other_chapter)
+    second = _revision(repos, user, course, chapter)
+    assert repos.conversations.get_revision(user, course, first.id).closed_reason == "replaced"  # type: ignore[union-attr]
+    assert repos.conversations.live_revision(user, course).id == second.id  # type: ignore[union-attr]
+    assert repos.conversations.live_revision(user, other_course).id == elsewhere.id  # type: ignore[union-attr]
+
+
+def test_a_revision_does_not_resolve_under_another_course_or_student(repos: Repositories) -> None:
+    user, other = _student(repos), _student(repos, "c@d.be")
+    course, chapter = _course_and_chapter(repos, user)
+    other_course, _ = _course_and_chapter(repos, user)
+    revision = _revision(repos, user, course, chapter)
+    assert repos.conversations.get_revision(user, other_course, revision.id) is None
+    assert repos.conversations.get_revision(other, course, revision.id) is None
+
+
+def test_the_chapter_reads_never_meet_a_revision(repos: Repositories) -> None:
+    """Every read of a discussion or a séance names its chapter (or the parcours): a révision has neither."""
+    user = _student(repos)
+    course, chapter = _course_and_chapter(repos, user)
+    revision = _revision(repos, user, course, chapter)
+    since = NOW - timedelta(days=3650)
+    for mode in ("discussion", "parcours"):
+        assert repos.conversations.live(user, chapter, mode=mode) is None  # type: ignore[arg-type]
+        assert repos.conversations.get_owned(user, chapter, revision.id, mode=mode) is None  # type: ignore[arg-type]
+        assert repos.conversations.started_since(user, since, mode=mode) == 0  # type: ignore[arg-type]
+    assert repos.conversations.started_since(user, since, mode="revision") == 1
+    assert repos.conversations.seances(user, chapter, 1) == []
+    assert repos.conversations.seances_by_id(user, [revision.id]) == []
+    assert repos.conversations.count_seances(user, chapter) == 0
+    assert repos.conversations.card_counts(user, chapter, 1) == {}
+    assert repos.progress.reset(user, chapter) == 0  # « Recommencer le chapitre » leaves a révision alone
+    assert repos.conversations.live_revision(user, course) is not None
+    # A discussion and a révision coexist.
+    repos.conversations.start(user, chapter, 1, mode="discussion")
+    assert repos.conversations.live_revision(user, course) is not None
+
+
+def _note(repos: Repositories, revision, *results: tuple[str, str, str, int]) -> None:
+    """A révision turn with one `record_result` entry per result, appended with its results (spec 020 D6)."""
+    from app.domain.revision import NewResult
+
+    current = repos.conversations.get_revision(revision.user_id, revision.course_id, revision.id)
+    entries = [
+        {"kind": "tool", "name": "record_result", "arguments": {"chapter": 1, "section_id": s, "outcome": o}}
+        for _, s, o, _ in results
+    ]
+    repos.conversations.append(
+        revision.id, entries, expected_count=current.entry_count, max_entries=400, max_chars=200_000,  # type: ignore[union-attr]
+        results=[NewResult(c, s, o, v) for c, s, o, v in results],  # type: ignore[arg-type]
+    )
+
+
+def test_results_are_written_with_the_transcript_and_read_latest_per_section_at_the_given_versions(
+    repos: Repositories,
+) -> None:
+    user = _student(repos)
+    course, chapter = _course_and_chapter(repos, user)
+    earlier = _revision(repos, user, course, chapter)
+    _note(repos, earlier, (chapter, "a", "todo", 1), (chapter, "b", "shaky", 0))
+    revision = _revision(repos, user, course, chapter)
+    _note(repos, revision, (chapter, "a", "shaky", 1), (chapter, "a", "solid", 1))  # one turn, the last one counts
+    assert repos.conversations.get_revision(user, course, revision.id).entry_count == 2  # type: ignore[union-attr]
+    every, here = repos.revision_results.latest(user, course, {chapter: 1}, conversation_id=revision.id)
+    assert {k: v.outcome for k, v in every.items()} == {(chapter, "a"): "solid"}
+    assert {k: v.outcome for k, v in here.items()} == {(chapter, "a"): "solid"}
+    every, here = repos.revision_results.latest(user, course, {chapter: 0}, conversation_id=revision.id)
+    assert {k: v.outcome for k, v in every.items()} == {(chapter, "b"): "shaky"} and here == {}
+    assert repos.revision_results.latest(user, course, {chapter: 1})[1] == {}  # no révision named: no tally
+    assert repos.revision_results.latest(user, course, {}) == ({}, {})
+
+
+def test_a_busy_append_writes_no_result(repos: Repositories) -> None:
+    from app.domain.errors import ConversationBusy
+    from app.domain.revision import NewResult
+
+    user = _student(repos)
+    course, chapter = _course_and_chapter(repos, user)
+    revision = _revision(repos, user, course, chapter)
+    with pytest.raises(ConversationBusy):
+        repos.conversations.append(
+            revision.id, [{"kind": "tutor", "text": "x"}], expected_count=3, max_entries=400, max_chars=200_000,
+            results=[NewResult(chapter, "a", "solid", 1)],
+        )
+    assert repos.revision_results.latest(user, course, {chapter: 1}) == ({}, {})
+
+
+def test_a_start_that_meets_another_live_row_is_busy(repos: Repositories, monkeypatch) -> None:
+    """Another tab's live row the closing UPDATE did not see trips the unique index: `ConversationBusy`, for a
+    chapter mode's start as for a révision's (one implementation)."""
+    import app.db.repositories as module
+    from app.domain.errors import ConversationBusy
+
+    user = _student(repos)
+    course, chapter = _course_and_chapter(repos, user)
+    _revision(repos, user, course, chapter)
+    repos.conversations.start(user, chapter, 1, mode="discussion")
+    real = module.update
+    monkeypatch.setattr(module, "update", lambda *args: real(*args).where(sql_text("1 = 0")))  # closes nothing
+    with pytest.raises(ConversationBusy):
+        _revision(repos, user, course, chapter)
+    with pytest.raises(ConversationBusy):
+        repos.conversations.start(user, chapter, 1, mode="discussion")
+
+
+def test_revisions_and_results_go_with_the_chapter_course_and_account(repos: Repositories, db_engine) -> None:
+    user = _student(repos)
+    course, chapter = _course_and_chapter(repos, user)
+    revision = _revision(repos, user, course, chapter)
+    _note(repos, revision, (chapter, "a", "solid", 1), (chapter, "b", "solid", 1))
+
+    def counts() -> tuple[int, int]:
+        with db_engine.connect() as conn:
+            return (
+                conn.execute(sql_text("select count(*) from revision_results")).scalar_one(),
+                conn.execute(sql_text("select count(*) from conversations where mode = 'revision'")).scalar_one(),
+            )
+
+    assert counts() == (2, 1)
+    assert repos.chapters.delete(user, course, chapter)
+    assert counts() == (0, 1)  # the chapter's results go; the révision is closed lazily when next read
+    chapter = repos.chapters.create(course, "texte", max_chapters=40).id
+    _note(repos, revision, (chapter, "a", "todo", 1))
+    assert repos.courses.delete(user, course)
+    assert counts() == (0, 0)
+    course, chapter = _course_and_chapter(repos, user)
+    revision = _revision(repos, user, course, chapter)
+    _note(repos, revision, (chapter, "a", "todo", 1))
+    with db_engine.begin() as conn:
+        conn.execute(sql_text("delete from users where id = :u"), {"u": user})
+    assert counts() == (0, 0)

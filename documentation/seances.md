@@ -389,8 +389,9 @@ them with a marker string in the message and on a card):
 - **Resuming a lesson.** The lesson screen (`lesson.tsx`) does not mount the session until it has
   read `lessonStartQuery`: one `GET …/seance`, which carries the live séance, the progress and the
   stored card count per section (`seances`), read by the server in one handler; once per mount
-  (`staleTime: Infinity`, `gcTime: 0`), started by the chapter route's loader beside the chapter
-  view rather than behind it. The route's own chapter view is cached for a
+  (`staleTime: Infinity`, `gcTime: 0`), by the lesson itself (not prefetched by the route's loader:
+  with `gcTime: 0` the prefetched entry was dropped before the lesson subscribed, and read twice).
+  The route's own chapter view is cached for a
   few seconds, so starting from its progress could pair a fresh séance with a stale progress; the
   progress the session starts from is always the one read with the séance. While the read runs the
   screen says « Chargement du parcours… »; a failure shows the server's message and « Réessayer ».

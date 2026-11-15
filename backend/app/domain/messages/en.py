@@ -65,6 +65,16 @@ MESSAGES: dict[str, str] = {
     "seance_full": "This chapter already keeps a lot of lessons. Restart the chapter to keep new ones.",
     "seance_report_invalid": "This exchange doesn't match this chapter and wasn't saved.",
     "discussion_quota": "You've started {maximum} discussions today. Pick up the one that's open, or try again tomorrow.",
+    # --- révision (spec 020) ---
+    "revision_closed.replaced": "This revision was replaced by a new one. Start a new revision to continue.",
+    "revision_closed.capped": "This revision has reached its end. Start a new revision to continue.",
+    "revision_closed.content_changed": "One of the chapters has changed since this revision started. Start a new revision to continue.",
+    "revision_full": "This revision has become very long. Start a new revision to continue.",
+    "revision_busy": "Célestin is already answering you in this revision, perhaps in another tab.",
+    "revision_started": "This revision has already started.",
+    "revision_no_chapter": "Choose at least one chapter to revise.",
+    "revision_too_large": "These chapters hold too much material for one revision. Choose fewer.",
+    "revision_quota": "You've started {maximum} revisions today. Pick up the one that's open, or try again tomorrow.",
     # --- the password policy (domain/password.py) ------------------------------------
     "weak_password.too_short": "The password must be at least {min_length} characters long.",
     "weak_password.personal": "The password must not contain your first name or your email address.",
@@ -111,6 +121,9 @@ MESSAGES: dict[str, str] = {
     "marker.section_done": "section completed · {label}",
     "marker.section_skipped": "section skipped · {label}",
     "marker.step_ready": "next step offered",
+    "marker.revision_result.solid": "noted: solid · {label}",
+    "marker.revision_result.shaky": "noted: shaky · {label}",
+    "marker.revision_result.todo": "noted: to review · {label}",
     # --- why a pack or a curriculum edit is refused (domain/pack.py, curriculum.py, references.py) --
     "issue.pack.too_long": "the document is over {max_chars} characters ({length})",
     "issue.pack.wrong_language": "the document follows the {found_language} template, but this course is in {expected_language}",

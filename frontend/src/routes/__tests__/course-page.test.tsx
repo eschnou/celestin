@@ -416,3 +416,28 @@ describe("/courses/$courseId", () => {
     );
   });
 });
+
+describe("« Réviser » (spec 020)", () => {
+  it("leads to the course's révision once a chapter is ready", async () => {
+    mount();
+    const revise = await screen.findByRole("link", { name: "Réviser" });
+    expect(revise.getAttribute("href")).toBe("/courses/c1/revision");
+  });
+
+  it("waits for a ready chapter", async () => {
+    mount((method, path) =>
+      method === "GET" && path.endsWith("/api/courses/c1")
+        ? {
+            body: {
+              ...DETAIL,
+              chapters: DETAIL.chapters.map((c) => ({ ...c, ready: false, state: "not_started" })),
+            },
+          }
+        : undefined,
+    );
+    const revise = await screen.findByRole("button", { name: "Réviser" });
+    expect(revise.hasAttribute("disabled")).toBe(true);
+    expect(revise.getAttribute("title")).toMatch(/au moins un chapitre prêt/);
+    expect(screen.queryByRole("link", { name: "Réviser" })).toBeNull();
+  });
+});

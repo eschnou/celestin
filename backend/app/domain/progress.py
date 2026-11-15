@@ -12,10 +12,14 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Literal
 
 from app.domain.curriculum import Curriculum
 
 log = logging.getLogger(__name__)
+
+# Where a section stands for a révision (spec 020): done, skipped, or neither (an active section is `todo`).
+Studied = Literal["done", "skipped", "todo"]
 
 
 @dataclass(frozen=True)
@@ -36,6 +40,13 @@ class Progress:
         """`section_id` is passed (019 D3); it is no longer active if it was."""
         active = None if self.active == section_id else self.active
         return Progress(done=self.done, active=active, skipped=self.skipped | {section_id})
+
+    def state_of(self, section_id: str) -> Studied:
+        """Done, skipped or neither (spec 020: what a révision reads, on its page and in its state message). Done
+        wins, as normalisation keeps it."""
+        if section_id in self.done:
+            return "done"
+        return "skipped" if section_id in self.skipped else "todo"
 
 
 def normalise(

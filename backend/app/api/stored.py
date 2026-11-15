@@ -20,7 +20,7 @@ def stored_entry(
 ) -> StoredEntry:
     """`view` is what a parcours entry is read against: the current curriculum (a
     section's label) and progress (where the page turns now, and whether a start
-    recorded without its `review` was one)."""
+    recorded without its `review` was one); for a révision, its chapters' curricula."""
     if isinstance(entry, ToolEntry):
         shown = registry.shown(entry, mode, view)
         return StoredEntry.of(entry, locale, shown.marker, shown.fields)

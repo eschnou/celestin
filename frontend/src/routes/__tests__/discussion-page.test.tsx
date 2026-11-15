@@ -148,5 +148,17 @@ describe("the standalone discussion route", () => {
     expect(screen.getByRole("button", { name: "Discussion" }).getAttribute("aria-pressed")).toBe(
       "true",
     );
+    // Révision is the course's (spec 020): a link, with this chapter ticked.
+    expect(screen.getByRole("link", { name: "Révision" }).getAttribute("href")).toBe(
+      "/courses/maths/revision?chapter=suites",
+    );
+  });
+
+  it("offers the révision from the lesson's bar too", async () => {
+    mountLesson();
+    await screen.findByText(/Bonjour, on reprend les suites/);
+    expect(screen.getByRole("link", { name: "Révision" }).getAttribute("href")).toBe(
+      "/courses/maths/revision?chapter=suites",
+    );
   });
 });

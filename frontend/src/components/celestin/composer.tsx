@@ -64,6 +64,7 @@ export function Composer({
   courseId,
   photoDeps,
   webcamDeps,
+  footer,
 }: {
   status: SessionStatus;
   voice: VoiceControls;
@@ -79,6 +80,8 @@ export function Composer({
   courseId?: string;
   photoDeps?: PhotoDeps;
   webcamDeps?: WebcamDeps;
+  /** A discreet row under the field (a révision's quick replies). */
+  footer?: React.ReactNode;
 }) {
   const compact = useCompactLayout();
   const language = useCourseLanguage();
@@ -292,6 +295,7 @@ export function Composer({
           </button>
         )}
       </div>
+      {footer && <div className="mt-2">{footer}</div>}
     </div>
   );
 }

@@ -1,15 +1,17 @@
-"""What the two kinds of stored transcript share (007 design 3.8, spec 018).
+"""What the kinds of stored transcript share (007 design 3.8, spec 018, spec 020).
 
-A discussion and a parcours séance are both `conversations` rows: the same entry
-shapes, built from a turn's events the same way, read back the same way, and closed
-the same way when the chapter's content has changed under them. The services that
-own each kind (`discussion.py`, `seance.py`) differ in what a turn reads and how it
-is stored, not in this.
+A discussion, a parcours séance and a révision are all `conversations` rows: the same
+entry shapes, built from a turn's events the same way, read back the same way, and closed
+the same way when the content has changed under them. The services that own each kind
+(`discussion.py`, `seance.py`, `revision.py`) differ in what a turn reads and how it is
+stored, not in this.
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Sequence
+from datetime import timedelta
 from typing import Any
 
 from pydantic import TypeAdapter
@@ -18,6 +20,7 @@ from app.api.schemas.chat import Entry, LearnerEntry, ToolEntry, TutorEntry, sto
 from app.api.schemas.events import (
     BoardClearEvent,
     BoardSetEvent,
+    RevisionResultEvent,
     SectionDoneEvent,
     SectionSkippedEvent,
     SectionStartEvent,
@@ -26,10 +29,12 @@ from app.api.schemas.events import (
     TurnEvent,
 )
 from app.config import Settings
+from app.db.base import utcnow
 from app.db.repositories import ConversationRecord, Repositories
 from app.domain.chapter import LessonChapter
 from app.domain.errors import TutorError
 from app.domain.mode import Mode
+from app.domain.revision import NewResult
 
 log = logging.getLogger(__name__)
 
@@ -45,7 +50,8 @@ def entries_from_events(events: list[TurnEvent]) -> list[Entry]:
     `next_section_id` it answered, `propose_next_step`, `skip_section` with its
     `next_section_id` and `active_section_id`) are recorded as the lesson records them, so a
     later turn replays what the call answered (spec 019); a discussion
-    cannot produce their events, since it is never offered the tools.
+    cannot produce their events, since it is never offered the tools. A révision's
+    `record_result` is recorded with the chapter's id and the tally it answered (spec 020).
     """
     # A block's deltas are gathered as parts and joined once: a long reply arrives
     # in hundreds of them, and rebuilding the string per delta is quadratic.
@@ -102,6 +108,17 @@ def entries_from_events(events: list[TurnEvent]) -> list[Entry]:
             )
         elif isinstance(event, StepReadyEvent):
             slots.append(ToolEntry(kind="tool", name="propose_next_step", arguments={}))
+        elif isinstance(event, RevisionResultEvent):
+            # Spec 020: the call as the model made it, plus the chapter's id and the tally it answered.
+            slots.append(
+                ToolEntry(
+                    kind="tool",
+                    name="record_result",
+                    arguments={"chapter": event.chapter, "section_id": event.section_id, "outcome": event.outcome},
+                    chapter_id=event.chapter_id,
+                    tally=dict(event.tally),
+                )
+            )
 
     entries: list[Entry] = []
     for slot in slots:
@@ -164,23 +181,84 @@ def payload(entries: list[Entry]) -> list[dict[str, Any]]:
 
 
 def live_row(
-    repos: Repositories, user_id: str, chapter: LessonChapter, mode: Mode, log_name: str
+    repos: Repositories,
+    found: ConversationRecord | None,
+    stale: Callable[[ConversationRecord], bool],
+    log_name: str,
 ) -> ConversationRecord | None:
-    """The live row of `mode`, or None. One held against an older version of the
-    chapter is closed here rather than continued: its pack is gone (007 R8.3, spec 018
-    D9). Lazy, so a content edit need not know about conversations."""
-    conversation = repos.conversations.live(user_id, chapter.id, mode=mode)
-    if conversation is None:
+    """`found`, the live row of a mode, or None. One that is `stale` (held against content
+    that is gone: an older version of the chapter, or for a révision a chapter changed or
+    deleted) is closed here `content_changed` rather than continued (007 R8.3, spec 018 D9,
+    spec 020 D6). Lazy, so a content edit need not know about conversations."""
+    if found is None:
         return None
-    if conversation.content_version != chapter.version:
-        repos.conversations.close(conversation.id, "content_changed")
-        log.info(
-            log_name,
+    if stale(found):
+        repos.conversations.close(found.id, "content_changed")
+        where = {"chapter_id": found.chapter_id} if found.course_id is None else {"course_id": found.course_id}
+        log.info(log_name, extra={"conversation_id": found.id, **where, "reason": "content_changed"})
+        return None
+    return found
+
+
+def older_than(chapter: LessonChapter) -> Callable[[ConversationRecord], bool]:
+    """A chapter mode's staleness: the row was started on another content version."""
+    return lambda conversation: conversation.content_version != chapter.version
+
+
+def check_quota(
+    repos: Repositories, user_id: str, mode: Mode, per_day: int, refused: Callable[[int], TutorError], **extra: Any
+) -> None:
+    """At most `per_day` rows of `mode` started by the student in 24 hours: a discussion's
+    or a révision's daily quota, each mode with its own error and log line."""
+    since = utcnow() - timedelta(days=1)
+    if repos.conversations.started_since(user_id, since, mode=mode) >= per_day:
+        log.warning(f"{mode}_quota", extra={"user_id": user_id, **extra})
+        raise refused(per_day)
+
+
+def append(
+    repos: Repositories,
+    settings: Settings,
+    conversation: ConversationRecord,
+    entries: list[Entry],
+    results: Sequence[NewResult] = (),
+) -> None:
+    """One write, after the turn ended (007 NFR 4.4.1): a discussion's or a révision's turn, `[learner?,
+    *produced]`, appended whole under the optimistic guard, with a révision's results (spec 020 D6) in the same
+    transaction; crossing a cap closes the row `capped`. Another turn that appended first is `ConversationBusy`.
+    Nothing to append writes nothing."""
+    if not entries:
+        return
+    stored = payload(entries)
+    try:
+        after = repos.conversations.append(
+            conversation.id,
+            stored,
+            expected_count=conversation.entry_count,
+            max_entries=settings.discussion_max_entries,
+            max_chars=settings.discussion_max_chars,
+            cards=card_count(entries),
+            results=results,
+        )
+    except Exception as exc:
+        # The turn reached the learner but is lost to the store: the one case
+        # where the screen and the record disagree, so it is logged by name.
+        log.warning(
+            "conversation_append_failed",
             extra={
                 "conversation_id": conversation.id,
-                "chapter_id": chapter.id,
-                "reason": "content_changed",
+                "added": len(stored),
+                "reason": type(exc).__name__,
             },
         )
-        return None
-    return conversation
+        raise
+    log.info(
+        "conversation_appended",
+        extra={
+            "conversation_id": conversation.id,
+            "added": len(stored),
+            "entry_count": after.entry_count,
+            "char_count": after.char_count,
+            "closed": after.closed_reason,
+        },
+    )

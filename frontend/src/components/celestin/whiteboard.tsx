@@ -6,6 +6,7 @@ import { m } from "@/paraglide/messages";
 import { getLocale } from "@/paraglide/runtime";
 import { Math } from "./math";
 import { BlockView, Blocks, RichText } from "./board-blocks";
+import { tone } from "./styles";
 import type {
   BoardCard,
   CheckQuestionCard,
@@ -291,10 +292,10 @@ export type BoardStatus = "open" | "done" | "correct" | "wrong" | "revealed";
 
 function StatusGlyph({ status }: { status: BoardStatus }) {
   const map: Record<BoardStatus, { label: () => string; className: string }> = {
-    open: { label: m.board_status_open, className: "bg-warning/20 text-warning-foreground" },
+    open: { label: m.board_status_open, className: tone.warning },
     done: { label: m.board_status_done, className: "bg-secondary text-muted-foreground" },
-    correct: { label: m.board_status_correct, className: "bg-success/15 text-success" },
-    wrong: { label: m.board_status_wrong, className: "bg-destructive/10 text-destructive" },
+    correct: { label: m.board_status_correct, className: tone.success },
+    wrong: { label: m.board_status_wrong, className: tone.danger },
     revealed: { label: m.board_status_revealed, className: "bg-secondary text-muted-foreground" },
   };
   const s = map[status];

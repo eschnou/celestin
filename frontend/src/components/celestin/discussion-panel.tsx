@@ -2,31 +2,29 @@
  * Discussion mode (spec 007): a free conversation about one chapter, with the
  * board and without the path.
  *
- * Two things differ from the lesson and nothing else does. The transcript lives
- * on the server, so it is loaded here and restored through `sessionFromEntries`
- * rather than started empty; and the session runs on the discussion transport,
- * which posts the message instead of the transcript. The reducer, the board, the
- * cards and the markers are the lesson's.
+ * The conversation lives on the server, so it is loaded here and restored through
+ * `sessionFromEntries`, and the session runs on the discussion transport. The screen
+ * (`conversation-screen.tsx`) is the one a révision uses too; the reducer, the board,
+ * the cards and the markers are the lesson's.
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { SquarePen } from "lucide-react";
-import { useCallback, useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
-import { ConfirmDialog } from "@/components/celestin/confirm-dialog";
+import {
+  ConversationScreen,
+  NewSessionButton,
+  PanelMessage,
+  PhoneTitle,
+} from "@/components/celestin/conversation-screen";
 import { ErrorRetry } from "@/components/celestin/not-found";
-import { TutorBoardSplit } from "@/components/celestin/tutor-board-split";
-import { TutorColumn } from "@/components/celestin/tutor-column";
 import { sessionFromEntries, useTutorSession } from "@/components/celestin/use-tutor-session";
 import { useVoiceSession } from "@/components/celestin/use-voice-session";
-import { Whiteboard } from "@/components/celestin/whiteboard";
 import { useCourseLanguage } from "@/lib/course-language";
 import { apiMessage } from "@/lib/tutor/client";
 import { conversationQuery, discussionTransport, startConversation } from "@/lib/tutor/discussion";
 import { useHealth } from "@/lib/tutor/health";
-import { useLearnerSentences } from "@/lib/tutor/prompts";
-import { iconButton } from "@/components/celestin/styles";
-import type { ChapterView, Conversation, Option } from "@/lib/tutor/types";
+import type { ChapterView, Conversation } from "@/lib/tutor/types";
 import { m } from "@/paraglide/messages";
 
 /** The mode switch in the chapter bar is the way back to the parcours; the lesson
@@ -52,7 +50,7 @@ export function DiscussionPanel({ chapter }: { chapter: ChapterView }) {
 
   if (query.isError || create.isError) {
     return (
-      <Empty>
+      <PanelMessage>
         <ErrorRetry
           message={apiMessage(query.error ?? create.error, m.discussion_failed())}
           onRetry={() => {
@@ -62,10 +60,10 @@ export function DiscussionPanel({ chapter }: { chapter: ChapterView }) {
             void query.refetch();
           }}
         />
-      </Empty>
+      </PanelMessage>
     );
   }
-  if (!conversation) return <Empty>{m.discussion_loading()}</Empty>;
+  if (!conversation) return <PanelMessage>{m.discussion_loading()}</PanelMessage>;
 
   return (
     <Discussion
@@ -77,14 +75,6 @@ export function DiscussionPanel({ chapter }: { chapter: ChapterView }) {
       onNew={() => create.mutate()}
       replacing={create.isPending}
     />
-  );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
-      <p>{children}</p>
-    </div>
   );
 }
 
@@ -111,82 +101,36 @@ function Discussion({
   );
   const transport = useMemo(() => discussionTransport(scope), [scope]);
   const session = useTutorSession({
-    ...scope,
+    courseId: chapter.course_id,
     initialProgress: chapter.progress,
     transport,
     // Read once: the component is keyed on the conversation, so a new one is a
     // new mount rather than a new initial state.
     initialState: sessionFromEntries(conversation.entries),
   });
-  const said = useLearnerSentences();
   const health = useHealth();
+  const language = useCourseLanguage();
   const voice = useVoiceSession(session.handle, {
     enabled: health.data?.voice === true,
     scope,
   });
-  const send = voice.phase !== "off" ? voice.sendText : session.send;
-  const onAnswer = useCallback((option: Option) => send(said.answer(option.text)), [send, said]);
 
-  const tutor = (
-    <TutorColumn
-      entries={session.entries}
-      status={session.status}
+  return (
+    <ConversationScreen
+      session={session}
       voice={voice}
-      onSend={send}
-      onCancel={session.cancel}
-      onRetry={session.retry}
-      onShowBoard={session.showBoard}
-      dictation={health.data?.dictation === true}
       courseId={chapter.course_id}
-      mixedLanguages={chapter.subject === "languages"}
-      headerAction={<NewConversation onNew={onNew} replacing={replacing} />}
-    />
-  );
-  const board = (
-    <Whiteboard
-      card={session.board}
-      cards={session.boards}
-      onSelect={session.showBoard}
-      onAnswer={onAnswer}
-    />
-  );
-
-  return (
-    <div className="h-full min-h-0 w-full bg-paper">
-      <TutorBoardSplit tutor={tutor} board={board} top={<ChapterTitle chapter={chapter} />} />
-    </div>
-  );
-}
-
-/** Starts over, after saying what is lost and what is not. */
-function NewConversation({ onNew, replacing }: { onNew: () => void; replacing: boolean }) {
-  return (
-    <ConfirmDialog
-      trigger={
-        <button
-          type="button"
-          title={m.discussion_new()}
-          aria-label={m.discussion_new()}
-          className={`${iconButton} max-lg:size-10`}
+      subject={chapter.subject}
+      headerAction={
+        <NewSessionButton
+          label={m.discussion_new()}
+          title={m.discussion_new_title()}
+          description={m.discussion_new_description()}
+          onConfirm={onNew}
           disabled={replacing}
-        >
-          <SquarePen className="size-4" />
-        </button>
+        />
       }
-      title={m.discussion_new_title()}
-      description={m.discussion_new_description()}
-      confirm={m.discussion_new()}
-      onConfirm={onNew}
+      top={<PhoneTitle lang={language}>{chapter.title}</PhoneTitle>}
     />
-  );
-}
-
-/** A phone's line above the board: which chapter this conversation is about. */
-function ChapterTitle({ chapter }: { chapter: ChapterView }) {
-  const language = useCourseLanguage();
-  return (
-    <p lang={language} className="truncate px-3 py-2 text-sm font-semibold">
-      {chapter.title}
-    </p>
   );
 }

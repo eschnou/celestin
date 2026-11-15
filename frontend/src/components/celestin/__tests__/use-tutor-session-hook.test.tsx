@@ -6,7 +6,11 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TutorEvent } from "@/lib/tutor/types";
-import { sessionFromEntries, useTutorSession } from "../use-tutor-session";
+import {
+  sessionFromEntries,
+  useTutorSession,
+  type ParcoursSessionOptions,
+} from "../use-tutor-session";
 
 vi.mock("@/lib/tutor/client", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/lib/tutor/client")>();
@@ -112,6 +116,37 @@ describe("useTutorSession", () => {
   });
 });
 
+describe("the two shapes of options", () => {
+  const transport = async function* (): AsyncGenerator<TutorEvent> {
+    yield { event: "turn.end", reason: "end", usage: {} };
+  };
+
+  it("gives a session with its own transport no reset, and never calls the parcours", async () => {
+    const { result } = renderHook(() =>
+      useTutorSession({ courseId: "maths-5e", initialProgress: PROGRESS, transport }),
+    );
+    await waitFor(() => expect(result.current.status).toBe("idle"));
+    // A révision has no chapter: there is nothing to reset, so the session offers no reset.
+    expect("resetProgress" in result.current).toBe(false);
+    // @ts-expect-error a session with its own transport has no reset
+    expect(result.current.resetProgress).toBeUndefined();
+    expect(streamTurn).not.toHaveBeenCalled();
+  });
+
+  it("needs a chapter for the parcours, and keeps a transport off it", () => {
+    // @ts-expect-error the parcours's turns, stop reports and reset name the chapter
+    const noChapter: ParcoursSessionOptions = { courseId: "c", initialProgress: PROGRESS };
+    const both: ParcoursSessionOptions = {
+      courseId: "c",
+      chapterId: "h",
+      initialProgress: PROGRESS,
+      // @ts-expect-error a parcours session takes no transport of its own
+      transport,
+    };
+    expect([noChapter, both]).toHaveLength(2);
+  });
+});
+
 describe("the transport seam (007 §3.11)", () => {
   const RESTORED = {
     entries: [],
@@ -124,6 +159,7 @@ describe("the transport seam (007 §3.11)", () => {
     blocks: {},
     voice: false,
     started: [],
+    results: [],
   };
 
   function mountWith(transport: ReturnType<typeof vi.fn>, initialState?: typeof RESTORED) {

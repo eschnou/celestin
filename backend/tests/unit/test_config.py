@@ -152,6 +152,16 @@ def test_discussion_limits_come_from_the_environment(monkeypatch) -> None:
     assert s.discussion_max_entries == 12 and s.discussion_conversations_per_day == 3
 
 
+def test_revision_defaults_and_environment(monkeypatch) -> None:
+    """Spec 020 D2, D6: the packs a révision carries, and how many start per day."""
+    s = Settings(_env_file=None)
+    assert (s.revision_max_pack_chars, s.revision_sessions_per_day) == (120_000, 10)
+    monkeypatch.setenv("REVISION_MAX_PACK_CHARS", "50000")
+    monkeypatch.setenv("REVISION_SESSIONS_PER_DAY", "2")
+    s = Settings(_env_file=None)
+    assert (s.revision_max_pack_chars, s.revision_sessions_per_day) == (50_000, 2)
+
+
 @pytest.mark.parametrize(
     ("raw", "expected"), [("auto", "auto"), ("true", True), ("false", False), ("1", True), ("0", False)]
 )

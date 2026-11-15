@@ -2,8 +2,9 @@
 
 Declaration order is fixed: tool definitions sit inside the cached prefix, and
 reordering them invalidates every cache entry (design 7). Section tools come
-after the board tools so the board declarations' bytes do not move (002 R4.5), and
-`skip_section` (spec 019) comes last for the same reason.
+after the board tools so the board declarations' bytes do not move (002 R4.5),
+`skip_section` (spec 019) after them for the same reason, and `record_result` (spec 020,
+révision only) last of all.
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ from app.services.tools.board import (
     shown_display,
 )
 from app.services.tools.context import Shown, StoredView, TurnContext
+from app.services.tools.result import RecordResultArgs, ResultRecorded, record_result, replay_record, shown_record
 from app.services.tools.pace import NextStepProposed, ProposeNextStepArgs, propose_next_step, shown_propose
 from app.services.tools.section import (
     CompleteSectionArgs,
@@ -52,7 +54,9 @@ from app.services.tools.section import (
     start_section,
 )
 
-ToolOutcome = BoardSet | BoardCleared | SectionStarted | SectionCompleted | NextStepProposed | SectionSkipped
+ToolOutcome = (
+    BoardSet | BoardCleared | SectionStarted | SectionCompleted | NextStepProposed | SectionSkipped | ResultRecorded
+)
 
 
 @dataclass(frozen=True)
@@ -174,15 +178,38 @@ _TOOLS: dict[str, Tool] = {
             shown=shown_skip,
             check=check_section,
         ),
+        Tool(
+            name="record_result",
+            description=(
+                "Note le bilan que ton élève vient de donner sur une question de la révision, pour la section "
+                "du chapitre à laquelle la question appartient : solid (acquis), shaky (fragile) ou todo "
+                "(à revoir). Seulement ce que ton élève a dit, jamais ton propre jugement. Le chapitre se donne "
+                "par son numéro, la section par son identifiant. Renvoie le bilan de la révision jusqu'ici."
+            ),
+            args_model=RecordResultArgs,
+            handler=record_result,
+            strict=True,
+            replay=replay_record,
+            shown=shown_record,
+        ),
     )
 }
 
 # Which tools each mode offers (007 §3.5). A discussion has the board and nothing
 # that could move the path: not declaring them is the first of the two locks, the
-# controller's `save=None` being the second.
+# controller's `save=None` being the second. A révision (spec 020) has the same two locks
+# and one tool of its own, which writes the student's self-assessment, never the path.
 _MODE_TOOLS: dict[Mode, tuple[str, ...]] = {
-    "parcours": tuple(_TOOLS),
+    "parcours": (
+        "display_board",
+        "clear_board",
+        "start_section",
+        "complete_section",
+        "propose_next_step",
+        "skip_section",
+    ),
     "discussion": ("display_board", "clear_board"),
+    "revision": ("display_board", "clear_board", "record_result"),
 }
 
 
@@ -351,9 +378,10 @@ def arguments_valid(name: str, arguments_json: str) -> bool:
 
 def replay_output(entry: ToolEntry, ctx: TurnContext) -> dict[str, Any]:
     """The tool result a successful call from an earlier turn answers now (design 3.8).
-    Never raises: an unknown tool replays as a bare success."""
+    Never raises: an unknown tool, or one the turn's mode does not offer, replays as a bare
+    success (a section tool's replay reads a chapter's path, which a révision has not)."""
     tool = _TOOLS.get(entry.name)
-    if tool is None or tool.replay is None:
+    if tool is None or tool.replay is None or entry.name not in _MODE_TOOLS[ctx.mode]:
         return {"ok": True}
     return {"ok": True, "result": tool.replay(entry, ctx)}
 

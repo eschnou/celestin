@@ -65,6 +65,16 @@ MESSAGES: dict[str, str] = {
     "seance_full": "Ce chapitre garde déjà beaucoup de séances. Recommence le chapitre pour en garder de nouvelles.",
     "seance_report_invalid": "Cet échange ne correspond pas à ce chapitre et n'a pas été enregistré.",
     "discussion_quota": "Tu as ouvert {maximum} discussions aujourd'hui. Reprends celle qui est en cours, ou réessaie demain.",
+    # --- révision (spec 020) ---
+    "revision_closed.replaced": "Cette révision a été remplacée par une nouvelle. Commence une nouvelle révision pour continuer.",
+    "revision_closed.capped": "Cette révision est arrivée au bout. Commence une nouvelle révision pour continuer.",
+    "revision_closed.content_changed": "Un des chapitres a changé depuis le début de cette révision. Commence une nouvelle révision pour continuer.",
+    "revision_full": "Cette révision est devenue très longue. Commence une nouvelle révision pour continuer.",
+    "revision_busy": "Célestin est déjà en train de te répondre dans cette révision, peut-être dans un autre onglet.",
+    "revision_started": "Cette révision a déjà commencé.",
+    "revision_no_chapter": "Choisis au moins un chapitre à réviser.",
+    "revision_too_large": "Ces chapitres font trop de matière pour une seule révision. Choisis-en moins.",
+    "revision_quota": "Tu as commencé {maximum} révisions aujourd'hui. Reprends celle qui est en cours, ou réessaie demain.",
     # --- the password policy (domain/password.py) ------------------------------------
     "weak_password.too_short": "Le mot de passe doit faire au moins {min_length} caractères.",
     "weak_password.personal": "Le mot de passe ne doit pas contenir ton prénom ni ton adresse email.",
@@ -111,6 +121,9 @@ MESSAGES: dict[str, str] = {
     "marker.section_done": "section terminée · {label}",
     "marker.section_skipped": "section passée · {label}",
     "marker.step_ready": "étape suivante proposée",
+    "marker.revision_result.solid": "noté : acquis · {label}",
+    "marker.revision_result.shaky": "noté : fragile · {label}",
+    "marker.revision_result.todo": "noté : à revoir · {label}",
     # --- why a pack or a curriculum edit is refused (domain/pack.py, curriculum.py, references.py) --
     "issue.pack.too_long": "le document dépasse {max_chars} caractères ({length})",
     "issue.pack.wrong_language": "le document suit le modèle en {found_language}, mais ce cours est en {expected_language}",

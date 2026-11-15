@@ -90,10 +90,10 @@ def _after(curriculum: Curriculum, progress: Progress) -> tuple[Section | None, 
 
 
 def start_section(args: StartSectionArgs, ctx: TurnContext) -> SectionStarted:
-    refusal = path.can_start(ctx.curriculum, args.section_id, ctx.language)
+    refusal = path.can_start(ctx.chapter_path, args.section_id, ctx.language)
     if refusal:
         raise ToolValidationError(refusal)
-    section = ctx.curriculum.get(args.section_id)
+    section = ctx.chapter_path.get(args.section_id)
     assert section is not None
     review = section.id in ctx.progress.done
     if not review:
@@ -109,13 +109,13 @@ def start_section(args: StartSectionArgs, ctx: TurnContext) -> SectionStarted:
 
 
 def complete_section(args: CompleteSectionArgs, ctx: TurnContext) -> SectionCompleted:
-    refusal = path.can_complete(ctx.curriculum, ctx.progress, args.section_id, ctx.language)
+    refusal = path.can_complete(ctx.chapter_path, ctx.progress, args.section_id, ctx.language)
     if refusal:
         raise ToolValidationError(refusal)
-    section = ctx.curriculum.get(args.section_id)
+    section = ctx.chapter_path.get(args.section_id)
     assert section is not None
     ctx.commit(ctx.progress.with_done(section.id))
-    active, following = _after(ctx.curriculum, ctx.progress)  # nothing is active after a completion
+    active, following = _after(ctx.chapter_path, ctx.progress)  # nothing is active after a completion
     return SectionCompleted(
         section=section,
         next=following,
@@ -128,15 +128,15 @@ def complete_section(args: CompleteSectionArgs, ctx: TurnContext) -> SectionComp
 def skip_section(args: SkipSectionArgs, ctx: TurnContext) -> SectionSkipped:
     """Spec 019 D3: only the student decides, the prompt says so; the tool refuses an
     unknown or a done section. Skipping an already skipped section changes nothing."""
-    refusal = path.can_skip(ctx.curriculum, ctx.progress, args.section_id, ctx.language)
+    refusal = path.can_skip(ctx.chapter_path, ctx.progress, args.section_id, ctx.language)
     if refusal:
         raise ToolValidationError(refusal)
-    section = ctx.curriculum.get(args.section_id)
+    section = ctx.chapter_path.get(args.section_id)
     assert section is not None
     after = ctx.progress.with_skipped(section.id)
     if after != ctx.progress:
         ctx.commit(after)
-    active, following = _after(ctx.curriculum, ctx.progress)
+    active, following = _after(ctx.chapter_path, ctx.progress)
     return SectionSkipped(
         section=section,
         active=active,
@@ -157,7 +157,7 @@ def _brief(section: Section, review: bool, ctx: TurnContext) -> str:
     """The section's brief, ended by the reprise note when a section left unfinished in
     an earlier séance is taken up again (spec 018 D5). No note for a review, none
     without such a séance: the brief is then what it always was, byte for byte."""
-    brief = curriculum_render.brief(ctx.curriculum, section, review, ctx.language)
+    brief = curriculum_render.brief(ctx.chapter_path, section, review, ctx.language)
     if review or ctx.earlier_cards is None:
         return brief
     note = curriculum_render.reprise(ctx.earlier_cards(section.id), ctx.language)
@@ -181,7 +181,7 @@ def replay_start(entry: ToolEntry, ctx: TurnContext) -> str:
     completed since is replayed as it was started, reprise note included (decided by
     the same flag), and the replay says it again byte for byte (spec 018 D5): the note
     is built from closed séances only, which never change."""
-    section = ctx.curriculum.get(str(entry.arguments.get("section_id", "")))
+    section = ctx.chapter_path.get(str(entry.arguments.get("section_id", "")))
     if section is None:
         return _UNKNOWN[ctx.language]
     return _brief(section, recorded_review(entry, ctx.progress), ctx)
@@ -213,10 +213,10 @@ def _replay(say: _Say) -> Callable[[ToolEntry, TurnContext], str]:
     nothing is answered from the progress now, as before spec 019."""
 
     def replay(entry: ToolEntry, ctx: TurnContext) -> str:
-        if ctx.curriculum.get(str(entry.arguments.get("section_id", ""))) is None:
+        if ctx.chapter_path.get(str(entry.arguments.get("section_id", ""))) is None:
             return _UNKNOWN[ctx.language]
-        recorded = _recorded_after(entry, ctx.curriculum)
-        active, following = recorded if recorded is not None else _after(ctx.curriculum, ctx.progress)
+        recorded = _recorded_after(entry, ctx.chapter_path)
+        active, following = recorded if recorded is not None else _after(ctx.chapter_path, ctx.progress)
         return say(active, following, ctx.language)
 
     return replay

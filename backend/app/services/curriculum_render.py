@@ -19,6 +19,7 @@ from app.domain.curriculum import KIND_LABELS, Curriculum, Section
 from app.domain.language import DEFAULT_COURSE_LANGUAGE, CourseLanguage, by_language
 from app.domain.mode import DEFAULT_MODE, Mode
 from app.domain.progress import Progress
+from app.domain.revision import OUTCOMES, Outcome, Results, RevisionChapter, Tally
 from app.services import path
 
 
@@ -342,17 +343,21 @@ def reprise(cards: list[dict[str, Any]], language: CourseLanguage = DEFAULT_COUR
 def overview(
     curriculum: Curriculum, mode: Mode = DEFAULT_MODE, language: CourseLanguage = DEFAULT_COURSE_LANGUAGE
 ) -> str:
-    w, kinds = WORDS[language], KIND_LABELS[language]
+    w = WORDS[language]
     lines = [w.overview_heading.format(title=curriculum.title), ""]
     lines.append(w.lead_parcours if mode == "parcours" else w.lead_discussion)
     lines.append("")
-    for index, section in enumerate(curriculum.sections, start=1):
-        lines.append(
-            w.overview_line.format(
-                index=index, id=section.id, kind=kinds[section.kind], title=section.title, goal=section.goal
-            )
-        )
+    lines += _section_lines(curriculum, language)
     return "\n".join(lines)
+
+
+def _section_lines(curriculum: Curriculum, language: CourseLanguage) -> list[str]:
+    """One line per section of the path: its number, id, kind, title and goal (an overview's body)."""
+    w, kinds = WORDS[language], KIND_LABELS[language]
+    return [
+        w.overview_line.format(index=index, id=s.id, kind=kinds[s.kind], title=s.title, goal=s.goal)
+        for index, s in enumerate(curriculum.sections, start=1)
+    ]
 
 
 def brief(
@@ -433,11 +438,14 @@ _SEPARATOR = ", "
 
 def _skipped_list(curriculum: Curriculum, progress: Progress, language: CourseLanguage) -> str:
     """« Sections passées : « 2. … », « 4. … ». », in path order."""
+    skipped = [s for s in curriculum.sections if s.id in progress.skipped]
+    return WORDS[language].skipped_list.format(labels=_labels(skipped, language))
+
+
+def _labels(sections: list[Section], language: CourseLanguage) -> str:
+    """Sections' labels, quoted in the course language and joined: « « 2. … », « 4. … » »."""
     w = WORDS[language]
-    labels = _SEPARATOR.join(
-        w.skipped_label.format(label=s.label) for s in curriculum.sections if s.id in progress.skipped
-    )
-    return w.skipped_list.format(labels=labels)
+    return _SEPARATOR.join(w.skipped_label.format(label=s.label) for s in sections)
 
 
 def moment(now: datetime, language: CourseLanguage = DEFAULT_COURSE_LANGUAGE) -> str:
@@ -499,3 +507,202 @@ def _discussion_state(curriculum: Curriculum, progress: Progress, language: Cour
     following = path.next_section(curriculum, progress)
     assert following is not None
     return [w.discussion_none_active.format(label=following.label, kind=kinds[following.kind])]
+
+
+# --- révision (spec 020) -----------------------------------------------------------------------------------------
+# A révision reads several chapters: their packs under one header each (`revision_packs`, at `<!-- COURSE_PACK -->`),
+# one read-only overview per chapter (`revision_overview`, at `<!-- CURRICULUM -->`), both in the cached prefix and so
+# byte-stable for a selection; and a trailing state message (`revision_state`) that may change every turn. Nothing
+# here names a tool: the révision's only tool is described by its declaration and by the mode file.
+
+
+@dataclass(frozen=True)
+class RevisionWords:
+    """The phrases of a révision's rendering for one language."""
+
+    pack_head: str  # {number} {title}
+    overview_heading: str
+    overview_lead: str
+    overview_chapter: str  # {number} {title}
+    chapter_status: str  # {number} {title} {done} {skipped} {todo} {total}
+    done_list: str  # {labels}
+    skipped_list: str  # {labels}
+    todo_list: str  # {labels}
+    earlier: str  # {items}
+    earlier_item: str  # {label} {outcome} {date}
+    earlier_separator: str
+    none_noted: str
+    noted: str  # {count} {solid} {shaky} {todo}
+    tally: str  # {count} {solid} {shaky} {todo}
+    outcomes: dict[Outcome, str]  # outcome -> its word
+
+
+# A self-assessment's date in the state message, in every course language: « 15 novembre ».
+_DATE = "{day} {month}"
+
+
+REVISION = by_language(
+    fr=RevisionWords(
+        pack_head="# Chapitre {number} — {title}",
+        overview_heading="## Les chapitres de cette révision",
+        overview_lead=(
+            "Les sections de chaque chapitre, dans l'ordre. Ce sont les parcours des chapitres : ils se suivent "
+            "dans le mode parcours, pas ici, et tu ne peux ni ouvrir ni terminer une section. Un chapitre se "
+            "désigne par son numéro, une section par son identifiant."
+        ),
+        overview_chapter="### Chapitre {number} — « {title} »",
+        chapter_status=(
+            "Chapitre {number} — « {title} » : {done} section(s) faite(s), {skipped} passée(s) et {todo} "
+            "jamais faite(s) sur {total}."
+        ),
+        done_list="- Faites : {labels}.",
+        skipped_list="- Passées, jamais travaillées avec toi : {labels}.",
+        todo_list="- Jamais faites : {labels}.",
+        earlier="- Derniers bilans : {items}.",
+        earlier_item="« {label} » : {outcome} ({date})",
+        earlier_separator=" ; ",
+        none_noted="Cette révision : rien de noté pour l'instant.",
+        noted=(
+            "Cette révision : {count} section(s) notée(s) — {solid} acquis, {shaky} fragile(s), {todo} à revoir."
+        ),
+        tally="Bilan noté. Cette révision : {solid} acquis, {shaky} fragile(s), {todo} à revoir ({count} section(s) notée(s)).",
+        outcomes={"solid": "acquis", "shaky": "fragile", "todo": "à revoir"},
+    ),
+    en=RevisionWords(
+        pack_head="# Chapter {number} — {title}",
+        overview_heading="## The chapters of this revision",
+        overview_lead=(
+            "The sections of each chapter, in order. These are the chapters' paths: they are followed in path "
+            "mode, not here, and you can neither open nor finish a section. A chapter is named by its number, a "
+            "section by its id."
+        ),
+        overview_chapter="### Chapter {number} — “{title}”",
+        chapter_status=(
+            "Chapter {number} — “{title}”: {done} section(s) done, {skipped} skipped and {todo} never done out "
+            "of {total}."
+        ),
+        done_list="- Done: {labels}.",
+        skipped_list="- Skipped, never worked on with you: {labels}.",
+        todo_list="- Never done: {labels}.",
+        earlier="- Latest self-assessments: {items}.",
+        earlier_item="“{label}”: {outcome} ({date})",
+        earlier_separator="; ",
+        none_noted="This revision: nothing noted yet.",
+        noted="This revision: {count} section(s) noted — {solid} solid, {shaky} shaky, {todo} to review.",
+        tally="Self-assessment noted. This revision: {solid} solid, {shaky} shaky, {todo} to review ({count} section(s) noted).",
+        outcomes={"solid": "solid", "shaky": "shaky", "todo": "to review"},
+    ),
+    nl=RevisionWords(
+        pack_head="# Hoofdstuk {number} — {title}",
+        overview_heading="## De hoofdstukken van deze herhaling",
+        overview_lead=(
+            "De secties van elk hoofdstuk, in volgorde. Dit zijn de trajecten van de hoofdstukken: ze worden "
+            "gevolgd in de trajectmodus, niet hier, en je kunt geen sectie openen of afronden. Een hoofdstuk "
+            "duid je aan met zijn nummer, een sectie met haar id."
+        ),
+        overview_chapter="### Hoofdstuk {number} — “{title}”",
+        chapter_status=(
+            "Hoofdstuk {number} — “{title}”: {done} sectie(s) afgerond, {skipped} overgeslagen en {todo} nooit "
+            "gedaan, van de {total}."
+        ),
+        done_list="- Afgerond: {labels}.",
+        skipped_list="- Overgeslagen, nooit met jou behandeld: {labels}.",
+        todo_list="- Nooit gedaan: {labels}.",
+        earlier="- Laatste zelfbeoordelingen: {items}.",
+        earlier_item="“{label}”: {outcome} ({date})",
+        earlier_separator="; ",
+        none_noted="Deze herhaling: nog niets genoteerd.",
+        noted=(
+            "Deze herhaling: {count} sectie(s) genoteerd — {solid} gekend, {shaky} wankel, {todo} te herhalen."
+        ),
+        tally="Zelfbeoordeling genoteerd. Deze herhaling: {solid} gekend, {shaky} wankel, {todo} te herhalen ({count} sectie(s) genoteerd).",
+        outcomes={"solid": "gekend", "shaky": "wankel", "todo": "te herhalen"},
+    ),
+)
+
+
+def revision_packs(chapters: tuple[RevisionChapter, ...], language: CourseLanguage = DEFAULT_COURSE_LANGUAGE) -> str:
+    """The chosen chapters' packs, in course order, each under a one-line header with its number and title, so
+    Célestin can say where a notion lives. Each pack is the stored one with its surrounding blank lines trimmed:
+    the rendering adds only the headers and one blank line between the parts."""
+    w = REVISION[language]
+    return "\n\n".join(
+        f"{w.pack_head.format(number=c.number, title=c.title)}\n\n{c.pack.strip()}" for c in chapters
+    )
+
+
+def revision_overview(
+    chapters: tuple[RevisionChapter, ...], language: CourseLanguage = DEFAULT_COURSE_LANGUAGE
+) -> str:
+    """One overview per chapter (its number, title and sections with id, kind, title and goal), read-only: no tool
+    is named. In the cached prefix, so it depends on the selection only."""
+    w = REVISION[language]
+    lines = [w.overview_heading, "", w.overview_lead]
+    for chapter in chapters:
+        lines += ["", w.overview_chapter.format(number=chapter.number, title=chapter.title), ""]
+        lines += _section_lines(chapter.curriculum, language)
+    return "\n".join(lines)
+
+
+def _counts(tally: Tally) -> dict[str, int]:
+    counts = {outcome: int(tally.get(outcome, 0)) for outcome in OUTCOMES}
+    return {**counts, "count": sum(counts.values())}
+
+
+def revision_tally(tally: Tally, language: CourseLanguage = DEFAULT_COURSE_LANGUAGE) -> str:
+    """What `record_result` answers: this révision's tally, from the counts alone, so a stored call replays it
+    byte for byte from what it recorded."""
+    return REVISION[language].tally.format(**_counts(tally))
+
+
+def _date(at: datetime, now: datetime | None, language: CourseLanguage) -> str:
+    if now is not None and now.tzinfo is not None:
+        at = at.astimezone(now.tzinfo)
+    return _DATE.format(day=at.day, month=WORDS[language].months[at.month - 1])
+
+
+def revision_state(
+    chapters: tuple[RevisionChapter, ...],
+    earlier: Results,
+    tally: Tally,
+    now: datetime | None = None,
+    language: CourseLanguage = DEFAULT_COURSE_LANGUAGE,
+) -> str:
+    """Appended after the transcript on every révision turn, so it may change freely: the time; per chapter, the
+    sections done, skipped (never worked on with Célestin) and never done; the latest self-assessment per section
+    with its date; this révision's tally. An active section that is not done counts as never done."""
+    w, words = REVISION[language], WORDS[language]
+    lines = []
+    if now is not None:
+        lines.append(words.now.format(moment=moment(now, language)))
+    for chapter in chapters:
+        sections = chapter.curriculum.sections
+        states = {s.id: chapter.progress.state_of(s.id) for s in sections}
+        done, skipped, todo = ([s for s in sections if states[s.id] == state] for state in ("done", "skipped", "todo"))
+        lines.append(
+            w.chapter_status.format(
+                number=chapter.number,
+                title=chapter.title,
+                done=len(done),
+                skipped=len(skipped),
+                todo=len(todo),
+                total=len(sections),
+            )
+        )
+        for template, group in ((w.done_list, done), (w.skipped_list, skipped), (w.todo_list, todo)):
+            if group:
+                lines.append(template.format(labels=_labels(group, language)))
+        items = [
+            w.earlier_item.format(
+                label=s.label,
+                outcome=w.outcomes[noted.outcome],
+                date=_date(noted.at, now, language),
+            )
+            for s in sections
+            if (noted := earlier.get((chapter.id, s.id))) is not None
+        ]
+        if items:
+            lines.append(w.earlier.format(items=w.earlier_separator.join(items)))
+    counts = _counts(tally)
+    lines.append(w.noted.format(**counts) if counts["count"] else w.none_noted)
+    return "\n".join(lines)

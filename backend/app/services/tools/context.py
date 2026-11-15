@@ -2,7 +2,16 @@
 read back against (spec 018).
 
 `progress` is replaced, never mutated in place, when a section tool succeeds, so a
-second call in the same turn sees the new state.
+second call in the same turn sees the new state; so is `noted`, when `record_result`
+succeeds in a révision (spec 020).
+
+A chapter mode (parcours, discussion) has one chapter: its `curriculum`, its `progress`, its
+`pack`. A révision has several: `curriculum` is None, `progress` is empty and nothing reads
+them, and `revision` holds the chapters it covers, each with its own curriculum and progress
+(read only), `pack` every chosen pack. A context checks this when it is built, and code reads
+the two through `chapter_path` and `scope`, which never answer None. A révision has no `save`
+(the discussion's second lock) and no store at all: `record_result` notes in `noted` only, and
+the controller writes a turn's results with its transcript when the turn ends (D6).
 """
 
 from __future__ import annotations
@@ -20,6 +29,7 @@ from app.domain.language import DEFAULT_COURSE_LANGUAGE, CourseLanguage, by_lang
 from app.domain.locale import DEFAULT_LOCALE, Locale
 from app.domain.marker import Marker
 from app.domain.progress import Progress
+from app.domain.revision import Outcome, RevisionChapter, RevisionScope
 
 log = logging.getLogger(__name__)
 
@@ -32,8 +42,9 @@ SAVE_FAILED = by_language(
 
 @dataclass
 class TurnContext:
-    curriculum: Curriculum
-    progress: Progress
+    # The chapter's path: None in a révision, which has several (`revision`). Read it through `chapter_path`.
+    curriculum: Curriculum | None = None
+    progress: Progress = field(default_factory=Progress)
     # Bound by the controller to the progress store (004 design 3.6). None in
     # unit tests and scripts: the transition is then only adopted in memory.
     save: Callable[[Progress], None] | None = None
@@ -57,6 +68,35 @@ class TurnContext:
     # content version, oldest first; what the reprise note at the end of `start_section` lists. Bound by the
     # controller for the parcours, like `save`. None in unit tests and scripts: no note.
     earlier_cards: Callable[[str], list[dict[str, Any]]] | None = None
+    # Spec 020: what a révision covers (its chapters, what was noted before it). None in a chapter mode. Read it
+    # through `scope`.
+    revision: RevisionScope | None = None
+    # What this révision noted so far, latest per (chapter id, section id): the tally `record_result` answers.
+    noted: Mapping[tuple[str, str], Outcome] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """A chapter mode has its chapter's path and no révision; a révision has its scope and no single path. A
+        mis-built context fails here, where it is built, never later inside a tool."""
+        if self.mode == "revision":
+            if self.revision is None or self.curriculum is not None:
+                raise ValueError("a révision turn context has its scope and no chapter path")
+        elif self.curriculum is None or self.revision is not None:
+            raise ValueError(f"a {self.mode} turn context has its chapter's path and no révision")
+
+    @property
+    def chapter_path(self) -> Curriculum:
+        """The chapter's path, in a chapter mode (parcours, discussion): what the section tools, the overview and
+        the state message read."""
+        if self.curriculum is None:
+            raise TypeError(f"a {self.mode} turn has no chapter path")  # `__post_init__` makes this unreachable
+        return self.curriculum
+
+    @property
+    def scope(self) -> RevisionScope:
+        """What a révision covers, in a révision: what `record_result` reads."""
+        if self.revision is None:
+            raise TypeError(f"a {self.mode} turn has no révision")  # `__post_init__` makes this unreachable
+        return self.revision
 
     @classmethod
     def from_progress(
@@ -111,15 +151,23 @@ class TurnContext:
             )
         self.progress = progress
 
+    def note(self, chapter: RevisionChapter, section_id: str, outcome: Outcome) -> None:
+        """Adopt a self-assessment in this turn's memory, so the tally counts it at once (spec 020). Nothing is
+        written here: the controller writes the turn's results with its transcript, in one transaction, when the
+        turn ends, so a stopped or failed turn leaves no result behind (D6)."""
+        self.noted = {**self.noted, (chapter.id, section_id): outcome}
+
 
 @dataclass(frozen=True)
 class StoredView:
     """What a stored tool call is read back against when a transcript is restored
     (spec 018): the chapter's current curriculum (a section's label) and the progress
-    now (where the page turns). A discussion has neither: it reads board calls only."""
+    now (where the page turns). A discussion has neither: it reads board calls only. A
+    révision has the curricula of its chapters, by chapter id (a noted section's label)."""
 
     curriculum: Curriculum | None = None
     progress: Progress | None = None
+    chapters: Mapping[str, Curriculum] | None = None
 
 
 @dataclass(frozen=True)

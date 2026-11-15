@@ -25,7 +25,7 @@ def _isolate_env(monkeypatch: pytest.MonkeyPatch) -> None:
         if name.startswith((
             "OPENAI_", "TUTOR_", "COURSE_", "MAX_", "CORS_", "DEBUG_", "VOICE_", "TRUST_",
             "DATABASE_", "SESSION_", "COOKIE_", "ARGON2_", "AUTH_", "PROMPTS_", "CHAPTER_", "PACK_",
-            "AUTHORING_", "DOCUMENT_", "TRANSCRIPTION_", "DISCUSSION_", "AI_",
+            "AUTHORING_", "DOCUMENT_", "TRANSCRIPTION_", "DISCUSSION_", "AI_", "REVISION_",
         )):
             monkeypatch.delenv(name, raising=False)
 

@@ -13,10 +13,10 @@ authoring run is several (one per stage, repair, page and attempt), a voice sess
 |---|---|
 | `created_at` | When the call started (UTC). For a voice session, the report's time minus its duration. |
 | `user_id` | The account that caused it. A foreign key, **deleted with the account**. |
-| `course_id`, `chapter_id` | When the call belongs to one. Set to null (the row stays) when the course or chapter is deleted. |
+| `course_id`, `chapter_id` | When the call belongs to one. Set to null (the row stays) when the course or chapter is deleted. A révision turn (spec 020) has a course and no chapter: it works on several. |
 | `correlation_id` | What groups calls: a tutor `turn_id`, an authoring `run_id`, a voice session id. |
 | `role` | `tutor`, `authoring`, `transcription`, `voice` (spec 014). Dictation is `voice`: it runs on the voice role's speech model. |
-| `feature` | What for: `tutor_turn`, `discussion_turn`, `authoring`, `document_reading` (the transcription stage of a run), `work_reading`, `dictation`, `voice_session`, `ai_test`. |
+| `feature` | What for: `tutor_turn`, `discussion_turn`, `revision_turn` (spec 020, migration `0014`), `authoring`, `document_reading` (the transcription stage of a run), `work_reading`, `dictation`, `voice_session`, `ai_test`. |
 | `model`, `provider` | The model name sent and the **host name** of the connection (never the URL, a path or a key). Empty for voice sessions carried over from `voice_usage`. |
 | `status`, `error_code` | `ok`, `failed`, `truncated`, `cancelled`; for a failure the application's own code (`provider_timeout`…), never the provider's text. |
 | `latency_ms`, `ttft_ms` | Request to last event or answer; request to the first text (streamed calls that sent text only). |
@@ -62,7 +62,7 @@ service opens a scope ─▶ contextvar ─▶ recording wrapper (hub) ─▶ Us
 
 | Where | Scope |
 |---|---|
-| `TutorService.run_turn` | `tutor_turn` or `discussion_turn`, the student, `TurnContext.course_id` / `chapter_id`, the turn id. None when the context has no user (unit tests, scripts). |
+| `TutorService.run_turn` | `tutor_turn`, `discussion_turn` or `revision_turn` (by the context's mode, `_FEATURES`), the student, `TurnContext.course_id` / `chapter_id` (none for a révision), the turn id. None when the context has no user (unit tests, scripts). |
 | `AuthoringRunner._start`, around `create_task` | `authoring`, the chapter's owner, course, chapter, run id. `document_reading` is the same scope read with the transcription role (`feature_of`). |
 | `WorkReader.read` | `work_reading`, the student, the course. |
 | `DictationService.dictate` | `dictation`, the student, `audio_seconds` (capped at `DICTATION_MAX_S`, as its log line). |

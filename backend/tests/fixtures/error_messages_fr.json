@@ -819,5 +819,87 @@
       [],
       {}
     ]
+  },
+  {
+    "key": "revision_closed.content_changed",
+    "params": {},
+    "fr": "Un des chapitres a changé depuis le début de cette révision. Commence une nouvelle révision pour continuer.",
+    "make": [
+      "RevisionClosed",
+      [
+        "content_changed"
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "revision_full",
+    "params": {},
+    "fr": "Cette révision est devenue très longue. Commence une nouvelle révision pour continuer.",
+    "make": [
+      "RevisionFull",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "revision_busy",
+    "params": {},
+    "fr": "Célestin est déjà en train de te répondre dans cette révision, peut-être dans un autre onglet.",
+    "make": [
+      "RevisionBusy",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "revision_started",
+    "params": {},
+    "fr": "Cette révision a déjà commencé.",
+    "make": [
+      "RevisionStarted",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "revision_no_chapter",
+    "params": {},
+    "fr": "Choisis au moins un chapitre à réviser.",
+    "make": [
+      "RevisionNoChapter",
+      [],
+      {}
+    ]
+  },
+  {
+    "key": "revision_too_large",
+    "params": {
+      "maximum": 120000,
+      "size": 130000
+    },
+    "fr": "Ces chapitres font trop de matière pour une seule révision. Choisis-en moins.",
+    "make": [
+      "RevisionTooLarge",
+      [
+        120000,
+        130000
+      ],
+      {}
+    ]
+  },
+  {
+    "key": "revision_quota",
+    "params": {
+      "maximum": 10
+    },
+    "fr": "Tu as commencé 10 révisions aujourd'hui. Reprends celle qui est en cours, ou réessaie demain.",
+    "make": [
+      "RevisionQuota",
+      [
+        10
+      ],
+      {}
+    ]
   }
 ]

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
-from app.domain.mode import DEFAULT_MODE, MODES
+from typing import get_args
+
+from app.domain.mode import DEFAULT_MODE, MODES, ChapterMode
 
 
 def test_the_modes_are_the_literal_members() -> None:
-    assert MODES == ("parcours", "discussion")
+    assert MODES == ("parcours", "discussion", "revision")
+    # Spec 020: a révision works on a course, never on one chapter; the chapter routes (voice) take these only.
+    assert get_args(ChapterMode) == ("parcours", "discussion")
     assert DEFAULT_MODE == "parcours"
 
 

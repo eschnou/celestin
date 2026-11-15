@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, getRouteApi, Link, useNavigate } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { ListChecks, Plus } from "lucide-react";
 import { useState } from "react";
 import { AddChapterForm } from "@/components/celestin/add-chapter-form";
 import { AuthPage } from "@/components/celestin/app-bar";
@@ -8,6 +8,7 @@ import { ChapterRowItem } from "@/components/celestin/chapter-row";
 import { CourseHeader } from "@/components/celestin/course-header";
 import { ResumeCard } from "@/components/celestin/course-resume";
 import { NotFoundCard } from "@/components/celestin/not-found";
+import { secondary } from "@/components/celestin/styles";
 import { CourseLanguageProvider } from "@/lib/course-language";
 import { apiMessage, apiStatus } from "@/lib/tutor/client";
 import { featuredChapter } from "@/lib/tutor/featured-chapter";
@@ -20,6 +21,7 @@ import {
   retryChapter,
   subjectsQuery,
 } from "@/lib/tutor/courses";
+import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 
 const authRoute = getRouteApi("/_auth");
@@ -87,6 +89,7 @@ function CoursePage() {
               await refresh();
             }}
             onDelete={() => removeCourse.mutate()}
+            action={<ReviseButton courseId={courseId} ready={data.chapters.some((c) => c.ready)} />}
           />
           {actionError && (
             <p role="alert" className="mt-3 text-sm text-destructive">
@@ -146,5 +149,30 @@ function CoursePage() {
         </CourseLanguageProvider>
       )}
     </AuthPage>
+  );
+}
+
+/** « Réviser » (spec 020): the whole course, once one chapter is ready. */
+function ReviseButton({ courseId, ready }: { courseId: string; ready: boolean }) {
+  const className = cn(secondary, "min-h-10 shrink-0 px-3");
+  const content = (
+    <>
+      <ListChecks className="size-4" aria-hidden />
+      {m.course_revise()}
+    </>
+  );
+  return ready ? (
+    <Link
+      to="/courses/$courseId/revision"
+      params={{ courseId }}
+      title={m.course_revise_title()}
+      className={className}
+    >
+      {content}
+    </Link>
+  ) : (
+    <button type="button" disabled title={m.course_revise_unavailable()} className={className}>
+      {content}
+    </button>
   );
 }

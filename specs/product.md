@@ -77,7 +77,7 @@ The tutor works in three modes on the same chapter material:
 |---|---|---|
 | **Parcours** | Follow the chapter's curriculum: learn, practise, synthesise, section by section, in the proposed order or the student's own | Built (specs 002–006); stored and resumable (018); open path (019) |
 | **Discussion** | Free conversation about the material, with the whiteboard | Built (spec 007) |
-| **Révision** | The tutor makes the student retrieve what they know across the chapters of a course, and keeps their own assessment of it | Designed (spec 020), not built yet |
+| **Révision** | The tutor makes the student retrieve what they know across the chapters of a course, and keeps their own assessment of it | Built (spec 020) |
 
 ### 6.2 Courses and chapters
 
@@ -179,7 +179,7 @@ After each question is settled, the tutor puts the course's own wording on the b
 ### 6.8 The interface
 
 - **« Mes cours »**: the student's courses; create a course with a name and a subject.
-- **A course**: its chapters in order, each with its state (en préparation, échec, prêt, en cours, terminé); add a chapter by uploading a PDF or photos; « Réviser » will open a révision over the chapters the student picks (spec 020).
+- **A course**: its chapters in order, each with its state (en préparation, échec, prêt, en cours, terminé); add a chapter by uploading a PDF or photos; « Réviser » opens a révision over the chapters the student picks.
 - **A chapter**: the lesson view (board, cards, chapter strip and map, voice), the discussion, the « cahier » of past boards, and access to the pack and curriculum for reading and editing. On the map every section can be started, resumed, skipped, reviewed or reread.
 - **Cards**: plan, explanation, worked example, exercise with an answer widget matched to the answer type, verdict, hint, solution, check question, recap.
 - **« Paramètres »**: from the user menu; the interface language today, built to hold the account's other settings (name, email address, password) later.
@@ -251,7 +251,7 @@ The next day they notice the pack lists « km/h » where the teacher writes « k
 
 **Phase B′ — Tools for an autonomous student.** Done (specs 018, 019). Lessons stored and resumed, the « cahier » of past boards, the open path with skipped sections.
 
-**Phase C — Révision mode.** Designed (spec 020), not built yet. Retrieval practice across the chosen chapters of a course, with the student's self-assessment kept per section. Later: a mechanical checker feeding the same record, voice, a test date shaping the session.
+**Phase C — Révision mode.** Done (spec 020). Retrieval practice across the chosen chapters of a course, with the student's self-assessment kept per section. Later: a mechanical checker feeding the same record, voice, a test date shaping the session.
 
 **Later.** Mechanical checker for more answer kinds; parent view; sharing a course with classmates.
 

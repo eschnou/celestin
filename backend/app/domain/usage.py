@@ -24,6 +24,7 @@ from app.domain.ai_config import Role
 Feature = Literal[
     "tutor_turn",
     "discussion_turn",
+    "revision_turn",
     "authoring",
     "document_reading",
     "work_reading",

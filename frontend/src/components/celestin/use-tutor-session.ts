@@ -33,6 +33,7 @@ import {
   type LessonScope,
   type NextStep,
   type Progress,
+  type RevisionMark,
   type StoredEntry,
   type TranscriptEntry,
   type TutorEvent,
@@ -81,6 +82,10 @@ export type SessionState = {
   /** The sections started this session, reviews left out, in the order they first
    *  started: with the stored séances, what the map offers to « Reprendre » (spec 019). */
   started: string[];
+  /** The self-assessments noted live this session, in order (spec 020, a révision only): the
+   *  « Bilan » reads them over the server's read, so a result shows the moment it is noted.
+   *  A restored transcript leaves it empty (`sessionFromEntries`). */
+  results: RevisionMark[];
 };
 
 export const EMPTY_SESSION: SessionState = {
@@ -94,6 +99,7 @@ export const EMPTY_SESSION: SessionState = {
   blocks: {},
   voice: false,
   started: [],
+  results: [],
 };
 
 function marker(text: string, boardIndex: number | null = null): TranscriptEntry {
@@ -290,6 +296,25 @@ export function reduce(state: SessionState, event: SessionEvent): SessionState {
         ],
       };
 
+    case "revision.result": {
+      const mark: RevisionMark = {
+        chapter_id: event.chapter_id,
+        section_id: event.section_id,
+        outcome: event.outcome,
+      };
+      return {
+        ...state,
+        results: [...state.results, mark],
+        entries: [...state.entries, marker(event.marker)],
+        // The model named the chapter by its number; the event carries its id. A révision
+        // never reports a turn, so this entry only has to say what was recorded.
+        history: [
+          ...state.history,
+          { kind: "tool", name: "record_result", arguments: { ...mark }, ok: true },
+        ],
+      };
+    }
+
     case "error":
       return {
         ...state,
@@ -353,7 +378,9 @@ export type TurnReport = (entries: HistoryEntry[]) => Promise<void>;
  * board history, the markers and the page-turn button cannot drift from what the
  * learner saw. A learner entry starts a turn, as her message did live: the
  * `turn.start` that followed it is what put out a proposed step. The progress this
- * computes is a by-product; the hook starts from the server's.
+ * computes is a by-product; the hook starts from the server's. So are a révision's
+ * `results`, which start empty: the stored ones are in the server's read (spec 020), and
+ * `results` holds what is noted live from here on.
  */
 export function sessionFromEntries(entries: StoredEntry[]): SessionState {
   let state = EMPTY_SESSION;
@@ -396,24 +423,48 @@ export function sessionFromEntries(entries: StoredEntry[]): SessionState {
       });
     } else if (entry.name === "propose_next_step") {
       state = reduce(state, { event: "step.ready", marker });
+    } else if (
+      entry.name === "record_result" &&
+      entry.chapter_id &&
+      entry.section_id &&
+      entry.outcome
+    ) {
+      state = reduce(state, {
+        event: "revision.result",
+        chapter_id: entry.chapter_id,
+        section_id: entry.section_id,
+        outcome: entry.outcome,
+        marker,
+      });
     }
   }
-  return state;
+  return { ...state, results: [] };
 }
 
-export type TutorSessionOptions = LessonScope & {
+type SessionOptions = {
+  courseId: string;
   initialProgress: Progress;
-  /** Defaults to the parcours transport: `POST /api/chat` with the message. */
-  transport?: TurnTransport;
-  /** Where a turn the learner stopped is reported (018 D7). Defaults, with the default
-   *  transport, to the parcours's `POST /api/seance/report`; a session given its own
-   *  transport (the discussion, whose policy is to store complete turns only) reports
-   *  nothing unless it passes one. */
-  report?: TurnReport;
   /** A restored conversation (007 R4.2) or séance (018 D6); defaults to an empty
    *  session. Its progress is replaced by `initialProgress`, the server's. */
   initialState?: SessionState;
 };
+
+/** The parcours: one chapter. A turn is `POST /api/chat`, a stopped turn is reported to
+ *  `POST /api/seance/report` (018 D7), and the session can reset the chapter's progress. */
+export type ParcoursSessionOptions = SessionOptions &
+  Pick<LessonScope, "chapterId"> & { transport?: never; report?: never };
+
+/** A mode with its own transport: a discussion (007) or a révision (020, course-scoped, no
+ *  chapter at all). Whose policy is to store complete turns only, so a stopped turn is
+ *  reported nowhere unless `report` says where; there is no reset. */
+export type TransportSessionOptions = SessionOptions & {
+  transport: TurnTransport;
+  report?: TurnReport;
+};
+
+/** What a session is in each shape: the parcours alone has `resetProgress`. */
+export type TutorSession = Omit<ParcoursSession, "resetProgress">;
+export type ParcoursSession = ReturnType<typeof useSession>;
 
 /**
  * Mount the hook once the chapter and its progress are loaded (004 R6.4): the
@@ -421,22 +472,36 @@ export type TutorSessionOptions = LessonScope & {
  * pre-restore state to guard. A new class or chapter is a new mount (the route keys
  * the screen on both), so the scope is fixed for the hook's life.
  */
-export function useTutorSession({
-  courseId,
-  chapterId,
-  initialProgress,
-  transport,
-  report,
-  initialState,
-}: TutorSessionOptions) {
-  const reporter = useMemo<TurnReport | null>(
-    () =>
-      report ??
-      (transport
-        ? null
-        : (entries) => reportTurn({ courseId, chapterId, mode: "parcours" }, entries)),
-    [chapterId, courseId, report, transport],
-  );
+export function useTutorSession(options: ParcoursSessionOptions): ParcoursSession;
+export function useTutorSession(options: TransportSessionOptions): TutorSession;
+export function useTutorSession(
+  options: ParcoursSessionOptions | TransportSessionOptions,
+): TutorSession | ParcoursSession {
+  const { resetProgress, ...session } = useSession(options);
+  return options.transport ? session : { ...session, resetProgress };
+}
+
+/** How a session's turns travel: the parcours's chapter and its two routes, or the transport
+ *  (and the optional report) a mode brought. */
+function wiring(options: ParcoursSessionOptions | TransportSessionOptions): {
+  parcours: { courseId: string; chapterId: string } | null;
+  transport: TurnTransport;
+  reporter: TurnReport | null;
+} {
+  if (options.transport)
+    return { parcours: null, transport: options.transport, reporter: options.report ?? null };
+  const parcours = { courseId: options.courseId, chapterId: options.chapterId };
+  return {
+    parcours,
+    transport: (input, signal) => streamTurn(parcours, input.message, signal),
+    reporter: (entries) => reportTurn({ ...parcours, mode: "parcours" }, entries),
+  };
+}
+
+function useSession(options: ParcoursSessionOptions | TransportSessionOptions) {
+  const { courseId, initialProgress, initialState } = options;
+  // Fixed for the hook's life: the screen is keyed on its scope.
+  const [{ parcours, transport, reporter }] = useState(() => wiring(options));
   const [state, setState] = useState<SessionState>(() => ({
     ...(initialState ?? EMPTY_SESSION),
     progress: initialProgress,
@@ -518,9 +583,7 @@ export function useTutorSession({
           await pendingReportRef.current;
           if (controller.signal.aborted) return;
         }
-        const stream =
-          transport?.(input, controller.signal) ??
-          streamTurn({ courseId, chapterId }, input.message, controller.signal);
+        const stream = transport(input, controller.signal);
         for await (const event of stream) {
           // Frames parsed from a chunk that arrived before a stop are not applied:
           // the stop's report holds exactly what the learner saw.
@@ -543,7 +606,7 @@ export function useTutorSession({
         }
       }
     },
-    [chapterId, courseId, flush, push, transport],
+    [flush, push, transport],
   );
 
   const send = useCallback(
@@ -602,6 +665,9 @@ export function useTutorSession({
    *  stored séances with it (018 D9), so the session starts empty. Resolves to whether
    *  the reset was saved. */
   const resetProgress = useCallback((): Promise<boolean> => {
+    // Never reached: `useTutorSession` gives `resetProgress` to the parcours only.
+    if (!parcours) return Promise.resolve(false);
+    const { chapterId } = parcours;
     abortRef.current?.abort();
     abortRef.current = null;
     resettingRef.current = true;
@@ -628,7 +694,7 @@ export function useTutorSession({
         setStatus("error");
         return false;
       });
-  }, [apply, chapterId, courseId, run]);
+  }, [apply, courseId, parcours, run]);
 
   // The voice hook's window onto the session (003 design 3.13).
   const handle = useMemo<TutorSessionHandle>(
@@ -678,6 +744,9 @@ export function useTutorSession({
     section: state.section,
     /** The sections started this session, reviews left out (spec 019). */
     started: state.started,
+    /** The self-assessments noted live this session (spec 020): the restored ones are in the
+     *  server's read already. */
+    results: state.results,
     status,
     send,
     cancel,

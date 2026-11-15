@@ -11,6 +11,7 @@ import { ChevronUp, Loader2, RotateCcw } from "lucide-react";
 import celestinMark from "@/assets/celestin-mark.svg";
 import { RichText } from "@/components/celestin/board-blocks";
 import { CallButton } from "@/components/celestin/call-button";
+import { NO_VOICE } from "@/components/celestin/no-voice";
 import { Countdown, Entry } from "@/components/celestin/transcript";
 import type { SessionStatus } from "@/components/celestin/use-tutor-session";
 import type { VoiceControls } from "@/components/celestin/use-voice-session";
@@ -50,20 +51,22 @@ function captionEntries(entries: TranscriptEntry[]): {
 export function TutorCaption({
   entries,
   status,
-  voice,
+  voice: voiceControls,
   onRetry,
   onShowBoard,
   action,
 }: {
   entries: TranscriptEntry[];
   status: SessionStatus;
-  voice: VoiceControls;
+  /** Absent: the mode has no voice (a révision, spec 020 D5), so no telephone. */
+  voice?: VoiceControls;
   onRetry: () => void;
   onShowBoard: (index: number) => void;
   /** Mode-specific control (a discussion's « Nouvelle conversation »). */
   action?: ReactNode;
 }) {
   const language = useCourseLanguage();
+  const voice = voiceControls ?? NO_VOICE;
   const { keyboardOpen } = useVisualViewport();
   const [open, setOpen] = useState(false);
   const live = voice.phase !== "off";
@@ -113,7 +116,7 @@ export function TutorCaption({
                     keyboardOpen ? "line-clamp-1" : "line-clamp-3",
                   )}
                 >
-                  <RichText text={said.text} />
+                  <RichText text={said.text} bold />
                 </span>
               )}
               {failure && (
@@ -136,7 +139,7 @@ export function TutorCaption({
           <span className="flex-1" />
         )}
         {action}
-        <CallButton voice={voice} status={status} className="size-10" />
+        {voiceControls && <CallButton voice={voice} status={status} className="size-10" />}
       </div>
       {status === "error" && !live && (
         <button

@@ -113,3 +113,37 @@ def test_the_dutch_authoring_fixtures_are_dutch_and_the_injection_is_a_dutch_inj
     ]
     injection = (MATERIAL / "injection_nl.txt").read_text(encoding="utf-8")
     assert "instructies" in injection.lower() and "ignore" not in injection.lower()
+
+
+@pytest.mark.parametrize(
+    ("language", "directory"),
+    [("fr", "mru"), ("en", "uniform_motion_en"), ("nl", "eenparige_beweging_nl")],
+)
+def test_the_smoke_revision_leg_runs_on_its_own_fixtures_whatever_the_subject(language, directory) -> None:
+    """Spec 020: `smoke --subject sciences --chapter-dir …/mru` used to load the mathematics révision fixtures with
+    the sciences template and fail after the paid parcours and discussion turns. The révision leg reads its own
+    chapters with their own subject, before any paid call."""
+    from app.services.tutor_service import TutorService
+    from scripts.smoke import revision_input, revision_scope
+
+    settings = Settings(openai_api_key="k", _env_file=None)
+    root = DEFAULT_CHAPTER_DIR.parent
+    prompts, chapter = load_lesson(
+        settings, ["--subject", "sciences", "--chapter-dir", str(root / directory), "--language", language]
+    )
+    assert chapter.subject == "sciences"
+    scope = revision_scope(prompts, language)
+    assert len(scope.chapters) == 2
+    items, ctx = revision_input(TutorService(llm=None, prompts=prompts, settings=settings), scope, language, [])  # type: ignore[arg-type]
+    system = items[0]["content"][0]["text"]
+    assert ctx.mode == "revision" and ctx.scope is scope and ctx.language == language
+    heading = {subject: prompts.subject(subject, language).splitlines()[0] for subject in ("mathematics", "sciences")}
+    assert heading["mathematics"] in system and heading["sciences"] not in system
+
+
+def test_the_smoke_prints_a_verdict_per_mode() -> None:
+    from scripts.smoke import verdict
+
+    assert verdict("revision", 1024, True).endswith("CACHE OK")
+    assert verdict("discussion", 0, True).endswith("CACHE MISS")
+    assert "not an error" in verdict("parcours", 0, False)

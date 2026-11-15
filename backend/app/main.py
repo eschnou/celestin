@@ -15,7 +15,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.api.locale import locale_of
 from app.api.middleware import BodyLimitMiddleware, SameOriginMiddleware
 from app.api.ratelimit import SlidingWindow
-from app.api.routes import admin, auth, chat, courses, dictation, discussion, health, seance, setup, usage, voice, work
+from app.api.routes import admin, auth, chat, courses, dictation, discussion, health, revision, seance, setup, usage, voice, work
 from app.config import Settings, get_settings
 from app.db.base import make_engine, make_session_factory
 from app.db.repositories import Repositories
@@ -192,6 +192,7 @@ def create_app(
     app.include_router(chat.router, prefix="/api")
     app.include_router(discussion.router, prefix="/api")
     app.include_router(seance.router, prefix="/api")
+    app.include_router(revision.router, prefix="/api")
     app.include_router(voice.router, prefix="/api")
     app.include_router(dictation.router, prefix="/api")
     app.include_router(work.router, prefix="/api")

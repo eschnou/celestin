@@ -41,9 +41,29 @@ function nothingStored(handler: Handler, path: string): Reply {
   return { body: { seance: null, progress: chapter?.progress ?? EMPTY_PROGRESS, seances: {} } };
 }
 
+/** A course's révision read (`GET …/revision`, spec 020) that the handler does not answer: no
+ *  live révision, no result, and the chapters of the course fixture the handler serves (asked
+ *  directly, so it is not recorded as a call), without their sections. */
+function noRevision(handler: Handler, path: string): Reply {
+  const course = handler("GET", path.slice(0, -"/revision".length), undefined)?.body as
+    { chapters?: Record<string, unknown>[] } | undefined;
+  const chapters = (course?.chapters ?? []).map((row) => ({
+    id: row["id"],
+    position: row["position"],
+    title: row["title"] ?? null,
+    ready: row["ready"] ?? false,
+    section_count: row["section_count"] ?? 0,
+    done_count: row["done_count"] ?? 0,
+    skipped_count: row["skipped_count"] ?? 0,
+    sections: [],
+  }));
+  return { body: { revision: null, chapters, results: [] } };
+}
+
 /** A `fetch` that answers `/api/auth/me` and whatever `handler` knows; records every call.
  *  A lesson's séance read (`GET …/seance`, spec 018) answers « nothing stored » unless
- *  `handler` says otherwise, so a lesson opens as it always did.
+ *  `handler` says otherwise, so a lesson opens as it always did; a course's révision read
+ *  (spec 020) answers « no live révision » with the course's chapters the same way.
  *  `user` overrides fields of the signed-in user (its language, say), or is `null` for nobody; a
  *  `PATCH` of `/api/auth/me` answers with the user changed, unless `handler` says otherwise. */
 export function mockApi(handler: Handler, user: Partial<User> | null = {}) {
@@ -72,7 +92,11 @@ export function mockApi(handler: Handler, user: Partial<User> | null = {}) {
     } else {
       reply =
         handler(method, path, body) ??
-        (method === "GET" && path.endsWith("/seance") ? nothingStored(handler, path) : undefined);
+        (method === "GET" && path.endsWith("/seance")
+          ? nothingStored(handler, path)
+          : method === "GET" && /\/api\/courses\/[^/]+\/revision$/.test(path)
+            ? noRevision(handler, path)
+            : undefined);
     }
     const status = reply?.status ?? (reply ? 200 : 404);
     return {
@@ -85,7 +109,7 @@ export function mockApi(handler: Handler, user: Partial<User> | null = {}) {
   return calls;
 }
 
-type FileRoute = { options: { loader?: unknown; component?: unknown } };
+type FileRoute = { options: { loader?: unknown; component?: unknown; validateSearch?: unknown } };
 
 export function mountRoutes(routes: { path: string; file: FileRoute }[], initial: string) {
   const rootRoute = createRootRouteWithContext<{ queryClient: QueryClient }>()({
@@ -113,12 +137,16 @@ export function mountRoutes(routes: { path: string; file: FileRoute }[], initial
       path,
       loader: file.options.loader as never,
       component: file.options.component as never,
+      ...(file.options.validateSearch
+        ? { validateSearch: file.options.validateSearch as never }
+        : {}),
     }),
   );
   const extras = [
     "/courses/$courseId/chapters/$chapterId/",
     "/courses/$courseId/chapters/$chapterId/content",
     "/courses/$courseId/chapters/$chapterId/notebook",
+    "/courses/$courseId/revision",
   ]
     .filter((path) => !routes.some((r) => r.path === path))
     .map((path) =>

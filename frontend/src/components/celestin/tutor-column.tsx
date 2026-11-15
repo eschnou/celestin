@@ -7,6 +7,7 @@ import { m } from "@/paraglide/messages";
 import { useCompactLayout } from "./compact-layout";
 import { Composer } from "./composer";
 import { CallButton } from "./call-button";
+import { NO_VOICE } from "./no-voice";
 import type { DictationDeps } from "./use-dictation";
 import type { PhotoDeps } from "./use-photo-work";
 import type { WebcamDeps } from "./webcam-camera";
@@ -19,8 +20,9 @@ import type { TranscriptEntry } from "@/lib/tutor/types";
 type TutorColumnProps = {
   entries: TranscriptEntry[];
   status: SessionStatus;
-  /** Voice controls (003). `supported` false keeps the mic inert. */
-  voice: VoiceControls;
+  /** Voice controls (003). `supported` false keeps the telephone inert; absent, the mode
+   *  has no voice at all (a révision, spec 020 D5) and there is no telephone. */
+  voice?: VoiceControls;
   onSend: (text: string) => void;
   onCancel: () => void;
   onRetry: () => void;
@@ -31,6 +33,8 @@ type TutorColumnProps = {
   path?: ReactNode;
   /** Mode-specific controls in the header, before the call button. */
   headerAction?: ReactNode;
+  /** A discreet row under the composer's field (a révision's quick replies). */
+  composerFooter?: ReactNode;
   /** The backend offers dictation: the composer's microphone (`/api/health`). */
   dictation?: boolean;
   /** The browser's microphone and the transcription, replaced in tests. */
@@ -46,10 +50,13 @@ type TutorColumnProps = {
 function TutorHeader({
   status,
   voice,
+  call,
   action,
 }: {
   status: SessionStatus;
   voice: VoiceControls;
+  /** The mode has a telephone. */
+  call: boolean;
   action?: ReactNode;
 }) {
   const label = statusLabel(status, voice);
@@ -76,7 +83,7 @@ function TutorHeader({
       </div>
       <div className="ml-auto flex items-center gap-1">
         {action}
-        <CallButton voice={voice} status={status} className="size-8" />
+        {call && <CallButton voice={voice} status={status} className="size-8" />}
       </div>
     </div>
   );
@@ -85,13 +92,14 @@ function TutorHeader({
 export function TutorColumn({
   entries,
   status,
-  voice,
+  voice: voiceControls,
   onSend,
   onCancel,
   onRetry,
   onShowBoard,
   path,
   headerAction,
+  composerFooter,
   dictation = false,
   dictationDeps,
   mixedLanguages = false,
@@ -100,6 +108,8 @@ export function TutorColumn({
   webcamDeps,
 }: TutorColumnProps) {
   const compact = useCompactLayout();
+  const call = voiceControls !== undefined;
+  const voice = voiceControls ?? NO_VOICE;
   const composer = (
     <Composer
       status={status}
@@ -112,6 +122,7 @@ export function TutorColumn({
       {...(courseId ? { courseId } : {})}
       {...(photoDeps ? { photoDeps } : {})}
       {...(webcamDeps ? { webcamDeps } : {})}
+      {...(composerFooter ? { footer: composerFooter } : {})}
     />
   );
   const streaming = status === "streaming";
@@ -150,7 +161,7 @@ export function TutorColumn({
         <TutorCaption
           entries={entries}
           status={status}
-          voice={voice}
+          {...(call ? { voice } : {})}
           onRetry={onRetry}
           onShowBoard={onShowBoard}
           action={headerAction}
@@ -163,7 +174,7 @@ export function TutorColumn({
 
   return (
     <section className="flex h-full min-h-0 flex-col bg-background">
-      <TutorHeader status={status} voice={voice} action={headerAction} />
+      <TutorHeader status={status} voice={voice} call={call} action={headerAction} />
 
       {path && <div className="px-4 pt-3">{path}</div>}
 

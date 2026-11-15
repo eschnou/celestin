@@ -16,7 +16,9 @@ import { Route as ContentFile } from "../_auth/courses/$courseId/chapters/$chapt
 import { Route as NotebookFile } from "../_auth/courses/$courseId/chapters/$chapterId/notebook";
 import { Route as CourseFile } from "../_auth/courses/$courseId/index";
 import { Route as CoursesFile } from "../_auth/courses/index";
+import { Route as RevisionFile } from "../_auth/courses/$courseId/revision";
 import { Route as SettingsFile } from "../_auth/settings";
+import { stubLayoutApis } from "@/test/jsdom-stubs";
 
 vi.mock("@/components/celestin/math", () => ({
   Math: ({ tex }: { tex: string }) => <span>{tex}</span>,
@@ -170,6 +172,7 @@ const ROUTES = [
   { path: "/courses/$courseId/chapters/$chapterId/", file: ChapterFile },
   { path: "/courses/$courseId/chapters/$chapterId/content", file: ContentFile },
   { path: "/courses/$courseId/chapters/$chapterId/notebook", file: NotebookFile },
+  { path: "/courses/$courseId/revision", file: RevisionFile },
   { path: "/settings", file: SettingsFile },
 ];
 
@@ -427,6 +430,112 @@ describe("the English sweep: the cahier", () => {
           : notebookApi(method, path, undefined),
       );
       await screen.findByText(/Your notebook is still empty/);
+      clean();
+    }));
+});
+
+// --- révision (spec 020) ------------------------------------------------------------------------
+
+const REVISION_CHAPTERS = [
+  {
+    id: "h1",
+    position: 1,
+    title: "Les suites",
+    ready: true,
+    section_count: 2,
+    done_count: 1,
+    skipped_count: 1,
+    sections: [
+      { id: "s1", index: 1, kind: "teach", title: "Définir une suite", state: "done" },
+      { id: "s2", index: 2, kind: "practise", title: "Calculer", state: "skipped" },
+    ],
+  },
+  {
+    id: "h2",
+    position: 2,
+    title: null,
+    ready: false,
+    section_count: 0,
+    done_count: 0,
+    skipped_count: 0,
+    sections: [],
+  },
+];
+
+const LIVE_REVISION = {
+  id: "r1",
+  chapter_ids: ["h1"],
+  entry_count: 4,
+  created_at: "",
+  entries: [
+    { kind: "learner", text: "Oui." },
+    {
+      kind: "tool",
+      name: "record_result",
+      arguments: { chapter: 1, section_id: "s1", outcome: "shaky" },
+      chapter_id: "h1",
+      section_id: "s1",
+      outcome: "shaky",
+      // The backend's form: the section's label after the interface's words, as the section
+      // markers have it. The marker carries no `lang`, so a course-language title in it is not
+      // marked; the label here has no accented French, which leaves that gap (shared with every
+      // section marker, and untested by any sweep) open rather than hidden.
+      marker: "noted: shaky · 1. Les suites",
+    },
+    { kind: "tutor", text: "Compare avec ta réponse : acquis, fragile ou à revoir ?" },
+  ],
+};
+
+const revisionApi =
+  (live: typeof LIVE_REVISION | null): Handler =>
+  (method, path) => {
+    if (method === "GET" && path.endsWith("/api/courses/c1/revision"))
+      return {
+        body: {
+          revision: live,
+          chapters: REVISION_CHAPTERS,
+          results: [
+            { chapter_id: "h1", section_id: "s1", outcome: "shaky", at: "2026-11-10T10:00:00Z" },
+          ],
+        },
+      };
+    if (method === "POST" && path.endsWith("/api/courses/c1/revision"))
+      return {
+        status: 422,
+        body: {
+          code: "revision_too_large",
+          message: "These chapters are too much material for one revision: pick fewer.",
+        },
+      };
+    return undefined;
+  };
+
+describe("the English sweep: the révision", () => {
+  it("the chooser and a refusal", () =>
+    withLocale("en", async () => {
+      stubLayoutApis({ desktop: true });
+      open("/courses/c1/revision", revisionApi(null));
+      await screen.findByRole("heading", { name: "What do you want to revise?" });
+      clean();
+      fireEvent.click(screen.getByRole("button", { name: "Start the revision" }));
+      await screen.findByRole("alert");
+      clean();
+    }));
+
+  it("a live révision, its « Bilan » and the confirmation to start a new one", () =>
+    withLocale("en", async () => {
+      stubLayoutApis({ desktop: true });
+      open("/courses/c1/revision", revisionApi(LIVE_REVISION));
+      await screen.findByText(/Compare avec/);
+      clean();
+      fireEvent.click(screen.getByRole("button", { name: "Results" }));
+      await screen.findByRole("dialog", { name: "Revision results" });
+      clean();
+      cleanup();
+      open("/courses/c1/revision", revisionApi(LIVE_REVISION));
+      await screen.findByText(/Compare avec/);
+      fireEvent.click(screen.getByRole("button", { name: "New revision" }));
+      await screen.findByRole("alertdialog");
       clean();
     }));
 });

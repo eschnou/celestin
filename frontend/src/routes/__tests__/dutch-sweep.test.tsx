@@ -16,7 +16,9 @@ import { Route as ContentFile } from "../_auth/courses/$courseId/chapters/$chapt
 import { Route as NotebookFile } from "../_auth/courses/$courseId/chapters/$chapterId/notebook";
 import { Route as CourseFile } from "../_auth/courses/$courseId/index";
 import { Route as CoursesFile } from "../_auth/courses/index";
+import { Route as RevisionFile } from "../_auth/courses/$courseId/revision";
 import { Route as SettingsFile } from "../_auth/settings";
+import { stubLayoutApis } from "@/test/jsdom-stubs";
 
 vi.mock("@/components/celestin/math", () => ({
   Math: ({ tex }: { tex: string }) => <span>{tex}</span>,
@@ -168,6 +170,7 @@ const ROUTES = [
   { path: "/courses/$courseId/chapters/$chapterId/", file: ChapterFile },
   { path: "/courses/$courseId/chapters/$chapterId/content", file: ContentFile },
   { path: "/courses/$courseId/chapters/$chapterId/notebook", file: NotebookFile },
+  { path: "/courses/$courseId/revision", file: RevisionFile },
   { path: "/settings", file: SettingsFile },
 ];
 
@@ -430,6 +433,109 @@ describe("the Dutch sweep: the cahier", () => {
           : notebookApi(method, path, undefined),
       );
       await screen.findByText(/Je schrift is nog leeg/);
+      clean();
+    }));
+});
+
+// --- révision (spec 020) ------------------------------------------------------------------------
+
+const REVISION_CHAPTERS = [
+  {
+    id: "h1",
+    position: 1,
+    title: "De rijen",
+    ready: true,
+    section_count: 2,
+    done_count: 1,
+    skipped_count: 1,
+    sections: [
+      { id: "s1", index: 1, kind: "teach", title: "Een rij definiëren", state: "done" },
+      { id: "s2", index: 2, kind: "practise", title: "Berekenen", state: "skipped" },
+    ],
+  },
+  {
+    id: "h2",
+    position: 2,
+    title: null,
+    ready: false,
+    section_count: 0,
+    done_count: 0,
+    skipped_count: 0,
+    sections: [],
+  },
+];
+
+const LIVE_REVISION = {
+  id: "r1",
+  chapter_ids: ["h1"],
+  entry_count: 4,
+  created_at: "",
+  entries: [
+    { kind: "learner", text: "Ja." },
+    {
+      kind: "tool",
+      name: "record_result",
+      arguments: { chapter: 1, section_id: "s1", outcome: "shaky" },
+      chapter_id: "h1",
+      section_id: "s1",
+      outcome: "shaky",
+      // The backend's form: the section's label after the interface's words (a Dutch course).
+      marker: "genoteerd: wankel · 1. Een rij definiëren",
+    },
+    { kind: "tutor", text: "Vergelijk met je antwoord: gekend, wankel of te herhalen?" },
+  ],
+};
+
+const revisionApi =
+  (live: typeof LIVE_REVISION | null): Handler =>
+  (method, path) => {
+    if (method === "GET" && path.endsWith("/api/courses/c1/revision"))
+      return {
+        body: {
+          revision: live,
+          chapters: REVISION_CHAPTERS,
+          results: [
+            { chapter_id: "h1", section_id: "s1", outcome: "shaky", at: "2026-11-10T10:00:00Z" },
+          ],
+        },
+      };
+    if (method === "POST" && path.endsWith("/api/courses/c1/revision"))
+      return {
+        status: 422,
+        body: {
+          code: "revision_too_large",
+          message: "Deze hoofdstukken zijn te veel leerstof voor één herhaling: kies er minder.",
+        },
+      };
+    return undefined;
+  };
+
+describe("the Dutch sweep: the révision", () => {
+  it("the chooser and a refusal", () =>
+    withLocale("nl", async () => {
+      stubLayoutApis({ desktop: true });
+      open("/courses/c1/revision", revisionApi(null));
+      await screen.findByRole("heading", { name: "Wat wil je herhalen?" });
+      clean();
+      fireEvent.click(screen.getByRole("button", { name: "De herhaling starten" }));
+      await screen.findByRole("alert");
+      clean();
+    }));
+
+  it("a live révision, its « Bilan » and the confirmation to start a new one", () =>
+    withLocale("nl", async () => {
+      stubLayoutApis({ desktop: true });
+      open("/courses/c1/revision", revisionApi(LIVE_REVISION));
+      await screen.findByText(/Vergelijk me/);
+      clean();
+      fireEvent.click(screen.getByRole("button", { name: "Overzicht" }));
+      await screen.findByRole("dialog", { name: "Overzicht van de herhaling" });
+      clean();
+      cleanup();
+      open("/courses/c1/revision", revisionApi(LIVE_REVISION));
+      await screen.findByText(/Vergelijk me/);
+      fireEvent.click(screen.getByRole("button", { name: "Nieuwe herhaling" }));
+      await screen.findByRole("alertdialog");
       clean();
     }));
 });

@@ -2,7 +2,7 @@
  *  interface language. What the learner "says" to the model lives in `prompts.ts`. */
 
 import { m } from "@/paraglide/messages";
-import type { SectionKind, SectionState } from "./types";
+import type { RevisionOutcome, SectionKind, SectionState } from "./types";
 import type { VoiceEndReason, VoicePhase } from "./voice/types";
 
 type TextStatus = "idle" | "streaming" | "error";
@@ -27,6 +27,14 @@ export const STATE_LABEL: Record<SectionState, () => string> = {
   skipped: m.lesson_state_skipped,
   available: m.lesson_state_available,
   open: m.lesson_state_open,
+};
+
+/** A révision's three self-assessments (spec 020), as the quick replies and the « Bilan »
+ *  name them. What the learner *says* is `prompts.ts`'s `assess`, in the course language. */
+export const OUTCOME_LABEL: Record<RevisionOutcome, () => string> = {
+  solid: m.revision_outcome_solid,
+  shaky: m.revision_outcome_shaky,
+  todo: m.revision_outcome_todo,
 };
 
 /** « 7 faites · 2 passées » (spec 019 D5): done and skipped sections, counted apart. Shown

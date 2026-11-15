@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError,
 from app.config import get_settings
 from app.domain.board import BoardCard
 from app.domain.progress import Progress
+from app.domain.revision import Outcome
 
 _settings = get_settings()
 
@@ -50,6 +51,11 @@ class ToolEntry(_Model):
     # Never sent to the model.
     next_section_id: Annotated[str, Field(max_length=40)] | None = None
     active_section_id: Annotated[str, Field(max_length=40)] | None = None
+    # Spec 020: what a `record_result` call was at the time: the chapter it noted (its id; the arguments name it by
+    # its number in the course) and this révision's tally after it, which a later turn replays. Never sent to the model.
+    # (An id, not checked as a uuid: the scripts run on chapter files, whose ids are slugs.)
+    chapter_id: Annotated[str, Field(min_length=1, max_length=40)] | None = None
+    tally: dict[Outcome, Annotated[int, Field(ge=0)]] | None = None
 
     @model_validator(mode="after")
     def _recorded_on_their_tool_only(self) -> ToolEntry:
@@ -59,6 +65,8 @@ class ToolEntry(_Model):
             raise ValueError("next_section_id is only recorded on a skip_section or complete_section entry")
         if "active_section_id" in self.model_fields_set and self.name != "skip_section":
             raise ValueError("active_section_id is only recorded on a skip_section entry")
+        if (self.chapter_id is not None or self.tally is not None) and self.name != "record_result":
+            raise ValueError("chapter_id and tally are only recorded on a record_result entry")
         return self
 
     def recorded(self, name: str) -> bool:
@@ -106,14 +114,16 @@ _RECORDED = ("next_section_id", "active_section_id")
 
 
 def stored_form(entry: Entry) -> dict[str, Any]:
-    """An entry as a stored row holds it. `review` is left out when it is not set, and the
-    spec-019 fields when they were not recorded, so a discussion's rows (and every other
-    tool's entries) keep the bytes they always had."""
+    """An entry as a stored row holds it. `review` is left out when it is not set, the
+    spec-019 fields when they were not recorded, and the spec-020 ones (`chapter_id`,
+    `tally`) when they are not set, so a discussion's rows (and every other tool's entries)
+    keep the bytes they always had."""
     exclude: set[str] | None = None
     if isinstance(entry, ToolEntry):
         exclude = {name for name in _RECORDED if not entry.recorded(name)}
-        if entry.review is None:
-            exclude.add("review")
+        for name in ("review", "chapter_id", "tally"):
+            if getattr(entry, name) is None:
+                exclude.add(name)
     return entry.model_dump(mode="json", exclude=exclude or None)
 
 

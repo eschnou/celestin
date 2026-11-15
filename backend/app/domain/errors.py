@@ -603,3 +603,59 @@ class DiscussionQuota(TutorError):
     def __init__(self, maximum: int) -> None:
         self.params = {"maximum": maximum}
         super().__init__()
+
+
+# --- révision (spec 020) ---------------------------------------------------------------
+# A révision keeps the discussion's codes where the wire contract names them (`conversation_closed` and its reason,
+# `conversation_full`, `conversation_busy`, `empty_conversation_expected`) and says them in its own words.
+
+
+class RevisionClosed(ConversationClosed):
+    @property
+    def message_key(self) -> str:
+        return f"revision_closed.{self.reason if self.reason in self._REASONS else 'replaced'}"
+
+
+class RevisionFull(ConversationFull):
+    @property
+    def message_key(self) -> str:
+        return "revision_full"
+
+
+class RevisionBusy(ConversationBusy):
+    @property
+    def message_key(self) -> str:
+        return "revision_busy"
+
+
+class RevisionStarted(EmptyTurnExpected):
+    """An opening turn on a révision that already holds something: the page restores it instead."""
+
+    @property
+    def message_key(self) -> str:
+        return "revision_started"
+
+
+class RevisionNoChapter(TutorError):
+    code = "revision_no_chapter"
+    status = 422
+
+
+class RevisionTooLarge(TutorError):
+    """The chosen packs together are over `revision_max_pack_chars` (D2): the student picks fewer chapters."""
+
+    code = "revision_too_large"
+    status = 422
+
+    def __init__(self, maximum: int, size: int) -> None:
+        self.params = {"maximum": maximum, "size": size}
+        super().__init__()
+
+
+class RevisionQuota(TutorError):
+    code = "revision_quota"
+    status = 429
+
+    def __init__(self, maximum: int) -> None:
+        self.params = {"maximum": maximum}
+        super().__init__()

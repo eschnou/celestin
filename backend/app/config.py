@@ -112,6 +112,11 @@ class Settings(BaseSettings):
     # for a student (all content versions; « Recommencer le chapitre » deletes them). Model turns are not.
     seance_reports_per_hour: Annotated[int, Field(ge=1)] = 600
     seance_max_rows: Annotated[int, Field(ge=1)] = 200
+    # Révision (spec 020 D2, D6). The prompt carries the pack of every chosen chapter, so a selection is bounded by
+    # the characters of those packs (about 37 000 tokens of French at the default); the caps and the append policy
+    # are the discussion's. A révision started counts against its own daily quota.
+    revision_max_pack_chars: Annotated[int, Field(ge=1000)] = 120_000
+    revision_sessions_per_day: Annotated[int, Field(ge=1)] = 10
 
     # Courses and chapters (005 design 3.13).
     max_courses_per_student: Annotated[int, Field(ge=1)] = 30

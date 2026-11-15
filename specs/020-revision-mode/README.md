@@ -49,7 +49,9 @@ done) and the results record to decide what to ask.
 session is a later piece. Dictation and photographed work (both course-scoped already) work.
 
 **D6. One live révision per student and course.** A stopped or failed turn stores nothing, as in a
-discussion (the browser's stop report of spec 018 is the parcours's only). « Nouvelle révision » closes it (`replaced`) and
+discussion (the browser's stop report of spec 018 is the parcours's only) — and that includes its
+results: `record_result` notes in the turn's memory, and the results are written with the
+transcript, in one transaction, when the turn ends. A result never exists without its stored call. « Nouvelle révision » closes it (`replaced`) and
 starts another, with a new choice of chapters. A révision whose chapters changed (content version
 bumped, chapter deleted) is closed `content_changed` lazily. Caps and append policy are the
 discussion's. Daily quota: `REVISION_SESSIONS_PER_DAY` (default 10).
@@ -82,8 +84,8 @@ existing tool:
 
 Refused (tool error the model reads) when the chapter is not in this révision or the section is not
 in that chapter. One row in the registry with its `replay` and `shown` hooks, like every tool since
-spec 018; its replayed output is rebuilt from what the stored entry recorded, never from the state now. Stored through the turn context (a `record` callable bound by the controller, like
-`save`; unbound in unit tests and scripts). Output: a one-line tally of this révision so far.
+spec 018; its replayed output is rebuilt from what the stored entry recorded, never from the state now. Noted in the turn's memory (so the tally counts it at once) and written to `revision_results` with the
+transcript when the turn ends (D6). Output: a one-line tally of this révision so far.
 Event `revision.result`: `{chapter_id, section_id, outcome, marker}`; the marker
 (`marker.revision_result`) says what was noted, so the student sees everything that is recorded
 about them. The latest result per section is the one that counts.
@@ -156,16 +158,20 @@ All routes: the student who owns the course (404 otherwise).
 { "revision": null | { "id": "…", "chapter_ids": ["…"], "entries": [StoredEntry…],
                        "entry_count": 12, "created_at": "…" },
   "chapters": [ { "id": "…", "position": 2, "title": "…", "ready": true,
-                  "section_count": 9, "done_count": 4, "skipped_count": 1 } ],   // every chapter of the course
+                  "section_count": 9, "done_count": 4, "skipped_count": 1,
+                  "sections": [ { "id": "…", "index": 1, "kind": "teach", "title": "…",
+                                  "state": "done" | "skipped" | "todo" } ] } ],   // every chapter of the course; `sections` is [] for a chapter that is not ready
   "results": [ { "chapter_id": "…", "section_id": "…", "outcome": "shaky", "at": "…" } ] }  // latest per section
 ```
 
-`StoredEntry` as in spec 018, plus `{kind: "tool", name: "record_result", arguments: {…},
+The course's name, subject and language come from the course view the page already reads. Beats,
+exercise pools and `done_when` never cross this wire. `StoredEntry` as in spec 018, plus `{kind: "tool", name: "record_result", arguments: {…},
 chapter_id, section_id, outcome, marker}`.
 
 ### `POST /api/courses/{c}/revision` → 201
 
-`{ "chapter_ids": ["…", …] }` → `{ "revision": {…} }`. Closes the live one as `replaced`.
+`{ "chapter_ids": ["…", …] }` → the same body as the `GET` (`revision`, `chapters`, `results`), so the
+page needs no second read. Closes the live one as `replaced`.
 `422 revision_no_chapter`, `422 revision_too_large`, `409 chapter_not_ready` for a chapter without
 content, `404` for a chapter of another course, `429 revision_quota`.
 
@@ -185,7 +191,8 @@ content, `404` for a chapter of another course, `429 revision_quota`.
     and the chooser stays.
   - a live révision: the tutor column and the board, like a discussion (no strip, no map, no
     page-turn button). Three quick replies under the composer — « Acquis », « Fragile », « À revoir »
-    — send the learner sentence in the course's language. A « Bilan » sheet lists, per chapter, each
+    — send the learner sentence in the course's language (`useLearnerSentences`; French:
+    « Pour moi, c'est acquis. », « Pour moi, c'est fragile. », « Pour moi, c'est à revoir. »). A « Bilan » sheet lists, per chapter, each
     section with its latest self-assessment and date (« pas encore testée » otherwise), with links to
     the section's chapter (parcours) and to its cahier. « Nouvelle révision » confirms first.
 - Copy in French, English and Dutch.

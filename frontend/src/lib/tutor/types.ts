@@ -379,7 +379,8 @@ export type LessonScope = {
   courseId: string;
   chapterId: string;
   /** Discussion mode (007): which mode the voice session is for, and which stored
-   *  conversation it seeds from. Absent means the parcours. */
+   *  conversation it seeds from. Absent means the parcours. A révision (spec 020) has no
+   *  voice and no chapter scope, so it never appears here. */
   mode?: "parcours" | "discussion";
   conversationId?: string;
 };
@@ -430,6 +431,15 @@ export type TutorEvent =
       marker: string;
     }
   | { event: "step.ready"; marker: string }
+  /** Spec 020: a self-assessment Célestin noted in a révision (`record_result`). The marker
+   *  says what was noted, so the student sees everything recorded about them. */
+  | {
+      event: "revision.result";
+      chapter_id: string;
+      section_id: string;
+      outcome: RevisionOutcome;
+      marker: string;
+    }
   | { event: "turn.end"; reason: TurnEndReason; usage: Record<string, unknown> }
   | { event: "error"; code: string; message: string };
 
@@ -473,6 +483,11 @@ export type StoredEntry = {
   next_section_id?: string | null;
   /** `skip_section` only: the section active now, null when none. */
   active_section_id?: string | null;
+  /** `record_result` only (spec 020): what was noted, beside the model's own `arguments`
+   *  (which name the chapter by its number). */
+  chapter_id?: string | null;
+  section_id?: string | null;
+  outcome?: RevisionOutcome | null;
 };
 
 /** The live parcours séance of one chapter (spec 018 D2): the stretch of work the lesson
@@ -496,6 +511,61 @@ export type Conversation = {
   entries: StoredEntry[];
   entry_count: number;
   created_at: string;
+};
+
+/* -------------------------------- révision -------------------------------- */
+
+/** The student's own judgement of a question (spec 020 D3): acquis, fragile, à revoir. */
+export type RevisionOutcome = "solid" | "shaky" | "todo";
+
+export const REVISION_OUTCOMES = [
+  "solid",
+  "shaky",
+  "todo",
+] as const satisfies readonly RevisionOutcome[];
+
+/** A self-assessment noted this session, as the `revision.result` event carries it. */
+export type RevisionMark = { chapter_id: string; section_id: string; outcome: RevisionOutcome };
+
+/** The latest self-assessment of a section, as `GET …/revision` returns it. */
+export type RevisionResult = RevisionMark & { at: string };
+
+/** The live révision of a course (spec 020): its chosen chapters and its stored entries. */
+export type Revision = {
+  id: string;
+  chapter_ids: string[];
+  entries: StoredEntry[];
+  entry_count: number;
+  created_at: string;
+};
+
+/** A section of a chapter as the révision page shows it: where the path stands, never its
+ *  beats or exercises. `todo` is never done nor skipped. */
+export type RevisionSection = {
+  id: string;
+  index: number;
+  kind: SectionKind;
+  title: string;
+  state: "done" | "skipped" | "todo";
+};
+
+/** Every chapter of the course; `sections` is empty for one that is not ready. */
+export type RevisionChapter = {
+  id: string;
+  position: number;
+  title: string | null;
+  ready: boolean;
+  section_count: number;
+  done_count: number;
+  skipped_count: number;
+  sections: RevisionSection[];
+};
+
+/** `GET /api/courses/{c}/revision`. */
+export type RevisionView = {
+  revision: Revision | null;
+  chapters: RevisionChapter[];
+  results: RevisionResult[];
 };
 
 /** What the browser renders. */

@@ -7,7 +7,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.schemas.chat import Id, ProgressDTO
-from app.domain.mode import DEFAULT_MODE, Mode
+from app.domain.mode import DEFAULT_MODE, ChapterMode
 
 
 class _Model(BaseModel):
@@ -21,7 +21,7 @@ class VoiceSessionRequest(_Model):
 
     course_id: Id
     chapter_id: Id
-    mode: Mode = DEFAULT_MODE
+    mode: ChapterMode = DEFAULT_MODE
     conversation_id: Id | None = None
 
 
@@ -46,7 +46,7 @@ class VoiceSessionResponse(_Model):
 class VoiceToolRequest(_Model):
     # The mode the browser is in. `registry.execute` gates on it, so a section
     # tool cannot be run from a discussion whatever this request says (007 §3.5).
-    mode: Mode = DEFAULT_MODE
+    mode: ChapterMode = DEFAULT_MODE
     session_id: Annotated[str, Field(max_length=32)] = ""
     call_id: Annotated[str, Field(min_length=1, max_length=128)]
     name: Annotated[str, Field(min_length=1, max_length=64)]

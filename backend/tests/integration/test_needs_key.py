@@ -25,12 +25,14 @@ CHAPTER = "{chapter_id}"
 CHAPTER_URL = f"/api/courses/{COURSE}/chapters/{CHAPTER}"
 CH = CHAPTER_URL.format(course_id=COURSE_ID, chapter_id=CHAPTER_ID)
 
-# The nine routes that call the provider (spec 013 design 3.8): method, path template, request arguments.
+# The ten routes that call the provider (spec 013 design 3.8; the révision turn since spec 020): method, path
+# template, request arguments.
 # One table: the requests are made against the template filled with the fixture's ids, and the set of
 # gated routes is read from the same templates.
 AI_ROUTES = [
     ("POST", "/api/chat", {"json": {**LESSON, "message": None}}),
     ("POST", "/api/discussion/turn", {"json": {**LESSON, "conversation_id": "a" * 32, "message": "salut"}}),
+    ("POST", "/api/revision/turn", {"json": {"course_id": COURSE_ID, "revision_id": "a" * 32, "message": "salut"}}),
     ("POST", "/api/voice/session", {"json": {**LESSON}}),
     ("POST", f"/api/courses/{COURSE}/work", {"files": [("photo", ("w.jpg", b"x", "image/jpeg"))]}),
     ("POST", "/api/dictation", {"files": [("audio", ("d.webm", b"x", "audio/webm"))], "data": {"language": "fr"}}),
@@ -149,7 +151,7 @@ def _has_require_ai(dependant) -> bool:
     return dependant.call is require_ai or any(_has_require_ai(sub) for sub in dependant.dependencies)
 
 
-def test_exactly_the_nine_routes_are_gated(settings, db_engine) -> None:
+def test_exactly_the_ten_routes_are_gated(settings, db_engine) -> None:
     app = create_app(settings, engine=db_engine)
     gated = {(m, path) for path, route in iter_api_routes(app) if _has_require_ai(route.dependant) for m in route.methods}
     assert gated == GATED

@@ -16,11 +16,9 @@ share is `conversations.py`). Two rules carry the weight:
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
 
 from app.api.schemas.chat import Entry
 from app.config import Settings
-from app.db.base import utcnow
 from app.db.repositories import ConversationRecord, Repositories
 from app.domain.chapter import LessonChapter
 from app.domain.errors import (
@@ -30,12 +28,12 @@ from app.domain.errors import (
     EmptyTurnExpected,
     NotFound,
 )
-from app.domain.mode import Mode
+from app.domain.mode import ChapterMode
 from app.services import conversations
 
 log = logging.getLogger(__name__)
 
-MODE: Mode = "discussion"
+MODE: ChapterMode = "discussion"
 
 
 class DiscussionService:
@@ -49,15 +47,13 @@ class DiscussionService:
         """The live conversation, or None. A conversation held against an older
         version of the chapter is closed here rather than continued: its pack is
         gone (R8.3). Lazy, so a content edit need not know about conversations."""
-        return conversations.live_row(self._repos, user_id, chapter, MODE, "conversation_closed")
+        found = self._repos.conversations.live(user_id, chapter.id, mode=MODE)
+        return conversations.live_row(self._repos, found, conversations.older_than(chapter), "conversation_closed")
 
     def start(self, user_id: str, chapter: LessonChapter) -> ConversationRecord:
         """A new empty conversation, closing any live one as `replaced`."""
-        maximum = self._settings.discussion_conversations_per_day
-        since = utcnow() - timedelta(days=1)
-        if self._repos.conversations.started_since(user_id, since, mode=MODE) >= maximum:
-            log.warning("discussion_quota", extra={"user_id": user_id})
-            raise DiscussionQuota(maximum)
+        per_day = self._settings.discussion_conversations_per_day
+        conversations.check_quota(self._repos, user_id, MODE, per_day, DiscussionQuota)
         conversation = self._repos.conversations.start(user_id, chapter.id, chapter.version, mode=MODE)
         log.info(
             "conversation_started",
@@ -102,37 +98,4 @@ class DiscussionService:
 
     def append(self, conversation: ConversationRecord, entries: list[Entry]) -> None:
         """One write, after the turn ended (NFR 4.4.1)."""
-        if not entries:
-            return
-        payload = conversations.payload(entries)
-        try:
-            after = self._repos.conversations.append(
-                conversation.id,
-                payload,
-                expected_count=conversation.entry_count,
-                max_entries=self._settings.discussion_max_entries,
-                max_chars=self._settings.discussion_max_chars,
-                cards=conversations.card_count(entries),
-            )
-        except Exception as exc:
-            # The turn reached the learner but is lost to the store: the one case
-            # where the screen and the record disagree, so it is logged by name.
-            log.warning(
-                "conversation_append_failed",
-                extra={
-                    "conversation_id": conversation.id,
-                    "added": len(payload),
-                    "reason": type(exc).__name__,
-                },
-            )
-            raise
-        log.info(
-            "conversation_appended",
-            extra={
-                "conversation_id": conversation.id,
-                "added": len(payload),
-                "entry_count": after.entry_count,
-                "char_count": after.char_count,
-                "closed": after.closed_reason,
-            },
-        )
+        conversations.append(self._repos, self._settings, conversation, entries)
