@@ -101,8 +101,8 @@ def _rows(
     rows = []
     for chapter in chapters:
         record = records.get(chapter.id)
-        done = min(len(record.progress.done), chapter.section_count) if record else 0
-        state = _state(chapter, record, done)
+        done, skipped = _counts(chapter, record)
+        state = _state(chapter, record, done, skipped)
         rows.append(
             ChapterRow(
                 id=chapter.id,
@@ -111,6 +111,7 @@ def _rows(
                 ready=chapter.ready,
                 section_count=chapter.section_count,
                 done_count=done,
+                skipped_count=skipped,
                 state=state,
                 last=chapter.id == last_id,
                 authoring_state=chapter.authoring_state,
@@ -126,10 +127,23 @@ def _rows(
 
 
 
-def _state(chapter: ChapterRecord, record: ProgressRecord | None, done: int) -> ChapterState:
-    if not chapter.ready or record is None or (done == 0 and record.progress.active is None):
+def _counts(chapter: ChapterRecord, record: ProgressRecord | None) -> tuple[int, int]:
+    """Done and skipped sections (spec 019), capped so that together they never pass the section
+    count. No id is both: the stored progress is written by the section tools only, from a
+    normalised progress (`progress.normalise`), and `with_done` takes an id out of `skipped`."""
+    if record is None:
+        return 0, 0
+    done = min(len(record.progress.done), chapter.section_count)
+    skipped = min(len(record.progress.skipped), chapter.section_count - done)
+    return done, skipped
+
+
+def _state(chapter: ChapterRecord, record: ProgressRecord | None, done: int, skipped: int) -> ChapterState:
+    """« terminé » once every section is done or skipped (spec 019 D5); a chapter where
+    something was done, skipped or started is in progress."""
+    if not chapter.ready or record is None or (done == 0 and skipped == 0 and record.progress.active is None):
         return "not_started"
-    if done >= chapter.section_count:
+    if done + skipped >= chapter.section_count:
         return "done"
     return "in_progress"
 
@@ -272,8 +286,10 @@ def _row(chapter: ChapterRecord, record: ProgressRecord | None, locale: Locale) 
     (row,) = _rows([chapter], {}, locale)
     if record is None:
         return row
-    done = min(len(record.progress.done), chapter.section_count)
-    return row.model_copy(update={"done_count": done, "state": _state(chapter, record, done)})
+    done, skipped = _counts(chapter, record)
+    return row.model_copy(
+        update={"done_count": done, "skipped_count": skipped, "state": _state(chapter, record, done, skipped)}
+    )
 
 
 # Optional so that an empty form is refused with the French « vide » message, not a 422 from FastAPI.

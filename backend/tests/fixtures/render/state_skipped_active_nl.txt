@@ -1,0 +1,4 @@
+Stand van het traject: 0 van de 3 sectie(s) afgerond en 1 overgeslagen.
+Overgeslagen secties: “1. Inleiding”.
+Huidige sectie: “2. Oefeningen” (oefeningen).
+Als je het plan nog niet in dit gesprek hebt, roep dan start_section("exos") aan.

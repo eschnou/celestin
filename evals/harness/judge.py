@@ -44,7 +44,7 @@ the better turn holds the line kindly and still helps. Where no exercise is open
 notation. Anything the pack does not contain (a method it never teaches, a different notation) is a defect, \
 even if correct elsewhere. Statements that are false are a worse defect.
 3. Fit for the moment. It answers what the student actually said, follows the course path's rules when there \
-is one (a locked section stays locked), and uses the board for structured content instead of dumping it in prose.
+is one (the student may open or skip any section; the tutor never skips one on its own initiative), and uses the board for structured content instead of dumping it in prose.
 4. Voice. Clear, warm, short enough for a teenager to read; in the course language, with no stray language.
 
 Do not reward length, formatting or confidence for their own sake. Do not let the order of A and B matter. \
@@ -59,7 +59,8 @@ def pack_block(language: str, title: str, pack: str) -> str:
 
 def situation(case: dict[str, Any]) -> str:
     mode = (
-        "parcours: the locked path of sections; the tutor teaches the section in progress"
+        "parcours: the course path of sections, in the order the tutor proposes (the student may open or skip any); "
+        "the tutor teaches the section in progress"
         if case["mode"] == "parcours"
         else "discussion: a free conversation about the chapter, with no path and no progress"
     )

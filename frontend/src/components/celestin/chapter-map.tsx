@@ -1,15 +1,17 @@
 /**
  * The chapter map (002 design 3.11): the full path, on demand.
  *
- * Rows only display; the backend decides what may start. A done row offers a
- * review, the next row an opening, both as ordinary learner messages. A row whose
- * section has stored boards also offers to reread them in the cahier (018), which
- * is a link, not a message: no model call.
+ * Every row is actionable (spec 019: no section is locked); the backend decides what each
+ * action does. A done row offers a review, a skipped one a start, every other one a start
+ * (« Reprendre » when it has a stored séance) and « Passer », the active one « Passer »:
+ * all ordinary learner messages, in the course's language. The proposed next section keeps
+ * the primary button. A row whose section has stored boards also offers to reread them in
+ * the cahier (018), which is a link, not a message: no model call.
  */
 
 import { Link } from "@tanstack/react-router";
 import { memo, useState } from "react";
-import { Check, Lock } from "lucide-react";
+import { Check, ChevronsRight } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,13 +29,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { SectionLabel } from "@/components/celestin/section-label";
+import { SectionLabel, SectionRing } from "@/components/celestin/section-label";
 import { useCourseLanguage } from "@/lib/course-language";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
 import { chapterModel } from "@/lib/tutor/chapter-model";
 import { STATE_LABEL } from "@/lib/tutor/labels";
-import { useLearnerSentences } from "@/lib/tutor/prompts";
+import { useLearnerSentences, type LearnerSentences } from "@/lib/tutor/prompts";
 import type { ChapterView, Progress, SectionOverview, SectionState } from "@/lib/tutor/types";
 
 type ChapterMapProps = {
@@ -47,10 +49,14 @@ type ChapterMapProps = {
   onReset: () => void;
   /** The sections the cahier has boards for (018): their rows offer « Relire ». */
   rereadable: ReadonlySet<string>;
+  /** The sections with a stored séance (spec 019): a start there reads « Reprendre ». */
+  begun: ReadonlySet<string>;
 };
 
 const ACTION =
-  "shrink-0 rounded-md border border-border bg-card px-2 py-1 text-xs font-semibold transition-colors hover:bg-secondary disabled:opacity-50";
+  "shrink-0 rounded-md border px-2 py-1 text-xs font-semibold transition-colors disabled:opacity-50";
+const SECONDARY = `${ACTION} border-border bg-card hover:bg-secondary`;
+const PRIMARY = `${ACTION} border-primary bg-primary text-primary-foreground hover:bg-primary/90`;
 
 function Dot({ state }: { state: SectionState }) {
   if (state === "done") {
@@ -60,21 +66,48 @@ function Dot({ state }: { state: SectionState }) {
       </span>
     );
   }
-  if (state === "locked") {
+  if (state === "skipped") {
     return (
-      <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground">
-        <Lock className="size-2.5" />
+      <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-dashed border-muted-foreground/60 text-muted-foreground">
+        <ChevronsRight className="size-3" />
       </span>
     );
   }
-  return (
-    <span
-      className={cn(
-        "size-5 shrink-0 rounded-full border-2",
-        state === "active" ? "border-primary bg-primary/20" : "border-primary/50 bg-card",
-      )}
-    />
-  );
+  return <SectionRing state={state} className="size-5" />;
+}
+
+type Action = { key: string; label: string; text: string; primary?: boolean; title?: string };
+
+/** What a row offers, by state (spec 019 « Interface »), in the order shown. */
+function actions(
+  section: SectionOverview,
+  state: SectionState,
+  begun: boolean,
+  said: LearnerSentences,
+): Action[] {
+  const start = begun
+    ? { key: "start", label: m.chapter_action_resume(), text: said.resume(section.title) }
+    : { key: "start", label: m.chapter_action_start(), text: said.start(section.title) };
+  const skip = {
+    key: "skip",
+    label: m.chapter_action_skip(),
+    text: said.skip(section.title),
+    title: m.chapter_action_skip_title(),
+  };
+  switch (state) {
+    case "done":
+      return [
+        { key: "review", label: m.chapter_action_review(), text: said.review(section.title) },
+      ];
+    case "active":
+      return [skip];
+    case "skipped":
+      return [start];
+    case "available":
+      return [{ ...start, primary: true }, skip];
+    case "open":
+      return [start, skip];
+  }
 }
 
 function Row({
@@ -85,6 +118,7 @@ function Row({
   onAction,
   notebook,
   reread,
+  begun,
 }: {
   section: SectionOverview;
   state: SectionState;
@@ -94,21 +128,12 @@ function Row({
   /** Where the chapter's cahier is, and whether this section has boards to reread there. */
   notebook: { courseId: string; chapterId: string };
   reread: boolean;
+  begun: boolean;
 }) {
   const language = useCourseLanguage();
   const said = useLearnerSentences();
-  const action =
-    state === "done"
-      ? { label: m.chapter_action_review(), text: said.review(section.title) }
-      : state === "available"
-        ? { label: m.chapter_action_start(), text: said.start(section.title) }
-        : null;
   return (
-    <li
-      className={cn("relative flex gap-3 pb-4", state === "locked" && "opacity-55")}
-      aria-disabled={state === "locked" || undefined}
-      data-state={state}
-    >
+    <li className="relative flex gap-3 pb-4" data-state={state}>
       {/* the rail */}
       {!last && (
         <span
@@ -123,48 +148,55 @@ function Row({
         <Dot state={state} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1">
-            <SectionLabel section={section} className="text-[11px]">
-              <span className="sr-only">{STATE_LABEL[state]()}</span>
-            </SectionLabel>
-            <p
-              lang={language}
-              className={cn(
-                "text-sm leading-tight",
-                state === "active" ? "font-bold" : "font-semibold",
-                state === "done" && "text-muted-foreground",
-              )}
-            >
-              {section.title}
-            </p>
-            {state === "active" && (
-              <p lang={language} className="mt-1 text-xs leading-snug text-muted-foreground">
-                {section.goal}
-              </p>
-            )}
-          </div>
+        <SectionLabel section={section} className="text-[11px]">
+          {state === "skipped" ? (
+            <span className="rounded bg-secondary px-1 text-[11px] font-semibold text-muted-foreground">
+              {STATE_LABEL.skipped()}
+            </span>
+          ) : (
+            <span className="sr-only">{STATE_LABEL[state]()}</span>
+          )}
+        </SectionLabel>
+        <p
+          lang={language}
+          className={cn(
+            "text-sm leading-tight",
+            state === "active" ? "font-bold" : "font-semibold",
+            (state === "done" || state === "skipped") && "text-muted-foreground",
+          )}
+        >
+          {section.title}
+        </p>
+        {state === "active" && (
+          <p lang={language} className="mt-1 text-xs leading-snug text-muted-foreground">
+            {section.goal}
+          </p>
+        )}
+        {/* Under the title, wrapping: two or three actions never squeeze it on a phone. */}
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
           {reread && (
             <Link
               to="/courses/$courseId/chapters/$chapterId/notebook"
               params={notebook}
               hash={section.id}
               title={m.chapter_action_reread_title()}
-              className={ACTION}
+              className={SECONDARY}
             >
               {m.chapter_action_reread()}
             </Link>
           )}
-          {action && (
+          {actions(section, state, begun, said).map((action) => (
             <button
+              key={action.key}
               type="button"
               disabled={streaming}
               onClick={() => onAction(action.text)}
-              className={ACTION}
+              title={action.title}
+              className={action.primary ? PRIMARY : SECONDARY}
             >
               {action.label}
             </button>
-          )}
+          ))}
         </div>
       </div>
     </li>
@@ -180,10 +212,11 @@ export const ChapterMapSheet = memo(function ChapterMapSheet({
   onSend,
   onReset,
   rereadable,
+  begun,
 }: ChapterMapProps) {
   const language = useCourseLanguage();
   const [confirmReset, setConfirmReset] = useState(false);
-  const { segments, doneCount, total } = chapterModel(chapter, progress);
+  const { segments, doneCount, skippedCount, total } = chapterModel(chapter, progress);
   const notebook = { courseId: chapter.course_id, chapterId: chapter.id };
 
   const act = (text: string) => {
@@ -198,7 +231,10 @@ export const ChapterMapSheet = memo(function ChapterMapSheet({
           <SheetTitle lang={language} className="text-base">
             {chapter.title}
           </SheetTitle>
-          <SheetDescription>{m.lesson_map_progress({ done: doneCount, total })}</SheetDescription>
+          <SheetDescription>
+            {m.lesson_map_progress({ done: doneCount, total })}
+            {skippedCount > 0 && ` · ${m.chapter_count_skipped({ count: skippedCount })}`}
+          </SheetDescription>
         </SheetHeader>
 
         <ol className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
@@ -206,12 +242,13 @@ export const ChapterMapSheet = memo(function ChapterMapSheet({
             <Row
               key={section.id}
               section={section}
-              state={segments[i] ?? "locked"}
+              state={segments[i] ?? "open"}
               last={i === total - 1}
               streaming={streaming}
               onAction={act}
               notebook={notebook}
               reread={rereadable.has(section.id)}
+              begun={begun.has(section.id)}
             />
           ))}
         </ol>

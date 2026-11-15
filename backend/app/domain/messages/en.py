@@ -109,6 +109,7 @@ MESSAGES: dict[str, str] = {
     "marker.section_started": "section started · {label}",
     "marker.section_review": "review · {label}",
     "marker.section_done": "section completed · {label}",
+    "marker.section_skipped": "section skipped · {label}",
     "marker.step_ready": "next step offered",
     # --- why a pack or a curriculum edit is refused (domain/pack.py, curriculum.py, references.py) --
     "issue.pack.too_long": "the document is over {max_chars} characters ({length})",

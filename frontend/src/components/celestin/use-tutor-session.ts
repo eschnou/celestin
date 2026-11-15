@@ -78,6 +78,9 @@ export type SessionState = {
   blocks: Record<number, { entry: string; history: number }>;
   /** A voice session is open: new tutor text is spoken, not written. */
   voice: boolean;
+  /** The sections started this session, reviews left out, in the order they first
+   *  started: with the stored séances, what the map offers to « Reprendre » (spec 019). */
+  started: string[];
 };
 
 export const EMPTY_SESSION: SessionState = {
@@ -90,6 +93,7 @@ export const EMPTY_SESSION: SessionState = {
   section: null,
   blocks: {},
   voice: false,
+  started: [],
 };
 
 function marker(text: string, boardIndex: number | null = null): TranscriptEntry {
@@ -184,8 +188,19 @@ export function reduce(state: SessionState, event: SessionEvent): SessionState {
         board: null,
         boards: [],
         section: event.section_id,
-        // A review leaves the path where it is (R3.6).
-        progress: event.review ? state.progress : { ...state.progress, active: event.section_id },
+        started:
+          event.review || state.started.includes(event.section_id)
+            ? state.started
+            : [...state.started, event.section_id],
+        // A review leaves the path where it is (R3.6); starting a skipped section
+        // un-skips it (spec 019).
+        progress: event.review
+          ? state.progress
+          : {
+              ...state.progress,
+              active: event.section_id,
+              skipped: state.progress.skipped.filter((id) => id !== event.section_id),
+            },
         entries: [
           ...state.entries.map((e) => (e.role === "marker" ? { ...e, boardIndex: null } : e)),
           marker(event.marker),
@@ -210,6 +225,7 @@ export function reduce(state: SessionState, event: SessionEvent): SessionState {
           ? { kind: "section", sectionId: event.next_section_id }
           : null,
         progress: {
+          ...state.progress,
           done: state.progress.done.includes(event.section_id)
             ? state.progress.done
             : [...state.progress.done, event.section_id],
@@ -218,12 +234,47 @@ export function reduce(state: SessionState, event: SessionEvent): SessionState {
         entries: [...state.entries, marker(event.marker)],
         history: [
           ...state.history,
-          // The summary stays server-side (logged); a replay needs only the id.
+          // The summary stays server-side (logged). What the call answered is recorded
+          // (spec 019), so the server replays it as it was said.
           {
             kind: "tool",
             name: "complete_section",
             arguments: { section_id: event.section_id },
             ok: true,
+            next_section_id: event.next_section_id,
+          },
+        ],
+      };
+
+    case "section.skipped":
+      return {
+        ...state,
+        // Skipping a section other than the one being worked leaves the page alone;
+        // otherwise it turns as a completion does, to the next section or, when there is
+        // none (the skip finished the chapter), to nothing.
+        nextStep:
+          event.active_section_id !== null
+            ? state.nextStep
+            : event.next_section_id
+              ? { kind: "section", sectionId: event.next_section_id }
+              : null,
+        progress: {
+          ...state.progress,
+          skipped: state.progress.skipped.includes(event.section_id)
+            ? state.progress.skipped
+            : [...state.progress.skipped, event.section_id],
+          active: state.progress.active === event.section_id ? null : state.progress.active,
+        },
+        entries: [...state.entries, marker(event.marker)],
+        history: [
+          ...state.history,
+          {
+            kind: "tool",
+            name: "skip_section",
+            arguments: { section_id: event.section_id },
+            ok: true,
+            next_section_id: event.next_section_id,
+            active_section_id: event.active_section_id,
           },
         ],
       };
@@ -333,6 +384,14 @@ export function sessionFromEntries(entries: StoredEntry[]): SessionState {
         event: "section.done",
         section_id: sectionId,
         next_section_id: entry.next_section_id ?? null,
+        marker,
+      });
+    } else if (entry.name === "skip_section" && typeof sectionId === "string") {
+      state = reduce(state, {
+        event: "section.skipped",
+        section_id: sectionId,
+        next_section_id: entry.next_section_id ?? null,
+        active_section_id: entry.active_section_id ?? null,
         marker,
       });
     } else if (entry.name === "propose_next_step") {
@@ -617,6 +676,8 @@ export function useTutorSession({
     progress: state.progress,
     nextStep: state.nextStep,
     section: state.section,
+    /** The sections started this session, reviews left out (spec 019). */
+    started: state.started,
     status,
     send,
     cancel,

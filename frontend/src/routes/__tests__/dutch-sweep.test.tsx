@@ -70,7 +70,8 @@ const row = (over: Record<string, unknown> = {}) => ({
 const DETAIL = {
   ...summary,
   chapters: [
-    row(),
+    // One section skipped (spec 019): the row counts it apart.
+    row({ skipped_count: 1 }),
     row({
       id: "h2",
       position: 2,
@@ -229,6 +230,7 @@ describe("the Dutch sweep: courses", () => {
     withLocale("nl", async () => {
       open("/courses/c1");
       await screen.findByRole("heading", { name: "Fysica 4e jaar" });
+      expect(screen.getAllByText(/2 van 9 afgerond · 1 overgeslagen/).length).toBeGreaterThan(0);
       clean();
       fireEvent.keyDown(screen.getByRole("button", { name: "Acties voor de cursus" }), {
         key: "Enter",
@@ -371,7 +373,7 @@ const NOTEBOOK_CHAPTER = {
     { id: "s1", index: 1, kind: "teach", title: "Vitesse moyenne", goal: "Définir la vitesse." },
     { id: "s2", index: 2, kind: "practise", title: "Calculer une durée", goal: "g2" },
   ],
-  progress: { done: ["s1"], active: "s2" },
+  progress: { done: ["s1"], active: "s2", skipped: [] },
 };
 
 const NOTEBOOK = {

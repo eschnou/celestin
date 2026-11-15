@@ -1,6 +1,6 @@
 # Voice mode
 
-Talking to Célestin instead of typing (spec 003). Same prompt, same pack, same five tools, same board;
+Talking to Célestin instead of typing (spec 003). Same prompt, same pack, same six tools (`skip_section` since spec 019: a spoken « on passe celle-là » goes through `/api/voice/tool` like any section tool, and the response's `progress` carries `skipped`), same board;
 only the channel changes. The browser holds a WebRTC call with a Realtime API server (OpenAI's, or the voice connection's, spec 014:
 the session response carries `calls_url` and the browser holds no URL of its own); the backend never touches
 audio. Voice is on only when the default connection is OpenAI's or the voice role has a connection of its own:

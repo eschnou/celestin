@@ -66,7 +66,6 @@
   "course_action_failed": "Dat is niet gelukt. Probeer opnieuw.",
   "course_empty": "Deze cursus heeft nog geen hoofdstukken. Voeg er een toe met de pdf of de foto's van je cursus.",
   "course_add_chapter": "Een hoofdstuk toevoegen",
-  "chapter_progress_section": "Sectie {current} van {total}",
   "chapter_menu": "Acties voor “{title}”",
   "course_resume_title": "Ga verder waar je gebleven was",
   "course_next_title": "Volgend hoofdstuk",
@@ -104,6 +103,38 @@
   "chapter_action_start": "Beginnen",
   "chapter_action_resume": "Verder gaan",
   "chapter_action_continue": "Doorgaan",
+  "chapter_action_skip": "Overslaan",
+  "chapter_action_skip_title": "Deze sectie overslaan: ze blijft open, je kunt er later naar terugkeren",
+  "chapter_count_done": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} afgerond",
+        "countPlural=other": "{count} afgerond"
+      }
+    }
+  ],
+  "chapter_count_skipped": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} overgeslagen",
+        "countPlural=other": "{count} overgeslagen"
+      }
+    }
+  ],
+  "chapter_count_done_of": [
+    {
+      "declarations": ["input count", "input total", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} van {total} afgerond",
+        "countPlural=other": "{count} van {total} afgerond"
+      }
+    }
+  ],
   "chapter_untitled": "Nieuw hoofdstuk {position}",
   "chapter_name": "Hoofdstuk {position} — {title}",
   "chapter_reading_pages": "De pagina's worden gelezen… ({done}/{total})",
@@ -198,7 +229,8 @@
   "lesson_state_done": "afgerond",
   "lesson_state_active": "bezig",
   "lesson_state_available": "volgende",
-  "lesson_state_locked": "vergrendeld",
+  "lesson_state_skipped": "overgeslagen",
+  "lesson_state_open": "te doen",
   "content_done_when": "Afgerond wanneer: {text}",
   "content_path_title_label": "Titel van het traject",
   "content_section_kind": "Soort van sectie {n}",

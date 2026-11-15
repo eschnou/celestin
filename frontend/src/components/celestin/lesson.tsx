@@ -83,6 +83,15 @@ function rereadable(
   return sections;
 }
 
+/** The sections with a stored séance (spec 019: the map's « Reprendre »): those the server
+ *  listed when the lesson mounted, plus those started, not reviewed, since. */
+function begunSections(
+  stored: Record<string, { cards: number }>,
+  started: readonly string[],
+): ReadonlySet<string> {
+  return new Set([...Object.keys(stored), ...started]);
+}
+
 function Lesson({
   chapter,
   user,
@@ -120,6 +129,8 @@ function Lesson({
     () => rereadable(stored, session.section, shown),
     [stored, session.section, shown],
   );
+  const { started } = session;
+  const begun = useMemo(() => begunSections(stored, started), [stored, started]);
   // A discussion opens over the lesson rather than instead of it (007 R1.3): mounted
   // on first open, then kept and merely hidden, so switching back is instant and a
   // turn in flight is not cut. (Since 018 the séance would survive a remount too.)
@@ -139,11 +150,12 @@ function Lesson({
   const onNextStep = useCallback(() => {
     if (nextStep?.kind === "section") {
       const title = chapter.sections.find((s) => s.id === nextStep.sectionId)?.title;
-      send(title ? said.start(title) : said.nextSection);
+      const opening = begun.has(nextStep.sectionId) ? said.resume : said.start;
+      send(title ? opening(title) : said.nextSection);
     } else {
       send(said.nextStep);
     }
-  }, [chapter, nextStep, send, said]);
+  }, [begun, chapter, nextStep, send, said]);
 
   // The same element for both frames: under the tutor's header on desktop, above the board on a phone.
   const path = (
@@ -154,6 +166,7 @@ function Lesson({
       onSend={send}
       onReset={reset}
       rereadable={reread}
+      begun={begun}
     />
   );
   const tutor = (

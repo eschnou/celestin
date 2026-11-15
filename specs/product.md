@@ -1,8 +1,8 @@
 # PRD — Célestin, an AI tutor for the course you actually follow
 
-**Version:** 2.0 — supersedes v1.0 (10 September 2026). v1.0 described a private tutor for one student, fed by chapters the parent loaded and approved. v2.0 is a pivot: a self-service platform where each student brings the course material their teacher gave them.
+**Version:** 2.1 — supersedes v2.0 (16 September 2026). v1.0 described a private tutor for one student, fed by chapters the parent loaded and approved. v2.0 was a pivot: a self-service platform where each student brings the course material their teacher gave them. v2.1 (15 November 2026) shifts the stance from supervising to equipping: the student is an autonomous, responsible teenager, and the product gives them tools — resume a lesson, reread it, open or skip any section, rehearse a whole course (specs 018–020).
 **Owner:** [you]
-**Date:** 16 September 2026
+**Date:** 15 November 2026
 
 ---
 
@@ -35,6 +35,7 @@ The first users are French-speaking Belgian secondary students (Fédération Wal
 - Does not want to learn a new notation, method or vocabulary — the tutor must speak their teacher's language.
 - Motivation is the next test, not badges. Will abandon anything that feels like extra homework with no payoff, or that takes long to set up.
 - Owns their account and their courses. Nobody else sees their material or their progress.
+- Autonomous and responsible: they know what was covered in class and what the test is on. They decide what to work on and in which order; the product proposes, equips and records honestly, it does not police.
 
 ### 3.2 The parent (later)
 A parent view (progress, transcripts, weekly recap) remains a goal but is not part of the current phases. No feature may depend on a parent being present.
@@ -55,9 +56,10 @@ A parent view (progress, transcripts, weekly recap) remains a goal but is not pa
 2. **The content is the student's.** We never supply or overrule course content. The authoring agent restructures what the student gave; it does not add material that is not in it.
 3. **It withholds answers by construction.** While an exercise is open, the tutor can explain, question and hint; it cannot state the answer. Revealing a solution is a deliberate, gated act and is always recorded.
 4. **It never grades from impression.** Where an answer is mechanically checkable (numbers, expressions, intervals, choices), the verdict comes from a checker, not from the model's prose. Free-text answers (definitions, justifications) are graded against an explicit rubric.
-5. **It remembers.** Progress through each chapter is kept per student, and sessions resume where they stopped.
-6. **It is a lesson, not a chat.** The tutor drives: it proposes the next step and moves through the path. The student can interrupt or ask anything at any time, and turns the page when ready.
+5. **It remembers.** Progress through each chapter is kept per student; a lesson resumes where it stopped, with its exchange and its boards, and every past lesson can be reread (the « cahier »).
+6. **It is a lesson, not a chat.** The tutor drives the lesson: it proposes the next step and the next section. The student can interrupt or ask anything at any time, and turns the page when ready.
 7. **Setup is minutes, not hours.** Creating a course is a name and a subject. Adding a chapter is uploading its pages. No review step stands between the student and their first lesson.
+8. **The student is in charge of their work.** The path is the order the tutor proposes, not a lock: any section can be opened, left or skipped, and what was skipped is recorded as skipped, never as done. Freedom covers *what* is worked on and *when*; it never covers principles 3 and 4 — the tutor still withholds answers and still never grades from impression.
 
 ## 6. The product
 
@@ -66,16 +68,16 @@ A parent view (progress, transcripts, weekly recap) remains a goal but is not pa
 - **Courses and chapters** — created by the student. A course has a name and a subject; a chapter is the material the student uploads. Private to the student.
 - **Subjects** — a closed list we define. Each subject comes with a subject prompt and a pack template that we write, test and maintain.
 - **Authoring agent** — turns a chapter's raw text into a course pack and a curriculum, following the course's subject.
-- **The tutor** — reads its three prompt layers (§6.3), the pack, the curriculum and the student's progress, and teaches by calling tools. The tools enforce the rules (locked path, checking, withholding, recording).
+- **The tutor** — reads its three prompt layers (§6.3), the pack, the curriculum and the student's progress, and teaches by calling tools. The tools enforce the rules (the path's states, checking, withholding, recording).
 - **The interface** — a lesson view where each tutor action appears as a board or card, plus the chapter strip and map showing where the student is.
 
 The tutor works in three modes on the same chapter material:
 
 | Mode | What it is | Status |
 |---|---|---|
-| **Parcours** | Follow the chapter's curriculum: learn, practise, synthesise, section by section | Built for one chapter (specs 002, 004); becomes available on every student chapter |
-| **Discussion** | Free conversation about the material, with the whiteboard | Later |
-| **Révision** | The tutor tests the student and helps them rehearse | Later |
+| **Parcours** | Follow the chapter's curriculum: learn, practise, synthesise, section by section, in the proposed order or the student's own | Built (specs 002–006); stored and resumable (018); open path (019) |
+| **Discussion** | Free conversation about the material, with the whiteboard | Built (spec 007) |
+| **Révision** | The tutor makes the student retrieve what they know across the chapters of a course, and keeps their own assessment of it | Designed (spec 020), not built yet |
 
 ### 6.2 Courses and chapters
 
@@ -107,7 +109,7 @@ Each is offered in French, English and Dutch (specs 011, 017). There is no « Au
   - numbered sample exercises with the method and the answer, where the material provides or allows one;
   - points the agent could not settle (unreadable, contradictory, answers that do not check out). The tutor does not teach or set exercises that depend on them.
   Other subjects keep the same spirit with their own sections: a physics pack adds quantities, units and laws; a history pack has a timeline, key figures, causes and consequences, and documents to analyse; a language pack has grammar rules, vocabulary lists and conjugations.
-- **The curriculum** — the locked path of `teach`, `practise` and `synthesis` sections through the pack, as structured data, every reference pointing at an existing entry of the pack.
+- **The curriculum** — the path of `teach`, `practise` and `synthesis` sections through the pack, as structured data, every reference pointing at an existing entry of the pack.
 
 Both are validated mechanically before the chapter is usable. If authoring fails, the chapter shows the failure and the student can retry.
 
@@ -133,7 +135,7 @@ Conventions a teacher uses across chapters are repeated in each chapter's pack r
 
 The tutor behaves like a good private teacher who has read the chapter and knows the student. It can:
 
-**Follow the path.** Each chapter is a locked sequence of sections. `teach` sections go through the course's content beat by beat and end with a check question; `practise` sections set a number of exercises in the style of the course's samples; `synthesis` sections mix everything before them, test-style. A section opens only when the previous one is done; done sections can be reviewed.
+**Follow the path.** Each chapter is a sequence of sections. `teach` sections go through the course's content beat by beat and end with a check question; `practise` sections set a number of exercises in the style of the course's samples; `synthesis` sections mix everything before them, test-style. The order is the one the tutor proposes. The student can open any section, leave one for another, or skip one they have seen in class; a skipped section is recorded as skipped, stays open, and can be done later. A section is done only when its criterion is met. Done sections can be reviewed with the tutor, or simply reread.
 
 **Explain.** Introduce or re-explain a concept using the course's definition and formulas, and check understanding with a quick question before moving on.
 
@@ -151,15 +153,19 @@ The tutor behaves like a good private teacher who has read the chapter and knows
 
 **Reveal.** After repeated attempts, or when asked, the tutor walks through the full solution one step at a time. Every reveal is recorded.
 
-**Remember.** Progress through the path is recorded per student and per chapter.
+**Remember.** Progress through the path is recorded per student and per chapter, and so is each section's lesson: reopening a chapter brings back the exchange and the board where they stopped, and coming back to a section left unfinished continues from the last card rather than from the start.
 
-### 6.5 Discussion mode (later)
+**Keep the notebook.** Every board the tutor showed is kept, section by section, in the chapter's « cahier »: the student rereads a past lesson without asking the tutor to teach it again.
+
+### 6.5 Discussion mode
 
 The student talks with the tutor about the chapter: asks questions, asks for another explanation, explores an example. The tutor answers from the pack, and writes and draws on the whiteboard to explain. The same rules hold: the course's notation and vocabulary only, and no solving of homework or test exercises on the student's behalf.
 
-### 6.6 Révision mode (later)
+### 6.6 Révision mode
 
-The tutor tests the student's knowledge of a chapter or a whole course: definitions to recite, exercises across sections, reasoning to reproduce. It reports what is solid and what to rehearse, and helps the student rehearse the weak points.
+The student picks the chapters of a course that the test covers, and the tutor makes them retrieve what they know, mixed across those chapters: definitions to recite, variants of the course's exercises, reasoning to reproduce. It is the door for a student who saw the material in class: test first, then go and work the sections that turned out weak.
+
+After each question is settled, the tutor puts the course's own wording on the board, the student compares and says how it went — acquis, fragile, à revoir — and that self-assessment is kept per section. It is the student's judgement, not a verdict: the tutor may say when it sees things differently, and never overrules. The next révision starts from what is fragile, what was skipped and what was never done; a « bilan » shows the record and points to the section to work and to its cahier. Nothing in a révision moves the path.
 
 ### 6.7 How the tutor behaves
 
@@ -173,8 +179,8 @@ The tutor tests the student's knowledge of a chapter or a whole course: definiti
 ### 6.8 The interface
 
 - **« Mes cours »**: the student's courses; create a course with a name and a subject.
-- **A course**: its chapters in order, each with its state (en préparation, échec, prêt, en cours, terminé); add a chapter by uploading a PDF or photos.
-- **A chapter**: the lesson view (board, cards, chapter strip and map, voice), and access to the pack and curriculum for reading and editing.
+- **A course**: its chapters in order, each with its state (en préparation, échec, prêt, en cours, terminé); add a chapter by uploading a PDF or photos; « Réviser » will open a révision over the chapters the student picks (spec 020).
+- **A chapter**: the lesson view (board, cards, chapter strip and map, voice), the discussion, the « cahier » of past boards, and access to the pack and curriculum for reading and editing. On the map every section can be started, resumed, skipped, reviewed or reread.
 - **Cards**: plan, explanation, worked example, exercise with an answer widget matched to the answer type, verdict, hint, solution, check question, recap.
 - **« Paramètres »**: from the user menu; the interface language today, built to hold the account's other settings (name, email address, password) later.
 
@@ -241,9 +247,11 @@ The next day they notice the pack lists « km/h » where the teacher writes « k
 
 **Phase A′ — More subjects.** Done as four broad categories (mathematics, sciences, languages, general courses), each with its subject prompt and pack template in both languages. The three added ones are first drafts, written without sample material from real courses: to tune on real chapters.
 
-**Phase B — Discussion mode.** Free conversation about a chapter, with the whiteboard.
+**Phase B — Discussion mode.** Done (spec 007). Free conversation about a chapter, with the whiteboard.
 
-**Phase C — Révision mode.** Testing and rehearsal across a chapter or a course.
+**Phase B′ — Tools for an autonomous student.** Done (specs 018, 019). Lessons stored and resumed, the « cahier » of past boards, the open path with skipped sections.
+
+**Phase C — Révision mode.** Designed (spec 020), not built yet. Retrieval practice across the chosen chapters of a course, with the student's self-assessment kept per section. Later: a mechanical checker feeding the same record, voice, a test date shaping the session.
 
 **Later.** Mechanical checker for more answer kinds; parent view; sharing a course with classmates.
 

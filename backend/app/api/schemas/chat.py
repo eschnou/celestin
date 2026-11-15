@@ -42,12 +42,28 @@ class ToolEntry(_Model):
     # Spec 018: what a `start_section` call was at the time, like `ok`: a review or not. Only that tool carries
     # it, and it is never sent to the model (`history.to_provider_input` reads the name and the arguments).
     review: bool | None = None
+    # Spec 019: what a `skip_section` or `complete_section` call answered at the time, so a later turn replays
+    # exactly that (`section.py`'s `replay` hooks): the section the page turned to (`next_section_id`, null while
+    # a section was still active, both null when the chapter was finished) and, on a skip, the section still
+    # being worked (`active_section_id`). Recorded means present: a key left out was not recorded (an entry
+    # stored before spec 019 is replayed from the progress now), so `stored_form` keeps an explicit null.
+    # Never sent to the model.
+    next_section_id: Annotated[str, Field(max_length=40)] | None = None
+    active_section_id: Annotated[str, Field(max_length=40)] | None = None
 
     @model_validator(mode="after")
-    def _review_on_start_only(self) -> ToolEntry:
+    def _recorded_on_their_tool_only(self) -> ToolEntry:
         if self.review is not None and self.name != "start_section":
             raise ValueError("review is only recorded on a start_section entry")
+        if "next_section_id" in self.model_fields_set and self.name not in ("skip_section", "complete_section"):
+            raise ValueError("next_section_id is only recorded on a skip_section or complete_section entry")
+        if "active_section_id" in self.model_fields_set and self.name != "skip_section":
+            raise ValueError("active_section_id is only recorded on a skip_section entry")
         return self
+
+    def recorded(self, name: str) -> bool:
+        """Whether the call recorded `name` (one of the fields above), null included."""
+        return name in self.model_fields_set
 
 
 Entry = Annotated[Union[LearnerEntry, TutorEntry, ToolEntry], Field(discriminator="kind")]
@@ -86,11 +102,19 @@ def reported_problem(entry: Entry) -> str | None:
     return None
 
 
+_RECORDED = ("next_section_id", "active_section_id")
+
+
 def stored_form(entry: Entry) -> dict[str, Any]:
-    """An entry as a stored row holds it. `review` is left out when it is not set, so a
-    discussion's rows keep the bytes they always had."""
-    exclude = {"review"} if isinstance(entry, ToolEntry) and entry.review is None else None
-    return entry.model_dump(mode="json", exclude=exclude)
+    """An entry as a stored row holds it. `review` is left out when it is not set, and the
+    spec-019 fields when they were not recorded, so a discussion's rows (and every other
+    tool's entries) keep the bytes they always had."""
+    exclude: set[str] | None = None
+    if isinstance(entry, ToolEntry):
+        exclude = {name for name in _RECORDED if not entry.recorded(name)}
+        if entry.review is None:
+            exclude.add("review")
+    return entry.model_dump(mode="json", exclude=exclude or None)
 
 
 class ProgressDTO(_Model):
@@ -99,10 +123,12 @@ class ProgressDTO(_Model):
 
     done: Annotated[list[Annotated[str, Field(max_length=40)]], Field(max_length=40)] = []
     active: Annotated[str, Field(max_length=40)] | None = None
+    # Spec 019: the sections the student chose to pass, sorted; kept apart from `done`.
+    skipped: Annotated[list[Annotated[str, Field(max_length=40)]], Field(max_length=40)] = []
 
     @classmethod
     def from_progress(cls, progress: Progress) -> ProgressDTO:
-        return cls(done=sorted(progress.done), active=progress.active)
+        return cls(done=sorted(progress.done), active=progress.active, skipped=sorted(progress.skipped))
 
 
 # Course and chapter ids are uuid4 hex (005 design 4.3).

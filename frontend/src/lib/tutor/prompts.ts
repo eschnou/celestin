@@ -11,6 +11,10 @@ import { useCourseLanguage, type CourseLanguage } from "@/lib/course-language";
 
 export const REVIEW_MESSAGE = (title: string) => `Je voudrais revoir la section « ${title} ».`;
 export const START_MESSAGE = (title: string) => `On commence la section « ${title} » ?`;
+/** A section already begun in an earlier séance (spec 019): « Reprendre ». */
+export const RESUME_MESSAGE = (title: string) => `On reprend la section « ${title} » ?`;
+/** « Passer » (spec 019): only the student decides, so it is said, not asked. */
+export const SKIP_MESSAGE = (title: string) => `Je passe la section « ${title} ».`;
 export const NEXT_STEP_MESSAGE = "Étape suivante.";
 export const NEXT_SECTION_MESSAGE = "Section suivante.";
 export const ANSWER_MESSAGE = (text: string) => `Ma réponse à la question : « ${text} ».`;
@@ -23,6 +27,8 @@ export const VOICE_TOOL_FAILED = "Outil indisponible. Dis-le à l'élève et con
 export type LearnerSentences = {
   review: (title: string) => string;
   start: (title: string) => string;
+  resume: (title: string) => string;
+  skip: (title: string) => string;
   nextStep: string;
   nextSection: string;
   answer: (text: string) => string;
@@ -35,6 +41,8 @@ export const LEARNER_SENTENCES: Record<CourseLanguage, LearnerSentences> = {
   fr: {
     review: REVIEW_MESSAGE,
     start: START_MESSAGE,
+    resume: RESUME_MESSAGE,
+    skip: SKIP_MESSAGE,
     nextStep: NEXT_STEP_MESSAGE,
     nextSection: NEXT_SECTION_MESSAGE,
     answer: ANSWER_MESSAGE,
@@ -44,6 +52,8 @@ export const LEARNER_SENTENCES: Record<CourseLanguage, LearnerSentences> = {
   en: {
     review: (title) => `I'd like to review the section “${title}”.`,
     start: (title) => `Shall we start the section “${title}”?`,
+    resume: (title) => `Shall we pick up the section “${title}” again?`,
+    skip: (title) => `I'm skipping the section “${title}”.`,
     nextStep: "Next step.",
     nextSection: "Next section.",
     answer: (text) => `My answer to the question: “${text}”.`,
@@ -53,6 +63,8 @@ export const LEARNER_SENTENCES: Record<CourseLanguage, LearnerSentences> = {
   nl: {
     review: (title) => `Ik wil graag de sectie “${title}” herhalen.`,
     start: (title) => `Beginnen we met de sectie “${title}”?`,
+    resume: (title) => `Gaan we verder met de sectie “${title}”?`,
+    skip: (title) => `Ik sla de sectie “${title}” over.`,
     nextStep: "Volgende stap.",
     nextSection: "Volgende sectie.",
     answer: (text) => `Mijn antwoord op de vraag: “${text}”.`,

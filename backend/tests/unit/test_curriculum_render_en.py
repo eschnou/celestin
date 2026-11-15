@@ -62,10 +62,10 @@ def test_a_teach_brief_lists_the_outline_and_a_practice_brief_the_exercises() ->
 
 
 def test_completion() -> None:
-    assert render.completion(CUR, Progress(done=frozenset({"intro"})), EN) == (
+    assert render.completion(None, CUR.get("exos"), EN) == (
         "Section finished. Next section: “2. Exercises” (practice), id: exos."
     )
-    assert render.completion(CUR, Progress(done=frozenset({"intro", "exos", "bilan"})), EN) == (
+    assert render.completion(None, None, EN) == (
         "Section finished. Chapter finished."
     )
 

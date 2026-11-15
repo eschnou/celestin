@@ -893,6 +893,7 @@ class ProgressRepository(_Repo):
                 s.add(row)
             row.done = list(progress.done)
             row.active = progress.active
+            row.skipped = sorted(progress.skipped)
             row.updated_at = utcnow()
             s.commit()
 
@@ -930,7 +931,9 @@ class ProgressRepository(_Repo):
 
 def _record(row: ProgressRow) -> ProgressRecord:
     return ProgressRecord(
-        progress=Progress(done=frozenset(row.done or []), active=row.active),
+        progress=Progress(
+            done=frozenset(row.done or []), active=row.active, skipped=frozenset(row.skipped or [])
+        ),
         updated_at=as_utc(row.updated_at),
     )
 

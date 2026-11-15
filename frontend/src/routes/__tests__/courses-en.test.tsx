@@ -243,7 +243,7 @@ describe("the course page in English", () => {
       await screen.findByRole("heading", { name: "Physique 4e" });
       const items = screen.getAllByRole("listitem");
       const [first, second, third] = items as [HTMLElement, HTMLElement, HTMLElement];
-      expect(first.textContent).toContain("in progress · Section 3 of 9");
+      expect(first.textContent).toContain("in progress · 2 of 9 done");
       expect(first.textContent).toContain("this is where you left off");
       expect(within(first).getByRole("link", { name: "Resume" })).toBeTruthy();
       expect(within(first).getByRole("link", { name: "Discuss" })).toBeTruthy();

@@ -50,8 +50,10 @@ Assembled by `app/services/prompt_service.py`, in this order, every round:
    tool declarations are the English ones (`chapter.language`, `ctx.language`); the English
    rendering has its own pins (`system_text_sha_en*.txt`). See [course-language.md](./course-language.md).
 2. Tool declarations for the mode, in a fixed order: the two board tools, then — in the parcours
-   only — the two section tools and `propose_next_step`. A discussion is offered the board pair
-   and nothing else, so the declarations it shares with the parcours keep their exact bytes.
+   only — the two section tools, `propose_next_step` and `skip_section` (spec 019, declared last so
+   the five before it keep their bytes): six tools. A discussion is offered the board pair and nothing
+   else, so the declarations it shares with the parcours keep their exact bytes. The board pair is
+   pinned by `tests/fixtures/board_declarations.json`, the four after it by `path_declarations.json`.
 3. The transcript, oldest first: in the parcours the live séance's entries then the learner's
    message (nothing of earlier séances), in a discussion the stored conversation then the message.
 4. A short `developer` message with the date and time in the learner's timezone (`TIMEZONE`,
@@ -108,10 +110,12 @@ server-side fact rather than a prompt-level hope.
 
 Board tools have no server-side effect. They validate, and return the card to emit. The browser holds
 the board, so a failed turn cannot corrupt it. Section tools are the same shape with one addition:
-their result text (the section brief, or the next section) goes back to the model as
+their result text (the section brief, or what comes next after a completion or a skip) goes back to the model as
 `{"ok": true, "result": …}`, and on later turns `registry.replay_output` recomputes that text from
 the curriculum and the stored entry (a `start_section` replays with the `review` it was called
-with, spec 018), so the model keeps the beats in front of it without the browser ever seeing them.
+with, spec 018; a `complete_section` or `skip_section` with the sections its event named, recorded
+on the entry, spec 019, so it says again what it said live whatever the progress became), so the
+model keeps the beats in front of it without the browser ever seeing them.
 A section taken up again after a séance that left it unfinished gets its brief ended by the
 reprise note, live and on replay alike (spec 018 D5, [seances.md](./seances.md#the-reprise-note)).
 
@@ -121,7 +125,8 @@ reprise note, live and on replay alike (spec 018 D5, [seances.md](./seances.md#t
 the séance is empty) and returns `text/event-stream`;
 `POST /api/discussion/turn` takes `{course_id, chapter_id, conversation_id, message}` and returns
 the same stream, framed by the same helper (`app/api/sse.py: stream_turn`). A discussion simply
-never emits the three path events. Nine events, and this
+never emits the four path events (`section.start`, `section.done`, `section.skipped`, `step.ready`).
+Ten events, and this
 set is a two-sided contract:
 changing it means changing `frontend/src/lib/tutor/types.ts`, the golden transcript tests in
 `backend/tests/integration/test_chat_endpoint.py`, and the design document together.
@@ -132,8 +137,9 @@ changing it means changing `frontend/src/lib/tutor/types.ts`, the golden transcr
 | `text.delta` | `block_id`, `text` | append to the entry for that block, creating it on first delta |
 | `board.set` | `card`, `marker` | render the card, add it to the strip, insert the marker |
 | `board.clear` | `marker` | empty the board, keep the strip |
-| `section.start` | `section_id`, `review`, `marker` | set the active section unless it is a review, insert the marker |
+| `section.start` | `section_id`, `review`, `marker` | set the active section unless it is a review (and remove it from skipped, spec 019), insert the marker |
 | `section.done` | `section_id`, `next_section_id`, `marker` | move the section to done, clear active, insert the marker |
+| `section.skipped` | `section_id`, `next_section_id`, `active_section_id`, `marker` | spec 019: add the section to skipped, clear active if it was that section; while `active_section_id` names the section still being worked, leave the page-turn button as it is; otherwise light it for `next_section_id`, or put it out when that is null too (both null: the skip finished the chapter); insert the marker |
 | `step.ready` | `marker` | light the « Étape suivante » button on the board until the next card or turn |
 | `turn.end` | `reason`, `usage` | `end`, `max_rounds` or `cancelled` |
 | `error` | `code`, `message` | French message, transcript preserved |

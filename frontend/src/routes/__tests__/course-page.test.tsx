@@ -28,6 +28,7 @@ const row = (over: Record<string, unknown>) => ({
   ready: true,
   section_count: 9,
   done_count: 2,
+  skipped_count: 0,
   state: "in_progress",
   last: true,
   authoring_state: "idle",
@@ -164,11 +165,11 @@ describe("/courses/$courseId", () => {
       HTMLElement,
       HTMLElement,
     ];
-    expect(ready.textContent).toContain("en cours · Section 3 sur 9");
+    expect(ready.textContent).toContain("en cours · 2 faites sur 9");
     expect(ready.textContent).toContain("c'est ici que tu en étais");
     expect(
       within(ready)
-        .getByRole("progressbar", { name: "Section 3 sur 9" })
+        .getByRole("progressbar", { name: "2 faites sur 9" })
         .getAttribute("aria-valuenow"),
     ).toBe("2");
     expect(within(ready).queryByRole("link", { name: "Contenu du chapitre" })).toBeNull();
@@ -194,11 +195,79 @@ describe("/courses/$courseId", () => {
     ).toBe("/courses/c1/chapters/h1/content");
   });
 
+  it("counts skipped sections apart, and takes the server's « terminé » (spec 019)", async () => {
+    mockApi((method, path) => {
+      if (path.endsWith("/api/subjects")) return { body: SUBJECTS };
+      if (method === "GET" && path.endsWith("/api/courses/c1"))
+        return {
+          body: {
+            ...DETAIL,
+            chapters: [
+              // Every section done or skipped: the server says done, not done_count === 9.
+              row({ state: "done", done_count: 7, skipped_count: 2, last: false }),
+              row({
+                id: "h2",
+                position: 2,
+                title: "La vitesse",
+                state: "in_progress",
+                done_count: 5,
+                skipped_count: 2,
+                last: true,
+              }),
+              row({
+                id: "h3",
+                position: 3,
+                title: "Les forces",
+                state: "in_progress",
+                last: false,
+              }),
+            ],
+          },
+        };
+      return undefined;
+    });
+    mountRoutes([{ path: "/courses/$courseId/", file: CourseFile }], "/courses/c1");
+    const list = await screen.findByRole("list");
+    const [finished, going, plain] = within(list).getAllByRole("listitem") as [
+      HTMLElement,
+      HTMLElement,
+      HTMLElement,
+    ];
+    expect(finished.textContent).toContain("terminé · 7 faites sur 9 · 2 passées");
+    expect(within(finished).getByRole("link", { name: "Revoir" })).toBeTruthy();
+    const bar = within(finished).getByRole("progressbar", { name: "7 faites sur 9 · 2 passées" });
+    expect(bar.getAttribute("aria-valuenow")).toBe("9");
+    expect(bar.querySelector("[data-part=skipped]")).toBeTruthy();
+    expect(going.textContent).toContain("en cours · 5 faites sur 9 · 2 passées");
+    // Nothing skipped: the done count alone.
+    expect(plain.textContent).toContain("en cours · 2 faites sur 9");
+    expect(plain.querySelector("[data-part=skipped]")).toBeNull();
+  });
+
+  it("counts sections, never a position: opening section 7 first is « 0 faite sur 9 » (spec 019)", async () => {
+    mockApi((method, path) => {
+      if (path.endsWith("/api/subjects")) return { body: SUBJECTS };
+      if (method === "GET" && path.endsWith("/api/courses/c1"))
+        return {
+          body: {
+            ...DETAIL,
+            chapters: [row({ state: "in_progress", done_count: 0, skipped_count: 0, last: true })],
+          },
+        };
+      return undefined;
+    });
+    mountRoutes([{ path: "/courses/$courseId/", file: CourseFile }], "/courses/c1");
+    const list = await screen.findByRole("list");
+    const item = within(list).getByRole("listitem");
+    expect(item.textContent).toContain("en cours · 0 faite sur 9");
+    expect(document.body.textContent).not.toContain("Section 1 sur 9");
+  });
+
   it("offers one way back in, above the list: the chapter she was on", async () => {
     mount();
     const resume = await screen.findByRole("region", { name: "Reprends où tu en étais" });
     expect(resume.textContent).toContain("Le MRU");
-    expect(resume.textContent).toContain("Section 3 sur 9");
+    expect(resume.textContent).toContain("2 faites sur 9");
     expect(
       within(resume)
         .getByRole("link", { name: /Reprendre/ })

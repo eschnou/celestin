@@ -13,7 +13,9 @@ kept here as a discussion's is (`discussion.py`, sharing `conversations.py`), on
   before it stays with the section it was said in.
 - **A full séance rolls over when the next turn opens** (D10): closed `capped`, and
   the next row of the same section starts with a synthetic `start_section`, so the
-  brief (and the reprise note) is in front of the model again.
+  brief (and the reprise note) is in front of the model again, when the section is
+  still the active one or the row was a review (`_carried_on`); otherwise the next
+  row starts unsectioned and empty.
 - **A section taken up again gets a reprise note** (D5), built by `earlier_cards`
   from its closed, non-review séances. Closed rows are final, so the note is the
   same on every replay, and the cards it lists are read and parsed once per set of
@@ -45,6 +47,7 @@ from app.domain.mode import Mode
 from app.domain.progress import Progress
 from app.services import conversations
 from app.services.tools import registry
+from app.services.tools.context import StoredView
 
 log = logging.getLogger(__name__)
 
@@ -106,6 +109,24 @@ def _opened_as_review(section_id: str | None, entries: list[Entry]) -> bool:
             if _section_of(entry) == section_id:
                 return bool(entry.review)
     return False
+
+
+def _carried_on(record: ConversationRecord, progress: Progress) -> list[Entry]:
+    """What the row after a full one starts with (D10): a synthetic ok `start_section` of the
+    full row's section, so its brief (and reprise note) is in front of the model again, only
+    when that call tells the truth: the section is the active one (not a review), or the row
+    was a review of a done section (a review again). A section skipped, left or finished in
+    the full row is neither: the next row starts unsectioned and empty, as a fresh one."""
+    section_id = record.section_id
+    if section_id is None:
+        return []
+    if section_id == progress.active:
+        review = False
+    elif section_id in progress.done and _opened_as_review(section_id, conversations.stored_entries(record)):
+        review = True
+    else:
+        return []
+    return [ToolEntry(kind="tool", name="start_section", arguments={"section_id": section_id}, review=review)]
 
 
 class _CardCache:
@@ -227,21 +248,14 @@ class SeanceService:
 
     def current(self, user_id: str, chapter: LessonChapter, progress: Progress) -> ConversationRecord | None:
         """The séance a turn continues: the live one, rolled over first when it is full
-        (D10): one `store_seance` write closes it `capped` and starts the next row of the
-        same section with a synthetic ok `start_section`."""
+        (D10): one `store_seance` write closes it `capped` and starts the next row, of the
+        same section with a synthetic ok `start_section` when that tells the truth
+        (`_carried_on`), else unsectioned and empty."""
         record = self.live(user_id, chapter)
         if record is None or not conversations.is_full(record, self._settings):
             return record
-        entries: list[Entry] = []
-        if record.section_id is not None:
-            entries.append(
-                ToolEntry(
-                    kind="tool",
-                    name="start_section",
-                    arguments={"section_id": record.section_id},
-                    review=record.section_id in progress.done,
-                )
-            )
+        entries = _carried_on(record, progress)
+        next_section = record.section_id if entries else None
         try:
             rows = self._repos.conversations.store_seance(
                 user_id,
@@ -251,7 +265,7 @@ class SeanceService:
                 expected_count=record.entry_count,
                 segments=[
                     _segment(record.section_id, [], "capped"),
-                    _segment(record.section_id, entries, None),
+                    _segment(next_section, entries, None),
                 ],
             )
         except ConversationBusy:
@@ -382,18 +396,17 @@ class SeanceService:
 
     def _checked(self, chapter: LessonChapter, progress: Progress, entries: list[Entry]) -> list[Entry]:
         offered = registry.offered(MODE)
+        view = StoredView(chapter.curriculum, progress)
         checked: list[Entry] = []
         for index, entry in enumerate(entries):
             if isinstance(entry, ToolEntry):
                 problem = None
                 if entry.name not in offered:
                     problem = "tool"
-                elif entry.name in ("start_section", "complete_section"):
-                    section_id = entry.arguments.get("section_id")
-                    if not isinstance(section_id, str) or chapter.curriculum.get(section_id) is None:
-                        problem = "section"
-                    elif entry.name == "start_section" and entry.review is None:
-                        entry = entry.model_copy(update={"review": section_id in progress.done})
+                elif (kept := registry.checked(entry, view)) is None:
+                    problem = "section"
+                else:
+                    entry = kept
                 if problem is not None:
                     # Ids and the reason only: what the browser sent, a tool name included, is not logged.
                     log.warning(

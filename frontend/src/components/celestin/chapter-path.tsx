@@ -18,6 +18,7 @@ export function ChapterPath({
   onSend,
   onReset,
   rereadable,
+  begun,
 }: {
   chapter: Pick<ChapterView, "id" | "course_id" | "title" | "sections">;
   progress: Progress;
@@ -27,6 +28,8 @@ export function ChapterPath({
   onReset: () => void;
   /** The sections with boards in the cahier (018): their rows offer « Relire ». */
   rereadable: ReadonlySet<string>;
+  /** The sections with a stored séance (spec 019): the map offers « Reprendre » there. */
+  begun: ReadonlySet<string>;
 }) {
   const compact = useCompactLayout();
   const [open, setOpen] = useState(false);
@@ -43,6 +46,7 @@ export function ChapterPath({
         onSend={onSend}
         onReset={onReset}
         rereadable={rereadable}
+        begun={begun}
       />
     </>
   );

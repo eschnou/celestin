@@ -1,0 +1,3 @@
+Sectie overgeslagen. Volgende sectie: “3. Samenvatting” (samenvatting), id: bilan.
+Sectie overgeslagen. Sectie nog bezig: “2. Oefeningen” (oefeningen), id: exos.
+Sectie overgeslagen. Hoofdstuk afgerond: alle secties zijn afgerond of overgeslagen.

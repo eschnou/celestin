@@ -255,6 +255,47 @@ def test_a_full_seance_rolls_over_with_a_synthetic_start(repos: Repositories, se
     assert read == [start("intro"), ask("oui")]
 
 
+def skip(section: str) -> ToolEntry:
+    return ToolEntry(kind="tool", name="skip_section", arguments={"section_id": section})
+
+
+@pytest.mark.parametrize(
+    ("produced", "progress"),
+    [
+        # Spec 019: the active section skipped, then the student kept talking until the row was full.
+        ([start("intro"), skip("intro"), say("D'accord.")], Progress(skipped=frozenset({"intro"}))),
+        # Completed in the row (not a review), and talk went on.
+        ([start("intro"), done("intro"), say("Bravo.")], Progress(done=frozenset({"intro"}))),
+    ],
+    ids=["skipped", "completed"],
+)
+def test_a_full_seance_whose_section_is_no_longer_worked_rolls_over_unsectioned(
+    repos: Repositories, settings: Settings, produced: list, progress: Progress
+) -> None:
+    """The synthetic `start_section` is only written when it tells the truth: no « section
+    commencée » the student never saw."""
+    user = _student(repos)
+    chapter = _chapter(repos, user)
+    service = _service(repos, settings, discussion_max_entries=3)
+    _turn(service, user, chapter, None, produced)
+    _, read = service.open_turn(user, chapter, progress, "et maintenant ?")
+    first, second = _rows(repos, user, chapter)
+    assert first.closed_reason == "capped" and first.section_id == "intro"
+    assert second.live and second.section_id is None and second.entries == []
+    assert read == [ask("et maintenant ?")]
+
+
+def test_a_full_review_seance_rolls_over_as_a_review(repos: Repositories, settings: Settings) -> None:
+    user = _student(repos)
+    chapter = _chapter(repos, user)
+    service = _service(repos, settings, discussion_max_entries=3)
+    _turn(service, user, chapter, None, [start("intro", review=True), board(CARD_A), say("Tu te souviens ?")])
+    _, read = service.open_turn(user, chapter, Progress(done=frozenset({"intro"})), "oui")
+    second = _rows(repos, user, chapter)[1]
+    assert second.section_id == "intro" and second.entries[0]["review"] is True
+    assert read == [start("intro", review=True), ask("oui")]
+
+
 def test_the_character_cap_rolls_over_too(repos: Repositories, settings: Settings) -> None:
     user = _student(repos)
     chapter = _chapter(repos, user)
@@ -356,6 +397,72 @@ def test_a_reported_turn_is_checked_against_the_chapter(repos: Repositories, set
     # The cap counts rows, not turns: a model turn is not refused.
     _turn(service, user, chapter, "toujours là", [say("Oui.")])
     assert len(_rows(repos, user, chapter)) == 2
+
+
+# --- spec 019: a skipped section and the séances ---------------------------------------------
+
+
+def skip(section: str) -> ToolEntry:
+    return ToolEntry(kind="tool", name="skip_section", arguments={"section_id": section})
+
+
+def test_skipping_the_live_rows_section_leaves_it_live_until_another_start(repos: Repositories, settings: Settings) -> None:
+    """A skip does not split: the row closes `left` at the next `start_section` of another section."""
+    user = _student(repos)
+    chapter = _chapter(repos, user)
+    service = _service(repos, settings)
+    _turn(service, user, chapter, None, [start("intro"), board(CARD_A)])
+    _turn(service, user, chapter, "je l'ai déjà vue", [skip("intro"), say("D'accord, on passe.")])
+    (row,) = _rows(repos, user, chapter)
+    assert row.live and row.section_id == "intro" and row.entries[-2]["name"] == "skip_section"
+    _turn(service, user, chapter, "on fait les exercices", [start("exos")], Progress(skipped=frozenset({"intro"})))
+    first, second = _rows(repos, user, chapter)
+    assert (first.section_id, first.closed_reason) == ("intro", "left")
+    assert (second.section_id, second.live) == ("exos", True)
+
+
+def test_skip_and_start_in_one_turn_split_at_the_start(repos: Repositories, settings: Settings) -> None:
+    segments = split("intro", [ask("on passe"), skip("intro"), say("Ensuite :"), start("exos"), board(CARD_B)])
+    assert [(s.section_id, s.closed_reason) for s in segments] == [("intro", "left"), ("exos", None)]
+    assert [e["name"] for e in segments[0].entries if e["kind"] == "tool"] == ["skip_section"]
+
+
+def test_starting_a_skipped_section_un_skips_it_and_takes_it_up_where_it_was(repos: Repositories, settings: Settings) -> None:
+    """A section worked on, then skipped, then started again: progress un-skips it, and the brief ends with the
+    reprise note of its closed séance (018 D5)."""
+    from app.services.seance import card_loader
+    from app.services.tools import registry
+    from app.services.tools.context import TurnContext
+
+    user = _student(repos)
+    chapter = _chapter(repos, user)
+    service = _service(repos, settings)
+    _turn(service, user, chapter, None, [start("intro"), board(CARD_A)])
+    _turn(service, user, chapter, "on passe", [skip("intro"), start("exos")])  # intro closed `left`
+    saved: list[Progress] = []
+    ctx = TurnContext.from_progress(
+        chapter.curriculum, [], "exos", save=saved.append, skipped=["intro"],
+        earlier_cards=card_loader(repos, user, chapter.id, chapter.version),
+    )
+    out = registry.execute("start_section", '{"section_id":"intro"}', ctx)
+    assert out.review is False
+    assert saved == [Progress(active="intro")]
+    assert "Reprise" in out.output and "Définition" in out.output
+
+
+def test_a_reported_skip_must_name_a_section_of_the_chapter(repos: Repositories, settings: Settings) -> None:
+    from app.domain.errors import SeanceReportInvalid
+
+    user = _student(repos)
+    chapter = _chapter(repos, user)
+    service = _service(repos, settings)
+    for bad in (skip("zz-nope"), ToolEntry(kind="tool", name="skip_section", arguments={})):
+        with pytest.raises(SeanceReportInvalid):
+            service.store_reported(user, chapter, Progress(), [ask("on passe"), bad])
+    assert _rows(repos, user, chapter) == []
+    service.store_reported(user, chapter, Progress(skipped=frozenset({"intro"})), [ask("on passe"), skip("intro")])
+    (row,) = _rows(repos, user, chapter)
+    assert row.entries[-1] == {"kind": "tool", "name": "skip_section", "arguments": {"section_id": "intro"}, "ok": True, "error": None}
 
 
 # --- the notebook (D8) and the chapter view ---------------------------------------------

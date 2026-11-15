@@ -310,3 +310,42 @@ def test_upgrade_from_0011_gives_the_parcours_its_rows_and_downgrade_takes_them_
         assert conn.execute(text("select id from conversations")).scalars().all() == ["d1"]
     assert "section_id" not in {c["name"] for c in inspect(engine).get_columns("conversations")}
     command.upgrade(alembic_config(url), "head")
+
+
+def test_upgrade_from_0012_gives_every_progress_an_empty_skipped_and_downgrade_keeps_the_rest(tmp_path) -> None:
+    """Spec 019: an existing progress has skipped nothing; the downgrade forgets the skips, keeps done and active."""
+    from sqlalchemy import inspect, text
+
+    url = f"sqlite:///{tmp_path / 'k.db'}"
+    command.upgrade(alembic_config(url), "0012")
+    engine = make_engine(url)
+    with engine.begin() as conn:
+        conn.execute(text(
+            "insert into users (id, email, name, password_hash, role, locale, enabled, created_at) "
+            "values ('u1', 'a@x.be', 'Ana', 'h', 'student', 'fr', 1, '2026-01-01 00:00:00')"
+        ))
+        conn.execute(text(
+            "insert into courses (id, user_id, name, subject, language, created_at, updated_at) "
+            "values ('c1', 'u1', 'Maths', 'mathematics', 'fr', '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+        ))
+        conn.execute(text(
+            "insert into chapters (id, course_id, position, source_text, section_count, content_version, "
+            "authoring_state, source_kind, page_count, pages_done, created_at, updated_at) values ('ch1', 'c1', 1, 'x', "
+            "3, 1, 'idle', 'text', 0, 0, '2026-01-01 00:00:00', '2026-01-01 00:00:00')"
+        ))
+        conn.execute(text(
+            "insert into progress (user_id, chapter_id, done, active, updated_at) "
+            "values ('u1', 'ch1', '[\"intro\"]', 'exos', '2026-01-01 00:00:00')"
+        ))
+    command.upgrade(alembic_config(url), "head")
+    engine = make_engine(url)
+    with engine.begin() as conn:
+        assert conn.execute(text("select done, active, skipped from progress")).one() == ('["intro"]', "exos", "[]")
+        conn.execute(text("update progress set skipped = '[\"bilan\"]'"))
+    command.downgrade(alembic_config(url), "0012")
+    engine = make_engine(url)
+    assert "skipped" not in {c["name"] for c in inspect(engine).get_columns("progress")}
+    with engine.connect() as conn:
+        assert conn.execute(text("select done, active from progress")).one() == ('["intro"]', "exos")
+        assert conn.execute(text("select count(*) from courses")).scalar_one() == 1
+    command.upgrade(alembic_config(url), "head")

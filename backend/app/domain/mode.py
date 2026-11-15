@@ -1,6 +1,6 @@
 """How Célestin works on a chapter (007 design 3.1).
 
-`parcours` follows the chapter's locked path with the section tools; `discussion`
+`parcours` follows the chapter's path (open since spec 019) with the section tools; `discussion`
 is a free conversation about the same chapter, with the board and no path tools.
 A third mode (révision) is a value here, a pair of prompt files and a row in the
 tool table — never a second turn loop.

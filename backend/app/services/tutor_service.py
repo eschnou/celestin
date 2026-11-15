@@ -23,7 +23,7 @@ from app.services.prompts import PromptLibrary
 from app.services.tool_events import event_of
 from app.services.tools import registry
 from app.services.tools.context import TurnContext
-from app.services.tools.section import SectionCompleted, SectionStarted
+from app.services.tools.section import SectionCompleted, SectionSkipped, SectionStarted
 
 log = logging.getLogger(__name__)
 
@@ -158,6 +158,8 @@ class TutorService:
                         "section_completed",
                         extra={"turn_id": turn_id, "section_id": outcome.section.id, "summary": outcome.summary},
                     )
+                elif isinstance(outcome, SectionSkipped):
+                    log.info("section_skipped", extra={"turn_id": turn_id, "section_id": outcome.section.id})
                 yield event_of(outcome, ctx.locale)
 
             block_id += 1

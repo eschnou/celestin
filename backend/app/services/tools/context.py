@@ -73,11 +73,12 @@ class TurnContext:
         language: CourseLanguage = DEFAULT_COURSE_LANGUAGE,
         course_id: str | None = None,
         earlier_cards: Callable[[str], list[dict[str, Any]]] | None = None,
+        skipped: list[str] | None = None,
     ) -> TurnContext:
         """From the stored record: inconsistent progress is repaired, never rejected."""
         return cls(
             curriculum=curriculum,
-            progress=progress_domain.normalise(done, active, curriculum),
+            progress=progress_domain.normalise(done, active, curriculum, skipped or ()),
             save=save,
             user_id=user_id,
             chapter_id=chapter_id,
@@ -101,7 +102,12 @@ class TurnContext:
                 raise ToolValidationError(SAVE_FAILED[self.language]) from None
             log.info(
                 "progress_saved",
-                extra={**where, "active": progress.active, "done_count": len(progress.done)},
+                extra={
+                    **where,
+                    "active": progress.active,
+                    "done_count": len(progress.done),
+                    "skipped_count": len(progress.skipped),
+                },
             )
         self.progress = progress
 

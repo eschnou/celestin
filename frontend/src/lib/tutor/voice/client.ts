@@ -4,7 +4,13 @@
 import { ApiError, sendJson } from "../client";
 import { VOICE_TURN_URL } from "../discussion";
 import { SEANCE_REPORT_URL } from "../seance";
-import type { HistoryEntry, LessonScope, Progress, TutorEvent } from "../types";
+import {
+  progressFrom,
+  type HistoryEntry,
+  type LessonScope,
+  type TutorEvent,
+  type WireProgress,
+} from "../types";
 import type { ToolCall, ToolResult, VoiceSessionInfo, VoiceUsageReport } from "./types";
 
 export const SESSION_URL = "/api/voice/session";
@@ -59,7 +65,7 @@ export async function createVoiceSession(
 type ToolWire = {
   output: string;
   event: TutorEvent | null;
-  progress: Progress;
+  progress: WireProgress;
   state_text?: string | null;
 };
 
@@ -79,7 +85,11 @@ export async function executeTool(
       mode: scope.mode,
     })
   ).json()) as ToolWire;
-  const result: ToolResult = { output: wire.output, event: wire.event, progress: wire.progress };
+  const result: ToolResult = {
+    output: wire.output,
+    event: wire.event,
+    progress: progressFrom(wire.progress),
+  };
   if (wire.state_text) result.stateText = wire.state_text;
   return result;
 }

@@ -683,6 +683,7 @@ def test_the_dutch_guardrail_set_mirrors_the_english_one() -> None:
     for dutch, english in zip([*parcours, *discussion], [*english_parcours, *english_discussion]):
         assert bool(dutch.secrets) == bool(english.secrets) and bool(dutch.offpack) == bool(english.offpack)
         assert bool(dutch.quoted) == bool(english.quoted) and (dutch.chapter is None) == (english.chapter is None)
+        assert dutch.path == english.path  # spec 019: the same path probes, in the same places
     own = next(p for p in parcours if p.quoted)
     assert own.chapter == probe.UNIFORM_MOTION_NL and own.section == "oefenen"
     assert own.own_prior()[1].text == own.opening == "Laten we oefeningen maken."  # type: ignore[union-attr]

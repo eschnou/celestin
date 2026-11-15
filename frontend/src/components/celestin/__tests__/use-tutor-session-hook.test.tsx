@@ -26,7 +26,7 @@ import { resetChapter } from "@/lib/tutor/courses";
 import { reportTurn } from "@/lib/tutor/voice/client";
 
 const SCOPE = { courseId: "maths-5e", chapterId: "suites" };
-const PROGRESS = { done: ["suites"], active: "sa-definition" };
+const PROGRESS = { done: ["suites"], active: "sa-definition", skipped: [] };
 
 function scripted(events: TutorEvent[]) {
   return vi.mocked(streamTurn).mockImplementation(async function* () {
@@ -75,7 +75,7 @@ describe("useTutorSession", () => {
     });
     await waitFor(() => expect(result.current.status).toBe("idle"));
     expect(resetChapter).toHaveBeenCalledWith("maths-5e", "suites");
-    expect(result.current.progress).toEqual({ done: [], active: null });
+    expect(result.current.progress).toEqual({ done: [], active: null, skipped: [] });
     expect(vi.mocked(streamTurn)).toHaveBeenCalledTimes(2);
   });
 
@@ -118,11 +118,12 @@ describe("the transport seam (007 §3.11)", () => {
     history: [{ kind: "learner" as const, text: "déjà dit" }],
     boards: [],
     board: null,
-    progress: { done: [], active: null },
+    progress: { done: [], active: null, skipped: [] },
     nextStep: null,
     section: null,
     blocks: {},
     voice: false,
+    started: [],
   };
 
   function mountWith(transport: ReturnType<typeof vi.fn>, initialState?: typeof RESTORED) {

@@ -2,7 +2,8 @@
 
 Declaration order is fixed: tool definitions sit inside the cached prefix, and
 reordering them invalidates every cache entry (design 7). Section tools come
-after the board tools so the board declarations' bytes do not move (002 R4.5).
+after the board tools so the board declarations' bytes do not move (002 R4.5), and
+`skip_section` (spec 019) comes last for the same reason.
 """
 
 from __future__ import annotations
@@ -34,17 +35,24 @@ from app.services.tools.pace import NextStepProposed, ProposeNextStepArgs, propo
 from app.services.tools.section import (
     CompleteSectionArgs,
     SectionCompleted,
+    SectionSkipped,
     SectionStarted,
+    SkipSectionArgs,
     StartSectionArgs,
+    check_section,
+    check_start,
     complete_section,
     replay_complete,
+    replay_skip,
     replay_start,
     shown_complete,
+    shown_skip,
     shown_start,
+    skip_section,
     start_section,
 )
 
-ToolOutcome = BoardSet | BoardCleared | SectionStarted | SectionCompleted | NextStepProposed
+ToolOutcome = BoardSet | BoardCleared | SectionStarted | SectionCompleted | NextStepProposed | SectionSkipped
 
 
 @dataclass(frozen=True)
@@ -62,6 +70,10 @@ class Tool:
     # built by the function the live handler uses, and its entry's extra wire fields.
     # None shows no marker. `StoredEntry` asks here, so a new tool needs no DTO edit.
     shown: Callable[[ToolEntry, StoredView], Shown] | None = None
+    # What a call the browser reports must satisfy beyond its schema, against the chapter
+    # (spec 018 D10): the entry to store (completed with what the call was, if the browser
+    # left it out), or None to refuse the report. None accepts any entry of the tool.
+    check: Callable[[ToolEntry, StoredView], ToolEntry | None] | None = None
     # Told about arguments Pydantic refused, before the model is: for the logs only.
     on_invalid: Callable[[ValidationError, TurnContext], None] | None = None
 
@@ -112,14 +124,15 @@ _TOOLS: dict[str, Tool] = {
             name="start_section",
             description=(
                 "Ouvre une section du parcours et renvoie son plan : objectif, déroulé ou "
-                "exercices types, critère de fin. Refusée si la section n'est pas encore "
-                "ouverte. Une section déjà faite s'ouvre en révision."
+                "exercices types, critère de fin. N'importe quelle section peut être ouverte, "
+                "dans n'importe quel ordre. Une section déjà faite s'ouvre en révision."
             ),
             args_model=StartSectionArgs,
             handler=start_section,
             strict=True,
             replay=replay_start,
             shown=shown_start,
+            check=check_start,
         ),
         Tool(
             name="complete_section",
@@ -132,6 +145,7 @@ _TOOLS: dict[str, Tool] = {
             strict=True,
             replay=replay_complete,
             shown=shown_complete,
+            check=check_section,
         ),
         Tool(
             name="propose_next_step",
@@ -144,6 +158,21 @@ _TOOLS: dict[str, Tool] = {
             handler=propose_next_step,
             strict=True,
             shown=shown_propose,
+        ),
+        Tool(
+            name="skip_section",
+            description=(
+                "Passe une section que ton élève demande de passer (déjà vue, pas utile "
+                "maintenant). Seulement à sa demande. Une section passée reste ouverte et peut "
+                "être commencée plus tard ; une section déjà faite ne se passe pas. Renvoie ce "
+                "qui vient ensuite."
+            ),
+            args_model=SkipSectionArgs,
+            handler=skip_section,
+            strict=True,
+            replay=replay_skip,
+            shown=shown_skip,
+            check=check_section,
         ),
     )
 }
@@ -337,6 +366,15 @@ def shown(entry: ToolEntry, mode: Mode, view: StoredView = StoredView()) -> Show
     if tool is None or tool.shown is None or entry.name not in _MODE_TOOLS[mode]:
         return Shown()
     return tool.shown(entry, view)
+
+
+def checked(entry: ToolEntry, view: StoredView) -> ToolEntry | None:
+    """A reported call as it will be stored, or None when its tool refuses it (spec 018 D10).
+    `view` holds the chapter's curriculum and the progress the report is stored against."""
+    tool = _TOOLS.get(entry.name)
+    if tool is None or tool.check is None:
+        return entry
+    return tool.check(entry, view)
 
 
 def output_of(outcome: ToolOutcome) -> dict[str, Any]:

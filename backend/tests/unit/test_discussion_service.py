@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from app.api.schemas.chat import LearnerEntry, ToolEntry, TutorEntry
+from app.api.schemas.chat import LearnerEntry, ToolEntry, TutorEntry, stored_form
 from app.api.schemas.events import (
     BoardClearEvent,
     BoardSetEvent,
     SectionDoneEvent,
+    SectionSkippedEvent,
     SectionStartEvent,
     StepReadyEvent,
     TextDeltaEvent,
@@ -109,13 +110,36 @@ def test_the_parcours_events_are_recorded_as_the_lesson_records_them() -> None:
             SectionStartEvent(section_id="intro", review=True, marker="m"),
             SectionDoneEvent(section_id="intro", next_section_id="exos", marker="m"),
             StepReadyEvent(marker="m"),
+            SectionSkippedEvent(section_id="exos", next_section_id="bilan", active_section_id=None, marker="m"),
+            SectionDoneEvent(section_id="bilan", next_section_id=None, marker="m"),
         ]
     )
     assert entries == [
         ToolEntry(kind="tool", name="start_section", arguments={"section_id": "intro"}, review=True),
-        ToolEntry(kind="tool", name="complete_section", arguments={"section_id": "intro"}),
+        ToolEntry(kind="tool", name="complete_section", arguments={"section_id": "intro"}, next_section_id="exos"),
         ToolEntry(kind="tool", name="propose_next_step", arguments={}),
+        # Spec 019: what the call answered is recorded, so a later turn replays it; the marker is shown on reading.
+        ToolEntry(
+            kind="tool",
+            name="skip_section",
+            arguments={"section_id": "exos"},
+            next_section_id="bilan",
+            active_section_id=None,
+        ),
+        ToolEntry(kind="tool", name="complete_section", arguments={"section_id": "bilan"}, next_section_id=None),
     ]
+    # Recorded means present: an explicit null (the chapter was finished) is kept in the stored row.
+    assert stored_form(entries[3])["active_section_id"] is None
+    assert stored_form(entries[4]) == {
+        "kind": "tool",
+        "name": "complete_section",
+        "arguments": {"section_id": "bilan"},
+        "ok": True,
+        "error": None,
+        "next_section_id": None,
+    }
+    # Every other entry keeps the bytes it always had.
+    assert "next_section_id" not in stored_form(entries[2]) and "review" not in stored_form(entries[2])
 
 
 # --- conversations ------------------------------------------------------------

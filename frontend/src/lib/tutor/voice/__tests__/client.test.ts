@@ -116,7 +116,7 @@ describe("executeTool", () => {
     const fetchMock = mockFetch(200, {
       output: '{"ok":true}',
       event: { event: "section.start", section_id: "s", review: false, marker: "m" },
-      progress: { done: [], active: "s" },
+      progress: { done: [], active: "s", skipped: [] },
       state_text: "État",
     });
     const result = await executeTool(
@@ -133,7 +133,7 @@ describe("executeTool", () => {
       chapter_id: "suites",
     });
     expect(result.stateText).toBe("État");
-    expect(result.progress).toEqual({ done: [], active: "s" });
+    expect(result.progress).toEqual({ done: [], active: "s", skipped: [] });
   });
 
   it("omits stateText when the server sends null", async () => {

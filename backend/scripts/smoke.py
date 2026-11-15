@@ -18,6 +18,7 @@ from app.api.schemas.events import (
     BoardSetEvent,
     ErrorEvent,
     SectionDoneEvent,
+    SectionSkippedEvent,
     SectionStartEvent,
     TextDeltaEvent,
     TurnEnd,
@@ -59,12 +60,22 @@ def load_lesson(settings, argv: list[str]):
 
 
 def context_for(
-    chapter, done: list[str] | None = None, active: str | None = None, mode: str = "parcours"
+    chapter,
+    done: list[str] | None = None,
+    active: str | None = None,
+    mode: str = "parcours",
+    skipped: list[str] | None = None,
 ):
     from app.services.tools.context import TurnContext
 
     return TurnContext.from_progress(
-        chapter.curriculum, done or [], active, mode=mode, pack=chapter.pack, language=chapter.language
+        chapter.curriculum,
+        done or [],
+        active,
+        mode=mode,
+        pack=chapter.pack,
+        language=chapter.language,
+        skipped=skipped,
     )
 
 
@@ -85,7 +96,7 @@ async def one_turn(
             print(event.text, end="", flush=True)
         elif isinstance(event, BoardSetEvent):
             print(f"\n  [tableau] {event.marker} — {event.card.kind}")
-        elif isinstance(event, (SectionStartEvent, SectionDoneEvent)):
+        elif isinstance(event, (SectionStartEvent, SectionDoneEvent, SectionSkippedEvent)):
             print(f"\n  [parcours] {event.marker}")
         elif isinstance(event, ErrorEvent):
             print(f"\n  [erreur] {event.code}")

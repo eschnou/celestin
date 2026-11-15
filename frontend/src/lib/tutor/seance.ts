@@ -8,7 +8,13 @@ import { queryOptions } from "@tanstack/react-query";
 
 import { chapterUrl } from "./chapter";
 import { getJson } from "./client";
-import type { Notebook, Progress, Seance } from "./types";
+import {
+  progressFrom,
+  type Notebook,
+  type Progress,
+  type Seance,
+  type WireProgress,
+} from "./types";
 
 /** Where the browser reports a parcours turn the server did not see to its end (018 D7): a
  *  spoken one (the same deviation as 007 D1), or one the learner stopped. */
@@ -40,7 +46,12 @@ export type LessonStart = {
 export const lessonStartQuery = (courseId: string, chapterId: string) =>
   queryOptions({
     queryKey: ["seance", courseId, chapterId],
-    queryFn: () => getJson<LessonStart>(seanceUrl(courseId, chapterId)),
+    queryFn: async (): Promise<LessonStart> => {
+      const start = await getJson<Omit<LessonStart, "progress"> & { progress: WireProgress }>(
+        seanceUrl(courseId, chapterId),
+      );
+      return { ...start, progress: progressFrom(start.progress) };
+    },
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     gcTime: 0,

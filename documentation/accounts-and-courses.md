@@ -86,7 +86,7 @@ A student has at most `MAX_COURSES_PER_STUDENT` courses.
 A **chapter** belongs to a course, in creation order (`position`), at most
 `MAX_CHAPTERS_PER_COURSE`. It is created from a document (one PDF or photos, spec 006) and becomes ready when authoring adopts a
 pack and a curriculum ([authoring.md](./authoring.md)). Chapters inside a course are independent;
-the locked path lives inside a chapter ([chapters.md](./chapters.md)). Course and chapter ids are
+the path lives inside a chapter, open since spec 019 ([chapters.md](./chapters.md)). Course and chapter ids are
 uuid4 hex; the chat and voice DTOs only accept that form.
 
 **Ownership** is in every query: `owned_course` and `owned_chapter` in `app/api/deps.py` join
@@ -133,7 +133,10 @@ course answers `404`, never `403`, so ownership is not probeable. `lesson_chapte
 | `POST /api/voice/session` / `/tool` | owner | + `course_id`, `chapter_id` | as spec 003; the session posts no transcript (spec 018) |
 
 A chapter **row** carries `position`, `title` (null until ready), `ready`, `section_count`,
-`done_count`, `state` (`not_started`, `in_progress`, `done`), `last` (newest `progress.updated_at`,
+`done_count`, `skipped_count` (spec 019: the sections passed, capped so that `done_count +
+skipped_count` never exceeds `section_count`; no section is both done and skipped, since the tools
+write the progress from a normalised one and `with_done` takes an id out of `skipped`), `state` (`not_started`; `in_progress` once something is done,
+skipped or started; `done` once every section is done or skipped), `last` (newest `progress.updated_at`,
 feeds « Reprendre »), `authoring_state`, `authoring_stage` (kept on failure), `pages_done`,
 `page_count` and the French `authoring_message`. The
 course summary carries `chapters_done`, `chapters_total`, `last_chapter` and `generating`. Both
@@ -141,12 +144,13 @@ pages cost two queries: courses joined to the chapters' light columns, then the 
 
 ## Progress
 
-The `progress` table is keyed by `(user_id, chapter_id)` and holds `done`, `active`, `updated_at`.
+The `progress` table is keyed by `(user_id, chapter_id)` and holds `done`, `active`, `skipped` (spec
+019, migration `0013`: the sections the student passed, a JSON list) and `updated_at`.
 The controllers load it into the `TurnContext` with `save` bound to the store
 (`deps.load_context`); the section tools call `ctx.commit(new_progress)`, which persists first and
 adopts second. A failing write is a tool error the model reads (« Je n'ai pas pu enregistrer ta
 progression. Réessaie. ») and no event is emitted, so the browser and the record cannot diverge. A
-review (`start_section` on a done section) commits nothing. The browser no longer posts progress
+review (`start_section` on a done section) commits nothing, nor does skipping a section already skipped. The browser no longer posts progress
 or keeps it in `localStorage`; the authenticated layout removes any `celestin.progress.*` key it finds.
 
 Every change of a chapter's content (an editor save, an authoring run adopted) deletes the chapter's
@@ -214,11 +218,12 @@ subject's icon, the name, subject · language · chapters finished, and a « ⋯
 card (`course-resume.tsx`, only with two chapters or more) with the chapter to go back to and one big button
 (`lib/tutor/featured-chapter.ts`: the chapter worked on last if unfinished, else one in progress, else the first not
 started, titled « Prochain chapitre »; nothing when all is done); then the chapters as cards (`chapter-row.tsx`: number
-or a check, the title, a state badge and « Section 3 sur 9 », a progress bar, **« Reprendre » / « Commencer » /
+or a check, the title, a state badge and its progress in words, a progress bar, **« Reprendre » / « Commencer » /
 « Revoir »** as the one filled button and « Discuter » beside it; « Contenu du chapitre » and « Supprimer » are in the
 card's « ⋯ » menu, whose delete opens a controlled `ConfirmDialog`); and a dashed « Ajouter un chapitre » card (also the
-empty state). The section she is on is `done_count + 1`: the row does not carry the next section's title, which would
-mean loading every curriculum for the list (a possible follow-up).
+empty state). The progress in words is « 9 sections » before she starts, then counts, never a position, since
+sections are done in any order (spec 019): « 3 faites sur 9 », or « 3 faites sur 9 · 2 passées » once something was
+passed (`doneAndSkipped`, plural forms in the three catalogs); the resume card reads the same.
 
 Course-page components live in `components/celestin/` (`course-card`, `create-course-form`,
 `course-header`, `course-resume`, `chapter-row`, `add-chapter-form`, `document-picker`, `chapter-state-card`,

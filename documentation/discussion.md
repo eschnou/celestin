@@ -10,7 +10,7 @@ selects three things and nothing else:
 | What | Parcours | Discussion |
 |---|---|---|
 | Prompt layer | `prompts/modes/parcours.fr.md` + `.opening.fr.md` | `prompts/modes/discussion.fr.md` + `.opening.fr.md` |
-| Tool set | the five tools | `display_board`, `clear_board` |
+| Tool set | the six tools (`skip_section` since spec 019) | `display_board`, `clear_board` |
 | What a turn posts | the learner's message; the server reads the live séance (spec 018) | the learner's message, naming its conversation |
 | Who owns the transcript | the server: one `conversations` row per section séance ([seances.md](./seances.md)) | the server: a `conversations` row |
 
@@ -20,13 +20,16 @@ A discussion cannot move the student's path, and that is enforced twice, in code
 text:
 
 1. **The section tools are not declared.** `registry.declarations("discussion")` is the board pair
-   only, and `registry.execute` refuses anything outside the mode's set — which matters because
+   only (no `start_section`, `complete_section` or `skip_section`), and `registry.execute` refuses anything outside the mode's set — which matters because
    `/api/voice/tool` takes a tool name from the browser, so the mode has to be a server-side fact.
 2. **The turn context has no store.** `deps.load_context(..., mode)` binds `save` only for the
    parcours, so even a section tool that somehow ran would adopt in memory and write nothing.
 
 An integration test asserts directly against the database that no discussion turn leaves a
-`progress` row.
+`progress` row; the voice route refuses `start_section` and `skip_section` in a discussion and writes
+nothing (spec 019). The discussion's state lines read the progress, skipped sections included (« … et 1
+passée(s) sur 7. Sections passées : … »), and name no tool; its prompt still says sections are opened in
+the parcours, which stays true now that any of them can be.
 
 ## The mode in the prompt
 

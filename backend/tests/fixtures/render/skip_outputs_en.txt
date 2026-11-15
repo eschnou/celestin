@@ -1,0 +1,3 @@
+Section skipped. Next section: “3. Summary” (summary), id: bilan.
+Section skipped. Section still in progress: “2. Exercises” (practice), id: exos.
+Section skipped. Chapter finished: every section is done or skipped.

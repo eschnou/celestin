@@ -102,6 +102,18 @@ const done = (sectionId: string, next: string | null): StoredEntry => ({
   next_section_id: next,
   marker: "section terminée",
 });
+const skip = (
+  sectionId: string,
+  next: string | null,
+  active: string | null = null,
+): StoredEntry => ({
+  kind: "tool",
+  name: "skip_section",
+  arguments: { section_id: sectionId },
+  next_section_id: next,
+  active_section_id: active,
+  marker: "section passée",
+});
 const proposed: StoredEntry = {
   kind: "tool",
   name: "propose_next_step",
@@ -238,5 +250,79 @@ describe("sessionFromEntries on a parcours séance", () => {
     });
     expect(comparable(restored)).toEqual(comparable(lived));
     expect(restored.nextStep).toEqual({ kind: "section", sectionId: "s3" });
+  });
+
+  it("replays a stored skip as the live event did (spec 019)", () => {
+    const stored: StoredEntry[] = [
+      { kind: "tutor", text: "Bonjour." },
+      { kind: "learner", text: "On commence ?" },
+      start("s1"),
+      show(TITLE),
+      { kind: "learner", text: "Je passe la section « Suites »." },
+      skip("s1", "s2"),
+      { kind: "tutor", text: "D'accord, la suivante est prête." },
+    ];
+    type Step = TutorEvent | { learner: string };
+    const live: Step[] = [
+      { event: "turn.start", turn_id: "t1" },
+      { event: "text.delta", block_id: 0, text: "Bonjour." },
+      { event: "turn.end", reason: "end", usage: {} },
+      { learner: "On commence ?" },
+      { event: "turn.start", turn_id: "t2" },
+      { event: "section.start", section_id: "s1", review: false, marker: "section ouverte" },
+      { event: "board.set", card: TITLE, marker: "carte affichée" },
+      { event: "turn.end", reason: "end", usage: {} },
+      { learner: "Je passe la section « Suites »." },
+      { event: "turn.start", turn_id: "t3" },
+      {
+        event: "section.skipped",
+        section_id: "s1",
+        next_section_id: "s2",
+        active_section_id: null,
+        marker: "section passée",
+      },
+      { event: "text.delta", block_id: 0, text: "D'accord, la suivante est prête." },
+      { event: "turn.end", reason: "end", usage: {} },
+    ];
+    const lived = live.reduce<SessionState>(
+      (state, step) =>
+        "learner" in step ? appendLearner(state, step.learner) : reduce(state, step),
+      EMPTY_SESSION,
+    );
+    const restored = sessionFromEntries(stored);
+    const comparable = (state: SessionState) => ({
+      entries: state.entries.map(({ id: _id, ...rest }) =>
+        rest.role === "tutor" ? { ...rest, blockId: 0 } : rest,
+      ),
+      history: state.history,
+      boards: state.boards,
+      board: state.board,
+      progress: state.progress,
+      nextStep: state.nextStep,
+      section: state.section,
+    });
+    expect(comparable(restored)).toEqual(comparable(lived));
+    expect(restored.progress).toEqual({ done: [], active: null, skipped: ["s1"] });
+    expect(restored.nextStep).toEqual({ kind: "section", sectionId: "s2" });
+    expect(restored.history).toContainEqual({
+      kind: "tool",
+      name: "skip_section",
+      arguments: { section_id: "s1" },
+      ok: true,
+      next_section_id: "s2",
+      active_section_id: null,
+    });
+  });
+
+  it("restores a skip of another section without turning the page", () => {
+    const state = sessionFromEntries([start("s1"), proposed, skip("s3", null, "s1")]);
+    expect(state.progress).toEqual({ done: [], active: "s1", skipped: ["s3"] });
+    expect(state.nextStep).toEqual({ kind: "step" });
+  });
+
+  it("restores a skip that finished the chapter with no page-turn button", () => {
+    const state = sessionFromEntries([start("s1"), done("s1", "s2"), skip("s2", null)]);
+    expect(state.nextStep).toBeNull();
+    expect(state.started).toEqual(["s1"]);
   });
 });

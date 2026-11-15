@@ -21,7 +21,7 @@ from app.domain.subject import SUBJECTS
 from app.services.tool_events import event_of
 from app.services.tools.board import BoardCleared, BoardSet
 from app.services.tools.pace import NextStepProposed
-from app.services.tools.section import SectionCompleted, SectionStarted
+from app.services.tools.section import SectionCompleted, SectionSkipped, SectionStarted
 
 FIXTURES = Path(__file__).parent.parent / "fixtures"
 STATUS = json.loads((FIXTURES / "status_messages_fr.json").read_text("utf-8"))
@@ -133,6 +133,10 @@ def test_the_event_of_an_outcome_carries_the_marker_in_the_requests_language() -
     assert event_of(started, "en").marker == "section started · 1. Introduction"
     done = SectionCompleted(section=section, next=None, summary="s", output="o", marker=Marker("marker.section_done", label="1. Introduction"))  # type: ignore[arg-type]
     assert event_of(done, "en").marker == "section completed · 1. Introduction"
+    skipped = SectionSkipped(section=section, active=None, next=None, output="o", marker=Marker("marker.section_skipped", label="1. Introduction"))  # type: ignore[arg-type]
+    assert event_of(skipped, "fr").marker == "section passée · 1. Introduction"
+    assert event_of(skipped, "en").marker == "section skipped · 1. Introduction"
+    assert event_of(skipped, "nl").marker == "sectie overgeslagen · 1. Introduction"
 
 
 def test_a_stored_call_is_marked_in_the_readers_language() -> None:

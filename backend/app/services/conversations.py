@@ -19,6 +19,7 @@ from app.api.schemas.events import (
     BoardClearEvent,
     BoardSetEvent,
     SectionDoneEvent,
+    SectionSkippedEvent,
     SectionStartEvent,
     StepReadyEvent,
     TextDeltaEvent,
@@ -40,8 +41,10 @@ def entries_from_events(events: list[TurnEvent]) -> list[Entry]:
     one tutor entry per text block, one tool entry per successful call.
 
     A refused call emits no event and is not recorded, exactly as in the browser.
-    The parcours tools (`start_section` with its `review`, `complete_section`,
-    `propose_next_step`) are recorded as the lesson records them; a discussion
+    The parcours tools (`start_section` with its `review`, `complete_section` with the
+    `next_section_id` it answered, `propose_next_step`, `skip_section` with its
+    `next_section_id` and `active_section_id`) are recorded as the lesson records them, so a
+    later turn replays what the call answered (spec 019); a discussion
     cannot produce their events, since it is never offered the tools.
     """
     # A block's deltas are gathered as parts and joined once: a long reply arrives
@@ -78,9 +81,24 @@ def entries_from_events(events: list[TurnEvent]) -> list[Entry]:
                 )
             )
         elif isinstance(event, SectionDoneEvent):
-            # The summary stays server-side (logged), as in the browser: a replay needs only the id.
+            # The summary stays server-side (logged), as in the browser: a replay needs the id and what it answered.
             slots.append(
-                ToolEntry(kind="tool", name="complete_section", arguments={"section_id": event.section_id})
+                ToolEntry(
+                    kind="tool",
+                    name="complete_section",
+                    arguments={"section_id": event.section_id},
+                    next_section_id=event.next_section_id,
+                )
+            )
+        elif isinstance(event, SectionSkippedEvent):
+            slots.append(
+                ToolEntry(
+                    kind="tool",
+                    name="skip_section",
+                    arguments={"section_id": event.section_id},
+                    next_section_id=event.next_section_id,
+                    active_section_id=event.active_section_id,
+                )
             )
         elif isinstance(event, StepReadyEvent):
             slots.append(ToolEntry(kind="tool", name="propose_next_step", arguments={}))

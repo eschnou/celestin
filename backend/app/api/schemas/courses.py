@@ -66,6 +66,9 @@ class ChapterRow(_Model):
     ready: bool
     section_count: int
     done_count: int
+    # Spec 019: sections the student passed, counted apart from `done_count`; done + skipped never exceeds
+    # `section_count`, and a chapter whose sections are all done or skipped is `done`.
+    skipped_count: int = 0
     state: ChapterState
     last: bool
     authoring_state: AuthoringState

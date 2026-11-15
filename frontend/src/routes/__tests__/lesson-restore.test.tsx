@@ -68,7 +68,7 @@ const CHAPTER = {
     { id: "s2", index: 2, kind: "practise", title: "Calculer un terme", goal: "g2" },
     { id: "s3", index: 3, kind: "synthesis", title: "Synthèse", goal: "g3" },
   ],
-  progress: { done: ["s1"], active: "s2" },
+  progress: { done: ["s1"], active: "s2", skipped: [] },
 };
 
 const CHAPTER_PATH = "/api/courses/maths/chapters/suites";
@@ -161,7 +161,7 @@ describe("a lesson with a stored séance", () => {
     // stale); the progress read with the séance says s2 is done since.
     let reads = 0;
     const calls = mountLesson({
-      seance: () => start(seance(ENTRIES), { done: ["s1", "s2"], active: null }),
+      seance: () => start(seance(ENTRIES), { done: ["s1", "s2"], active: null, skipped: [] }),
       chapter: () => {
         reads += 1;
         return { body: CHAPTER };
@@ -244,6 +244,58 @@ describe("the cahier's entry points", () => {
       "/courses/maths/chapters/suites/notebook#s2",
     );
     expect(reread(rows[2]!)).toBeNull();
+  });
+
+  it("offers « Reprendre » where a séance exists, and the page turns with it (spec 019)", async () => {
+    vi.mocked(streamTurn).mockImplementationOnce(async function* () {
+      yield { event: "turn.start", turn_id: "t1" };
+      yield { event: "text.delta", block_id: 0, text: "Bonjour, on commence." };
+      yield { event: "section.start", section_id: "s1", review: false, marker: "section ouverte" };
+      yield { event: "board.set", card: CARD as never, marker: "explication affichée" };
+      yield {
+        event: "section.skipped",
+        section_id: "s1",
+        next_section_id: "s2",
+        active_section_id: null,
+        marker: "passée",
+      };
+      yield { event: "turn.end", reason: "end", usage: {} };
+    });
+    const progress = { done: [], active: null, skipped: [] };
+    mountLesson({
+      seance: () => ({ body: { seance: null, progress, seances: { s2: { cards: 0 } } } }),
+    });
+    await screen.findByText("Bonjour, on commence.");
+    const sheet = await openMap();
+    const rows = within(sheet).getAllByRole("listitem");
+    // s1 was started this page load, then skipped; s2 has a séance stored from before.
+    expect(rows.map((r) => r.getAttribute("data-state"))).toEqual(["skipped", "available", "open"]);
+    expect(within(rows[0]!).getByRole("button", { name: "Reprendre" })).toBeTruthy();
+    expect(within(rows[1]!).getByRole("button", { name: "Reprendre" })).toBeTruthy();
+    expect(within(rows[2]!).getByRole("button", { name: "Commencer" })).toBeTruthy();
+    fireEvent.keyDown(sheet, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(screen.getAllByRole("button", { name: "Section suivante" })[0]!);
+    await waitFor(() => expect(vi.mocked(streamTurn)).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(streamTurn).mock.calls[1]![1]).toBe(
+      "On reprend la section « Calculer un terme » ?",
+    );
+  });
+
+  it("takes a progress without `skipped` (a backend older than spec 019)", async () => {
+    vi.mocked(streamTurn).mockImplementationOnce(async function* () {
+      yield { event: "turn.start", turn_id: "t1" };
+      yield { event: "text.delta", block_id: 0, text: "Bonjour, on commence." };
+      yield { event: "section.start", section_id: "s1", review: false, marker: "section ouverte" };
+      yield { event: "turn.end", reason: "end", usage: {} };
+    });
+    mountLesson({
+      seance: () => ({ body: { seance: null, progress: { done: [], active: null }, seances: {} } }),
+    });
+    await screen.findByText("Bonjour, on commence.");
+    const sheet = await openMap();
+    const rows = within(sheet).getAllByRole("listitem");
+    expect(rows.map((r) => r.getAttribute("data-state"))).toEqual(["active", "open", "open"]);
   });
 
   it("says the cahier is erased with the progress, and leaves nothing to reread", async () => {

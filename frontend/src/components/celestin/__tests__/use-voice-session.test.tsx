@@ -259,7 +259,7 @@ describe("useVoiceSession", () => {
     h.toolResults.push({
       output: '{"ok":true}',
       event: { event: "section.start", section_id: "suites", review: false, marker: "m" },
-      progress: { done: [], active: "suites" },
+      progress: { done: [], active: "suites", skipped: [] },
       stateText: "État",
     });
     h.emit([
@@ -292,6 +292,37 @@ describe("useVoiceSession", () => {
     expect(h.hook.result.current.phase).toBe("listening");
   });
 
+  it("dispatches a spoken skip like the other section tools (spec 019)", async () => {
+    const h = harness();
+    await h.start();
+    h.call.sent.length = 0;
+    const skipped = {
+      event: "section.skipped",
+      section_id: "suites",
+      next_section_id: "limites",
+      active_section_id: null,
+      marker: "section passée",
+    } as const;
+    h.toolResults.push({
+      output: '{"ok":true}',
+      event: skipped,
+      progress: { done: [], active: null, skipped: ["suites"] },
+    });
+    h.emit([
+      { type: "response.created", response: { id: "r1" } },
+      FC("skip_section", '{"section_id":"suites"}'),
+      { type: "response.done", response: { id: "r1", status: "completed" } },
+    ]);
+    await h.flush();
+    expect(h.api.executeTool).toHaveBeenCalledWith(
+      "s1",
+      { callId: "c1", name: "skip_section", arguments: '{"section_id":"suites"}' },
+      SCOPE,
+    );
+    expect(h.dispatched.slice(1)).toEqual([{ event: "turn.start", turn_id: "r1" }, skipped]);
+    expect(h.call.sent.at(-1)).toEqual({ type: "response.create" });
+  });
+
   it("executes two calls of one response serially, in scope", async () => {
     const h = harness();
     await h.start();
@@ -299,9 +330,9 @@ describe("useVoiceSession", () => {
       {
         output: "{}",
         event: { event: "section.start", section_id: "suites", review: false, marker: "m" },
-        progress: { done: [], active: "suites" },
+        progress: { done: [], active: "suites", skipped: [] },
       },
-      { output: "{}", event: null, progress: { done: [], active: "suites" } },
+      { output: "{}", event: null, progress: { done: [], active: "suites", skipped: [] } },
     );
     h.emit([
       { type: "response.created", response: { id: "r1" } },
@@ -659,6 +690,26 @@ describe("a spoken turn in the parcours", () => {
     ]);
     // What was there before the call is already stored.
     expect(entries).not.toContainEqual({ kind: "learner", text: "salut" });
+  });
+
+  it("reports a spoken skip with the other tool calls", async () => {
+    const s = harness();
+    await s.start();
+    const skip = {
+      kind: "tool" as const,
+      name: "skip_section",
+      arguments: { section_id: "suites" },
+      ok: true,
+      next_section_id: "limites",
+      active_section_id: null,
+    };
+    s.history.push({ kind: "learner", text: "celle-là je l'ai vue en classe" }, skip);
+    s.emit([{ type: "response.done", response: { status: "completed" } } as never]);
+    await s.flush();
+    expect(s.api.reportTurn.mock.calls[0]![1]).toEqual([
+      { kind: "learner", text: "celle-là je l'ai vue en classe" },
+      skip,
+    ]);
   });
 
   it("never sends the transcript with the session request", async () => {

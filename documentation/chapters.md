@@ -221,30 +221,86 @@ reset existing progress asks for confirmation first.
 | `practise` | « Exercices » | Sets `count` exercises one at a time, each a variant of the listed sample exercises, explaining only to unblock. | The `done_when` criterion is met, on the tutor's judgement. |
 | `synthesis` | « Synthèse » | Like practise, mixing everything before it, without naming the notion. | Same. |
 
-The per-kind behaviour is text in `backend/prompts/tutor.fr.md`, section « Le parcours ». The
+The per-kind behaviour is text in `backend/prompts/modes/parcours.fr.md` (and its `.en`, `.nl` twins), section « Le parcours ». The
 structure (which section, which beats, which pool) is data; the prose is generated live.
 
-## The locked path
+## The open path
+
+Since spec 019 (`specs/019-open-path/README.md`) no section is locked. The path's order is the order
+Célestin **proposes**; the student is autonomous and may open any section, in any order, or pass one
+(« je l'ai déjà vue en classe »). Correctness, withholding, the pack as only source, one section
+worked at a time and « finished only by `complete_section` on its criterion » are unchanged.
 
 Every section is in one state, computed by `app/services/path.py` from the curriculum order and the progress:
 
 - `done`: in `progress.done`.
 - `active`: `progress.active`. At most one.
-- `available`: the first section that is neither, and only when nothing is active.
-- `locked`: everything after the available one, or everything else while a section is active.
+- `skipped`: in `progress.skipped` (« passée »): the student chose to pass it. Kept apart from done, so
+  progress stays honest; never proposed as the next one; still open.
+- `available`: the section Célestin proposes — the first, in path order, that is neither done, skipped
+  nor active — and only while nothing is active.
+- `open`: every other section (it replaced `locked`).
 
-Rules, enforced in the tools and not in the prompt:
+`path.next_section` is that first section neither done, skipped nor active; `path.page_turn` (the section the
+page-turn button proposes) is none while a section is active, else `next_section`: the one rule for the
+live `section.done` and `section.skipped` events and for the stored calls read back. The chapter is
+**finished** once every section is done or skipped (`path.finished`, which the state message reads).
 
-- `start_section(id)` works on the available, active or done section. A done one opens as a **review**, which changes nothing. A locked one is refused with a tool error naming the section that can be started; the model reads that and explains it to the learner.
-- `complete_section(id, summary)` works on the active section only. The summary is logged (`section_completed`); it is the only record of why a practice section closed until a checker exists.
+Transitions, enforced in the tools and not in the prompt:
 
-The frontend keeps a display-only mirror of the same rules in `lib/tutor/path.ts`, tested against the same case table (`backend/tests/fixtures/path_cases.json`, copied to `frontend/src/lib/tutor/__tests__/`). It colours rows and nothing else.
+| Call | Refused when | Effect |
+| --- | --- | --- |
+| `start_section(id)` | unknown id | A done section opens as a **review** and changes nothing. Otherwise `active = id`, and `id` leaves `skipped`. The section that was active is simply no longer active (neither done nor skipped): its séance closes `left` and coming back to it gets the reprise note (spec 018). |
+| `complete_section(id, summary)` | not the active section | `done += id`, `active = None`. The summary is logged (`section_completed`); it is the only record of why a practice section closed until a checker exists. |
+| `skip_section(id)` | unknown id; section already done | `skipped += id`; `active = None` if it was the active one. Idempotent on an already skipped section (nothing is written again). |
+
+`skip_section` is the sixth tool, declared last (after `propose_next_step`) so the declarations before it
+keep their bytes; strict, offered in the parcours only (a discussion is not offered it and has no store).
+It answers what comes next, said as a completion says it (`curriculum_render.skipped` and `completion`
+share `_following`, built from sections, never from a progress): « Section passée. Prochaine section : … »,
+« Section passée. Section toujours en cours : … » when another section is still active, or « Section
+passée. Chapitre terminé : toutes les sections sont faites ou passées. » (the state message names the
+skipped sections, every turn; a completion that ends the chapter still says « Section terminée. Chapitre
+terminé. »). Its event is `section.skipped` `{section_id, next_section_id, active_section_id, marker}`:
+`active_section_id` is the section still being worked after the skip (null when none), `next_section_id`
+the proposed next section when nothing is active, else null (passing another section does not turn the
+page of the one being worked); both null means the skip finished the chapter. Its marker key is
+`marker.section_skipped` (« section passée · 2. … »). The refusals the model reads are `path.WORDS`
+(`unknown`, `none_active`, `only_active`, `skip_done`), per course language.
+
+A stored completion or skip **replays what it answered** (spec 018's séances): `section.done`'s
+`next_section_id`, and `section.skipped`'s two ids, are recorded on the stored entry
+(`ToolEntry.next_section_id`, `active_section_id`; recorded means present, an explicit null included,
+never sent to the model) and the `replay` hooks rebuild the live text from them, whatever the progress
+became since (the student may have started the section the skip proposed). An entry that recorded
+nothing (stored before spec 019) is answered from the progress now, as it always was. What a stored call
+*shows* the restored browser is the other way round: the page-turn from the progress **now**
+(`path.page_turn`), so the button proposes something valid today.
+
+Only the student decides: the mode layer (`prompts/modes/parcours.<lang>.md`, « Le parcours ») tells
+Célestin to open any section asked for without arguing (one sentence, once, if it relies on a notion of
+a section not done yet), to call `skip_section` when the student asks and never on his own initiative,
+never asking for a justification or a test. The opening file proposes the section in progress, else the
+next one, and opens another if the student prefers it. The model reads the path through
+`curriculum_render`: the overview's lead only says the order is the one Célestin proposes (it sits in
+the cached prefix; the tools' contract is the mode layer's and the declarations' to state); the state
+message counts done and skipped apart, names the skipped sections, names the proposed next one when
+nothing is active, and offers a skipped section or a review once the chapter is finished; a
+discussion's state lines carry the skipped count too, naming no tool.
+
+The frontend keeps a display-only mirror of the same rules in `lib/tutor/path.ts`, tested against the
+same case table (`backend/tests/fixtures/path_cases.json`, copied to `frontend/src/lib/tutor/__tests__/`;
+each case pins `states` and `next`). It colours rows and names the proposed section; it decides nothing.
 
 ## Where progress lives, and what else a chapter carries
 
-The record `{done, active}` is a row of the `progress` table, keyed by student and chapter (a foreign
-key to `chapters`, deleted with it), written by the section tools in the same request that emits
-`section.start` or `section.done`, and read by the chat and voice controllers. The browser receives
+The record `{done, active, skipped}` is a row of the `progress` table (`skipped` since migration
+`0013`, spec 019; a JSON list, `[]` for every progress written before), keyed by student and chapter
+(a foreign key to `chapters`, deleted with it), written by the section tools in the same request that
+emits `section.start`, `section.done` or `section.skipped`, and read by the chat and voice controllers.
+Normalisation (`domain/progress.normalise`) repairs it: unknown ids dropped, an id both done and
+skipped is done, an `active` that is unknown, done or skipped is cleared. `ProgressDTO` carries
+`skipped` (sorted) wherever it travels: the chapter view, the séance read, the voice tool response. The browser receives
 it with the chapter (`GET /api/courses/{courseId}/chapters/{chapterId}`), updates its copy from the
 events, and resets it through `DELETE …/progress`. Every read of the lesson view repairs the record
 against the current curriculum.
@@ -263,9 +319,43 @@ stored cards (`seances`), with the progress it was read with. Details in [seance
 ## What the interface shows
 
 - **Chapter strip** (`components/celestin/chapter-strip.tsx`), always visible under the tutor header: chapter title, one bar segment per section coloured by state, the active or next section on one line, done count. Tapping it opens the map.
-- **Chapter map** (`components/celestin/chapter-map.tsx`), a sheet from the left: every section with its number, kind, state, the active one expanded with its goal; « Revoir » on done rows, « Commencer » on the next one when nothing is active, locked rows inert. Both actions are ordinary learner messages; the tutor does the rest. « Recommencer le chapitre » at the bottom.
-- **Transcript markers** for « section commencée », « révision », « section terminée » and « étape suivante proposée ».
-- **The page-turn button** under the board, greyed by default. It reads « Étape suivante » once the tutor calls `propose_next_step` (satisfied with the exchange on the current card), or as soon as a `title` card is shown, since a section's opening card has nothing to talk through and « Section suivante » once a section closes, surviving the recap card until the next section starts. Either click is a learner message; only then does the next card or section come. The student turns the page, not the tutor.
+- **Chapter map** (`components/celestin/chapter-map.tsx`), a sheet from the left: every section with its number, kind, state, the active one expanded with its goal. Its actions are ordinary learner messages; the tutor does the rest. « Recommencer le chapitre » at the bottom.
+- **Transcript markers** for « section commencée », « révision », « section terminée », « section passée » and « étape suivante proposée ».
+- **The page-turn button** under the board, greyed by default. It reads « Étape suivante » once the tutor calls `propose_next_step` (satisfied with the exchange on the current card), or as soon as a `title` card is shown, since a section's opening card has nothing to talk through and « Section suivante » once a section closes (or is skipped with nothing else active), surviving the recap card until the next section starts. Either click is a learner message; only then does the next card or section come. The student turns the page, not the tutor.
+- **Course page**: a chapter whose sections are all done or skipped is « terminé » (`state: "done"`); the chapter row carries `skipped_count` (an int, capped so that `done_count + skipped_count` never exceeds `section_count`; no id is both done and skipped, the tools and normalisation see to it) beside `done_count`, and a chapter where something was skipped is no longer « not started ».
+
+Under the open path (spec 019) no section is locked, and the chapter map makes every row
+actionable. A done row offers « Revoir », and « Relire » when the cahier holds its boards. The
+active row shows its goal and offers « Passer ». A skipped row carries a visible « passée » badge
+and offers « Commencer ». Every other row offers « Commencer » and « Passer ». « Commencer » reads
+« Reprendre » on a section that already has a stored séance: one listed in the `seances` of
+`GET …/seance`, or one started, not reviewed, during this page load. The board's page-turn button
+uses the same wording for the section it proposes. The proposed next section, the first in path
+order that is neither done, skipped nor active, shown only while nothing is active, keeps the
+primary button; the other buttons are secondary. Each action is an ordinary learner sentence in the
+course's language (`useLearnerSentences`: `review`, `start`, `resume`, `skip`), sent to the call
+when a voice session is open, and every action waits while a turn streams.
+
+The position strip draws skipped segments in grey, apart from done (green), active (primary) and
+still-to-do sections. Its count reads « 7 faites · 2 passées » once something has been skipped, and
+« 7 / 9 » otherwise; the map's heading adds « · 2 passées » to its done count. A `section.skipped`
+event adds the section to `progress.skipped` and clears `active` if it was that section; while
+`active_section_id` names a section the page-turn button is left as it is, otherwise it proposes
+`next_section_id`, or goes out when that is null too (the skip finished the chapter). Starting a
+skipped section removes it from `skipped`. A progress the server sends without `skipped` (an older
+backend) is read as `[]` (`progressFrom`). On the course page a chapter's state, « terminé » included,
+is the server's. A started chapter's row counts, never a position (sections are done in any order):
+« 3 faites sur 9 », or « 3 faites sur 9 · 2 passées » once something was passed (`doneAndSkipped`);
+a chapter not started reads « 9 sections ». Its progress bar counts done and skipped sections as
+covered and draws the skipped share after the done one, in grey.
+
+Checked in a browser against the real model on 15 November 2026 (the seeded chapter, a scratch
+database): « Passer » on a later section from the map (Célestin calls `skip_section`, says what
+comes next and stays on the section being worked); « Commencer » on section 5 with sections 2 to 4
+not done (opened without argument, one sentence on what it relies on); the map then shows section 1
+as « à faire » with « Relire », « Reprendre » and « Passer », section 4 as « passée », section 5 as
+« en cours »; « Reprendre » on section 1 (Célestin says where they were and goes on from the check
+question, from the reprise note).
 
 `GET /api/courses/{courseId}/chapters/{chapterId}` feeds both with `{id, title, course_id,
 course_name, subject, sections: [{id, index, kind, title, goal}], progress}`. Beats, exercise pools

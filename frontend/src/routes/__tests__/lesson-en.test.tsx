@@ -74,7 +74,7 @@ const CHAPTER = {
     { id: "s2", index: 2, kind: "practise", title: "Calculer un terme", goal: "g2" },
     { id: "s3", index: 3, kind: "synthesis", title: "Synthèse", goal: "g3" },
   ],
-  progress: { done: ["s1"], active: "s2" },
+  progress: { done: ["s1"], active: "s2", skipped: [] },
 };
 
 const CHAPTER_PATH = "/api/courses/maths/chapters/suites";
@@ -177,7 +177,9 @@ describe("the lesson in English", () => {
       expect(within(rows[1]!).getByText("Practice")).toBeTruthy();
       expect(within(rows[2]!).getByText("Summary")).toBeTruthy();
       expect(within(rows[0]!).getByText("done")).toBeTruthy();
-      expect(within(rows[2]!).getByText("locked")).toBeTruthy();
+      expect(within(rows[2]!).getByText("to do")).toBeTruthy();
+      expect(within(rows[2]!).getByRole("button", { name: "Skip" })).toBeTruthy();
+      expect(within(sheet).queryByText("locked")).toBeNull();
       expect(within(sheet).getByRole("button", { name: "Start the chapter over" })).toBeTruthy();
       // The sections' own titles are the course's.
       expect(within(rows[0]!).getByText("Suites numériques")).toBeTruthy();

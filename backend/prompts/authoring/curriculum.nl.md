@@ -7,8 +7,10 @@ tags `<chapitre>` en `</chapitre>`: het is een gestructureerd document, met genu
 
 ## Het traject
 
-Een traject is een geordende reeks secties, vergrendeld: een sectie opent pas wanneer de
-vorige afgerond is. Er zijn drie soorten secties.
+Een traject is een geordende reeks secties, in de volgorde die Célestin zal voorstellen. De
+leerling mag een sectie openen zonder de vorige gedaan te hebben: de titel en het doel van elke
+sectie moeten dus op zichzelf te begrijpen zijn, en noemen wat de sectie behandelt in plaats van
+“het vervolg”. Er zijn drie soorten secties.
 
 - `teach` (les): Célestin legt een begrip of een kleine groep begrippen uit, citeert de
   cursus en toont haar voorbeelden, en eindigt dan met een controlevraag. Velden:

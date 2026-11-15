@@ -141,10 +141,16 @@ def _free(repos, course_id: str) -> bool:
         return s.scalar(select(CourseRow.id).where(CourseRow.id == course_id)) is None
 
 
-def seed_progress(app, user_id: str, chapter_id: str, done: list[str], active: str | None) -> None:
+def seed_progress(
+    app, user_id: str, chapter_id: str, done: list[str], active: str | None, skipped: list[str] | None = None
+) -> None:
     from app.domain.progress import Progress
 
-    app.state.repos.progress.save(user_id, chapter_id, Progress(done=frozenset(done), active=active))
+    app.state.repos.progress.save(
+        user_id,
+        chapter_id,
+        Progress(done=frozenset(done), active=active, skipped=frozenset(skipped or [])),
+    )
 
 
 def seed_seance(
@@ -351,6 +357,21 @@ def snapshot_declarations() -> str:
         )
     return path.read_text(encoding="utf-8")
 
+
+
+@pytest.fixture
+def snapshot_path_declarations() -> str:
+    """The declarations after the board tools (section tools, `propose_next_step`, `skip_section`), as spec 019
+    left them. Delete the file and rerun to regenerate after an intended change."""
+    from app.services.tools import registry
+
+    path = FIXTURES / "path_declarations.json"
+    if not path.exists():
+        path.write_text(
+            json.dumps(registry.declarations()[2:], ensure_ascii=False, sort_keys=True),
+            encoding="utf-8",
+        )
+    return path.read_text(encoding="utf-8")
 
 
 @pytest.fixture

@@ -106,6 +106,12 @@ So the learner's message and the text said before a `start_section` stay with th
 were said in, and a section's recap card (shown after `complete_section`, before the next
 `start_section`) stays with its section. A refused call produces no entry and never splits.
 
+A `skip_section` (spec 019) never splits either: skipping the live row's section leaves the row live
+(the skip is one of its entries) until the next `start_section` of another section, which closes it
+`left` (a skip is not a completion). Starting a section that was skipped un-skips it, and if it had
+closed, non-review séances its brief ends with the reprise note like any section taken up again.
+Leaving a section for another (spec 019 D4) is the same `left` close.
+
 The whole cut lands in one transaction. The live row is guarded by the optimistic `expected_count`
 (as a discussion's append is), and a second live row inserted by another tab trips the unique index:
 both are `409 conversation_busy` (key `seance_busy`, D11), an in-stream `error` event once the stream
@@ -173,11 +179,14 @@ modes:
 { "kind": "tool", "name": "complete_section", "arguments": { "section_id": "…" },
   "next_section_id": "…" | null, "marker": "section terminée · 1. Suites numériques", "text": null }
 { "kind": "tool", "name": "propose_next_step", "arguments": {}, "marker": "étape suivante proposée", "text": null }
+{ "kind": "tool", "name": "skip_section", "arguments": { "section_id": "…" },
+  "next_section_id": "…" | null, "active_section_id": "…" | null,
+  "marker": "section passée · 1. Suites numériques", "text": null }
 ```
 
 - **What a stored call shows is the tool's to say.** Each row of the registry (`_TOOLS` in
   `services/tools/registry.py`) has, beside `replay`, a `shown` hook owned by the tool's module
-  (`shown_display`, `shown_clear`, `shown_start`, `shown_complete`, `shown_propose`): it returns a
+  (`shown_display`, `shown_clear`, `shown_start`, `shown_complete`, `shown_propose`, `shown_skip`): it returns a
   `Shown`, the `Marker` the live call carried — built by the same function the live handler uses
   (the card's own `marker`, `CLEAR_MARKER`, `_start_marker`, `_done_marker`, `STEP_READY`) — and the
   extra wire fields of that entry. `app/api/stored.py`'s `stored_entry(entry, locale, mode, view)`
@@ -189,10 +198,26 @@ modes:
   stored `review` when it is set, else the progress now. The restored transcript and the replayed
   brief both read it, so they cannot disagree. A reported start without `review` gets it at report
   time, from the progress then.
-- `review` is on a `start_section` entry only, `next_section_id` on a `complete_section` entry only
-  (extra keys, `extra="allow"`). `next_section_id` is where the page turns **now**, from the current
-  progress (`StoredView`): `path.startable`, the section in progress, else the next one of the path,
-  `null` once the chapter is finished. The live `complete_section` reads the same function.
+- `review` is on a `start_section` entry only, `next_section_id` on a `complete_section` or
+  `skip_section` entry only, `active_section_id` on a `skip_section` entry only (extra keys,
+  `extra="allow"`). Shown, they say where the page turns **now**, from the current progress
+  (`StoredView`), by the one rule the live events use, `path.page_turn`: `next_section_id` is `null`
+  while a section is active, else the next section of the path, `null` too once the chapter is
+  finished; a skip's `active_section_id` is the section active now. Every restored entry reads the
+  same progress, so the button they leave lit proposes something valid today (spec 019: a completion
+  read back while another section is active no longer names that section; it proposes nothing, as
+  the live event would).
+- **What the model is told again is what the call answered** (spec 019). A stored `complete_section`
+  or `skip_section` *records* what its event said (`ToolEntry.next_section_id`, and for a skip
+  `active_section_id`; written by `entries_from_events`, or reported by the browser from the event, as
+  `review` is; never sent to the model as arguments). Recorded means present: `stored_form` keeps an
+  explicit `null` (« the chapter was finished »), and leaves the keys out when nothing was recorded, so
+  every other entry keeps its bytes. The `replay` hooks rebuild the live text from those ids
+  (`curriculum_render.completion` / `skipped` take sections, not a progress), whatever the progress
+  became since: a skip that said « Prochaine section : Exercices » says it again after the student
+  took the skipped section up in the same séance, and the cached history does not move. An entry
+  that recorded nothing, or names a section the curriculum no longer has, is answered from the
+  progress now, as before.
 - The section's label comes from the current curriculum (its id when it is gone).
 - Entries with `ok: false` are not returned (the browser never recorded them either). The séance
   carries no `entry_count`: the stored count includes them.
@@ -245,10 +270,15 @@ The discussion's caps apply per row: `DISCUSSION_MAX_ENTRIES` (400) and `DISCUSS
 (200 000). A séance is never closed by the write that fills it (the answer she is reading stays on
 screen and in the restore). When the next turn opens — a text turn, a voice session, a reported
 spoken turn — a full live séance is closed `capped` and the next row of the same section starts
-with a synthetic ok `start_section` entry (`review` from the current progress), so the brief and the
-reprise note are in front of the model again (D10; `SeanceService.current`). The rollover is one
-`store_seance` with two segments: the full row, no entries, closed `capped`, then the new row with
-its synthetic entry; the same guard, one transaction, `409 conversation_busy` on a race.
+with a synthetic ok `start_section` entry, so the brief and the reprise note are in front of the
+model again (D10; `SeanceService.current`). The synthetic entry is written only when it tells the
+truth (`_carried_on`): the row's section is the active one (`review: false`), or the row was opened as
+a review of a done section (`review: true`). A section skipped, completed or otherwise no longer
+worked in the full row gets none: the next row starts unsectioned and empty, and adopts the section
+of the next `start_section`, as a fresh row does (the restored transcript never shows a « section
+commencée » that did not happen). The rollover is one `store_seance` with two segments: the full row,
+no entries, closed `capped`, then the new row with its synthetic entry, or none; the same guard, one
+transaction, `409 conversation_busy` on a race.
 `conversations.is_full` is the one test of « full », for both modes.
 
 **The brief survives the trim.** Long before a row is full, `history.trim` starts dropping its
@@ -269,9 +299,12 @@ call, so:
   arguments at most `REPORTED_ARGUMENTS_MAX` (40 000) characters of JSON, and a `display_board` card
   must be a valid board card (the cahier draws it); `422` otherwise. The limits and why they are
   generous for a real turn are in `api/schemas/chat.py`;
-- every `start_section` and `complete_section` must name a section of the chapter, and only the
-  tools the parcours offers are accepted: `422 seance_report_invalid` otherwise (nothing of the
-  report is stored);
+- every `start_section`, `complete_section` and `skip_section` must name a section of the chapter, and
+  so must the sections a completion or a skip recorded (`next_section_id`, `active_section_id`, when not
+  null); only the tools the parcours offers are accepted: `422 seance_report_invalid` otherwise (nothing
+  of the report is stored). Each tool says what it checks with the `check` hook of its registry row
+  (`check_start`, `check_section`), beside `replay` and `shown`; a reported start without `review`
+  gets it there;
 - per student, `SEANCE_REPORTS_PER_HOUR` (600) reports an hour: `429 seance_report_rate`;
 - a chapter that already holds `SEANCE_MAX_ROWS` (200) parcours rows for the student, every content
   version counted, refuses the report: `409 seance_full`. Model turns are not subject to it (they
@@ -394,7 +427,9 @@ them with a marker string in the message and on a card):
   row offers « Relire ».
 
 Frontend seams: `sessionFromEntries` serves both modes and now replays `start_section` (with
-`review`), `complete_section` (with `next_section_id`) and `propose_next_step`; a learner entry is
+`review`), `complete_section` (with `next_section_id`), `skip_section` (with both ids: the
+page-turn button is left as it is while `active_section_id` names a section, otherwise it proposes
+`next_section_id` or goes out) and `propose_next_step`; a learner entry is
 followed by a `turn.start`, as it is live, so a proposed step is put out exactly as it was. The
 session's `history` is no longer posted on a text turn; it remains the model-facing view a spoken
 or a stopped turn reports. `state.section` is the section the board belongs to. `CardView` is the one pure card

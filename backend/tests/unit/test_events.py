@@ -50,3 +50,17 @@ def test_section_events_frame() -> None:
     )
     frame = to_sse(SectionDoneEvent(section_id="a", next_section_id=None, marker="m"))
     assert json.loads(frame.split("data: ")[1]) == {"section_id": "a", "next_section_id": None, "marker": "m"}
+
+
+def test_section_skipped_frame() -> None:
+    """Spec 019: `section.skipped` {section_id, next_section_id, active_section_id, marker}, the
+    frontend's contract: both ids null means the skip finished the chapter."""
+    from app.api.schemas.events import SectionSkippedEvent
+
+    turned = SectionSkippedEvent(section_id="a", next_section_id="b", active_section_id=None, marker="section passée · 1. A")
+    assert to_sse(turned) == (
+        'event: section.skipped\ndata: {"section_id":"a","next_section_id":"b","active_section_id":null,'
+        '"marker":"section passée · 1. A"}\n\n'
+    )
+    still = SectionSkippedEvent(section_id="a", next_section_id=None, active_section_id="c", marker="m")
+    assert '"next_section_id":null,"active_section_id":"c"' in to_sse(still)

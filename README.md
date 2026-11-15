@@ -52,12 +52,16 @@ withholds answers, and it hurts when it is an unrestricted chat. The full reason
 - Create a course (a name, a subject, a language), then add chapters by uploading **one PDF or photos of the
   pages**: typed notes, handwritten « cours à trous », exercise sheets, corrections.
 - A vision model reads the pages (handwriting and formulas included, doubtful readings flagged). An authoring agent
-  turns the text into a **course pack** (structured Markdown) and a **curriculum** (a locked path of lessons,
-  practice and synthesis), validated and repaired mechanically. Your file itself is not kept.
+  turns the text into a **course pack** (structured Markdown) and a **curriculum** (a path of lessons, practice
+  and synthesis), validated and repaired mechanically. Your file itself is not kept.
 - Everything is readable and editable. Edit the pack and Célestin follows.
 
 **A real tutor**
-- A **locked path** of `teach`, `practise` and `synthesis` sections; progress is saved per student and chapter.
+- An **open path** of `teach`, `practise` and `synthesis` sections: Célestin proposes the order, you open any
+  section you like, or skip one you already saw in class; progress (done and skipped, apart) is saved per
+  student and chapter.
+- **Resume where you stopped**: each lesson is kept, so a section picks up after the last card, and the
+  **cahier** lets you reread every card and exchange of the chapter.
 - Explanations, worked examples (step by step, or « faded » so you supply a step), freshly generated exercises
   that are variants of your course's own samples, a three-level hint ladder, and gated, logged solution reveals.
 - **Discussion mode**: a free conversation about the chapter, with the whiteboard, that can never move your
@@ -177,7 +181,7 @@ application, not by the model.
 ```
  PDF / photos ──▶ transcription ──▶ authoring agent ──▶ course pack  ─┐
  (student's        (page markers,    (restructures,      curriculum   ├─▶ Tutor ──▶ tools ──▶ board
-  material)         handwriting       never adds)        (locked path)┘    ▲          (cards, drawings)
+  material)         handwriting       never adds)        (open path)  ┘    ▲          (cards, drawings)
                     and doubt marked)                                      │
                                                        student's progress ─┘
 ```
@@ -190,8 +194,8 @@ application, not by the model.
    chapter's pack and path overview, and the mode's own layer. It teaches by calling a fixed set of tools (plan,
    explain, worked example, set exercise, check, hint, discuss, reveal, record, recap), each rendered as a
    purpose-built card.
-4. **Enforce.** Rules are enforced in the tools: the path is locked, answers are checked mechanically, no answer
-   leaves while an exercise is open, formulas and vocabulary stay within the pack.
+4. **Enforce.** Rules are enforced in the tools: a section is finished only on its criterion, answers are checked
+   mechanically, no answer leaves while an exercise is open, formulas and vocabulary stay within the pack.
 
 | Piece | Stack |
 | --- | --- |

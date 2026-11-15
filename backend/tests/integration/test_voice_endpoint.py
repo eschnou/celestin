@@ -103,11 +103,54 @@ async def test_tool_start_section_golden(make_voice_client) -> None:
     body = r.json()
     assert body["event"]["event"] == "section.start"
     assert body["event"]["section_id"] == "suites" and body["event"]["review"] is False
-    assert body["progress"] == {"done": [], "active": "suites"}
+    assert body["progress"] == {"done": [], "active": "suites", "skipped": []}
     assert json.loads(body["output"])["ok"] is True
     assert "Section en cours" in body["state_text"]
     stored = client.app.state.repos.progress.load(client.user["id"], CHAPTER_ID)
     assert stored and stored.progress.active == "suites"
+
+
+async def test_tool_skip_section_golden(make_voice_client) -> None:
+    """Spec 019: a spoken « on passe » goes through the same tool and event as a typed one."""
+    async with make_voice_client(FakeRealtime()) as client:
+        start = {**IDS, "session_id": "s", "call_id": "c1", "name": "start_section",
+                 "arguments": json.dumps({"section_id": "suites"})}
+        assert (await client.post("/api/voice/tool", json=start)).status_code == 200
+        r = await client.post(
+            "/api/voice/tool",
+            json={**IDS, "session_id": "s", "call_id": "c2", "name": "skip_section",
+                  "arguments": json.dumps({"section_id": "suites"})},
+        )
+        again = await client.post(
+            "/api/voice/tool",
+            json={**IDS, "session_id": "s", "call_id": "c3", "name": "skip_section",
+                  "arguments": json.dumps({"section_id": "suites"})},
+        )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["event"] == {
+        "event": "section.skipped",
+        "section_id": "suites",
+        "next_section_id": "sa-definition",
+        "active_section_id": None,
+        "marker": "section passée · 1. Suites numériques",
+    }
+    assert body["progress"] == {"done": [], "active": None, "skipped": ["suites"]}
+    assert json.loads(body["output"])["result"].startswith("Section passée. Prochaine section :")
+    assert "1 passée(s)" in body["state_text"]
+    # Idempotent: the same event, no progress move, so no new state text.
+    assert again.json()["event"] == body["event"] and again.json()["state_text"] is None
+    stored = client.app.state.repos.progress.load(client.user["id"], CHAPTER_ID)
+    assert stored and stored.progress.skipped == frozenset({"suites"}) and stored.progress.active is None
+
+
+async def test_a_parcours_voice_session_declares_skip_section_last(make_voice_client) -> None:
+    realtime = FakeRealtime()
+    async with make_voice_client(realtime) as client:
+        assert (await client.post("/api/voice/session", json=EMPTY)).status_code == 201
+    tools = [t["name"] for t in realtime.sessions[-1]["tools"]]
+    assert tools[-1] == "skip_section" and len(tools) == 6
+    assert "skip_section" in realtime.sessions[-1]["instructions"]
 
 
 async def test_tool_display_board_golden(make_voice_client) -> None:
@@ -330,10 +373,11 @@ async def test_a_discussion_session_needs_a_conversation(make_voice_client) -> N
     assert missing.status_code == 404 and unknown.status_code == 404
 
 
+@pytest.mark.parametrize("name", ["start_section", "skip_section"])
 async def test_a_section_tool_is_refused_from_a_discussion_and_writes_no_progress(
-    make_voice_client,
+    make_voice_client, name: str
 ) -> None:
-    """The browser sends the tool name, so the gate has to be here (007 §3.5)."""
+    """The browser sends the tool name, so the gate has to be here (007 §3.5; `skip_section`, spec 019)."""
     async with make_voice_client(FakeRealtime()) as client:
         r = await client.post(
             "/api/voice/tool",
@@ -341,7 +385,7 @@ async def test_a_section_tool_is_refused_from_a_discussion_and_writes_no_progres
                 **IDS,
                 "mode": "discussion",
                 "call_id": "c1",
-                "name": "start_section",
+                "name": name,
                 "arguments": json.dumps({"section_id": "suites"}),
             },
         )

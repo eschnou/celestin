@@ -56,6 +56,18 @@ class SectionDoneEvent(BaseModel):
     marker: str
 
 
+class SectionSkippedEvent(BaseModel):
+    """Spec 019: a section passed at the student's request. `active_section_id` is the
+    section still being worked after the skip (null when none); `next_section_id` is where
+    the page turns when nothing is active, else null. Both null: the chapter is finished."""
+
+    event: Literal["section.skipped"] = "section.skipped"
+    section_id: str
+    next_section_id: str | None
+    active_section_id: str | None
+    marker: str
+
+
 class StepReadyEvent(BaseModel):
     """The tutor proposed the next step: the board's button turns green."""
 
@@ -83,6 +95,7 @@ TurnEvent = Union[
     SectionStartEvent,
     SectionDoneEvent,
     StepReadyEvent,
+    SectionSkippedEvent,
     TurnEnd,
     ErrorEvent,
 ]

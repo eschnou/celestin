@@ -66,7 +66,6 @@
   "course_action_failed": "That didn't work. Try again.",
   "course_empty": "This course doesn't have any chapters yet. Add one with the PDF or photos of your course.",
   "course_add_chapter": "Add a chapter",
-  "chapter_progress_section": "Section {current} of {total}",
   "chapter_menu": "Actions for “{title}”",
   "course_resume_title": "Pick up where you left off",
   "course_next_title": "Next chapter",
@@ -104,6 +103,38 @@
   "chapter_action_start": "Start",
   "chapter_action_resume": "Resume",
   "chapter_action_continue": "Continue",
+  "chapter_action_skip": "Skip",
+  "chapter_action_skip_title": "Skip this section: it stays open, you can come back to it",
+  "chapter_count_done": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} done",
+        "countPlural=other": "{count} done"
+      }
+    }
+  ],
+  "chapter_count_skipped": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} skipped",
+        "countPlural=other": "{count} skipped"
+      }
+    }
+  ],
+  "chapter_count_done_of": [
+    {
+      "declarations": ["input count", "input total", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} of {total} done",
+        "countPlural=other": "{count} of {total} done"
+      }
+    }
+  ],
   "chapter_untitled": "New chapter {position}",
   "chapter_name": "Chapter {position} — {title}",
   "chapter_reading_pages": "Reading the pages… ({done}/{total})",
@@ -198,7 +229,8 @@
   "lesson_state_done": "done",
   "lesson_state_active": "in progress",
   "lesson_state_available": "up next",
-  "lesson_state_locked": "locked",
+  "lesson_state_skipped": "skipped",
+  "lesson_state_open": "to do",
   "content_done_when": "Done when: {text}",
   "content_path_title_label": "Path title",
   "content_section_kind": "Kind of section {n}",

@@ -66,7 +66,6 @@
   "course_action_failed": "L'action n'a pas abouti. Réessaie.",
   "course_empty": "Ce cours n'a pas encore de chapitre. Ajoutes-en un avec le PDF ou les photos de ton cours.",
   "course_add_chapter": "Ajouter un chapitre",
-  "chapter_progress_section": "Section {current} sur {total}",
   "chapter_menu": "Actions pour « {title} »",
   "course_resume_title": "Reprends où tu en étais",
   "course_next_title": "Prochain chapitre",
@@ -104,6 +103,38 @@
   "chapter_action_start": "Commencer",
   "chapter_action_resume": "Reprendre",
   "chapter_action_continue": "Continuer",
+  "chapter_action_skip": "Passer",
+  "chapter_action_skip_title": "Passer cette section : elle restera ouverte, tu pourras y revenir",
+  "chapter_count_done": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} faite",
+        "countPlural=other": "{count} faites"
+      }
+    }
+  ],
+  "chapter_count_skipped": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} passée",
+        "countPlural=other": "{count} passées"
+      }
+    }
+  ],
+  "chapter_count_done_of": [
+    {
+      "declarations": ["input count", "input total", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} faite sur {total}",
+        "countPlural=other": "{count} faites sur {total}"
+      }
+    }
+  ],
   "chapter_untitled": "Nouveau chapitre {position}",
   "chapter_name": "Chapitre {position} — {title}",
   "chapter_reading_pages": "Lecture des pages… ({done}/{total})",
@@ -198,7 +229,8 @@
   "lesson_state_done": "faite",
   "lesson_state_active": "en cours",
   "lesson_state_available": "à suivre",
-  "lesson_state_locked": "verrouillée",
+  "lesson_state_skipped": "passée",
+  "lesson_state_open": "à faire",
   "content_done_when": "Terminée quand : {text}",
   "content_path_title_label": "Titre du parcours",
   "content_section_kind": "Sorte de section {n}",

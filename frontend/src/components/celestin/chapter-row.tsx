@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useCourseLanguage } from "@/lib/course-language";
 import { formatCount } from "@/lib/i18n-format";
+import { doneAndSkipped } from "@/lib/tutor/labels";
 import type { ChapterRow as Row, ChapterState } from "@/lib/tutor/types";
 import { cn } from "@/lib/utils";
 import { m } from "@/paraglide/messages";
@@ -122,16 +123,13 @@ export function FailedAction({
   );
 }
 
-/** The section she is on, counted from 1: the one after those done, never past the last. */
-export function currentSection(row: Row): number {
-  return Math.min(row.done_count + 1, Math.max(row.section_count, 1));
-}
-
-/** « Section 3 sur 9 », « 9 sections »: how far along, in words. */
+/** How far along, in words: « 9 sections » before she starts, then counts, never a
+ *  position (spec 019: sections are done in any order): « 3 faites sur 9 », and
+ *  « 3 faites sur 9 · 2 passées » once something was passed. */
 export function progressText(row: Row): string {
-  return row.state === "in_progress"
-    ? m.chapter_progress_section({ current: currentSection(row), total: row.section_count })
-    : m.chapter_status_sections({ count: row.section_count });
+  return row.state === "not_started"
+    ? m.chapter_status_sections({ count: row.section_count })
+    : doneAndSkipped(row.done_count, row.skipped_count, row.section_count);
 }
 
 export function ChapterRowItem({
@@ -217,6 +215,7 @@ export function ChapterRowItem({
       {row.ready && row.state !== "not_started" && (
         <ProgressBar
           done={row.done_count}
+          skipped={row.skipped_count}
           total={row.section_count}
           label={progressText(row)}
           tone={done ? "success" : "primary"}

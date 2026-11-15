@@ -307,6 +307,9 @@ export type ChapterRow = {
   ready: boolean;
   section_count: number;
   done_count: number;
+  /** Spec 019: how many sections were passed, apart from done ones. The server says
+   *  « done » once done and skipped cover every section; the browser never recomputes it. */
+  skipped_count: number;
   state: ChapterState;
   last: boolean;
   authoring_state: AuthoringState;
@@ -381,12 +384,25 @@ export type LessonScope = {
   conversationId?: string;
 };
 
-/** Where the learner is. Owned by the server (004), which sends it with the chapter. */
-export type Progress = { done: string[]; active: string | null };
+/** Where the learner is. Owned by the server (004), which sends it with the chapter.
+ *  `skipped` (spec 019): the sections the student chose to pass, kept apart from done. */
+export type Progress = { done: string[]; active: string | null; skipped: string[] };
 
-export const EMPTY_PROGRESS: Progress = { done: [], active: null };
+export const EMPTY_PROGRESS: Progress = { done: [], active: null, skipped: [] };
 
-export type SectionState = "done" | "active" | "available" | "locked";
+/** A progress on the wire: `skipped` may be missing (a backend older than spec 019). */
+export type WireProgress = Omit<Progress, "skipped"> & { skipped?: string[] | null | undefined };
+
+/** A progress as the server sent it, made whole: a server older than spec 019 sends no
+ *  `skipped`. The one place a server progress enters the browser (the séance read, the
+ *  chapter view, the voice tool response), so nothing downstream checks for it. */
+export function progressFrom(raw: WireProgress): Progress {
+  return { done: raw.done, active: raw.active, skipped: raw.skipped ?? [] };
+}
+
+/** Spec 019: no section is locked. `available` is the one Célestin proposes; `open` is
+ *  every other section that is neither done, active nor skipped. */
+export type SectionState = "done" | "active" | "skipped" | "available" | "open";
 
 /** What the board's page-turn button offers: a step Célestin proposed, the next
  *  section after one closed, or nothing (greyed). */
@@ -403,6 +419,16 @@ export type TutorEvent =
   | { event: "board.clear"; marker: string }
   | { event: "section.start"; section_id: string; review: boolean; marker: string }
   | { event: "section.done"; section_id: string; next_section_id: string | null; marker: string }
+  /** Spec 019: `active_section_id` is the section still being worked after the skip (null
+   *  when none); `next_section_id` the proposed next section when nothing is active, else
+   *  null. Both null: the skip finished the chapter. */
+  | {
+      event: "section.skipped";
+      section_id: string;
+      next_section_id: string | null;
+      active_section_id: string | null;
+      marker: string;
+    }
   | { event: "step.ready"; marker: string }
   | { event: "turn.end"; reason: TurnEndReason; usage: Record<string, unknown> }
   | { event: "error"; code: string; message: string };
@@ -422,6 +448,11 @@ export type HistoryEntry =
       /** On a `start_section` entry only: whether the call was a review (spec 018). The
        *  server keeps it with the stored séance and never sends it to the model. */
       review?: boolean;
+      /** What a `complete_section` (`next_section_id`) or a `skip_section` (both) call
+       *  answered at the time, from its event (spec 019): the server replays the stored
+       *  call from them, never from a later progress. Never sent to the model. */
+      next_section_id?: string | null;
+      active_section_id?: string | null;
     };
 
 /** A stored entry of a discussion (007 §4.3) or a parcours séance (018), as the server
@@ -436,9 +467,12 @@ export type StoredEntry = {
   marker?: string | null;
   /** `start_section` only: the call was a review. */
   review?: boolean | null;
-  /** `complete_section` only: the section the page-turn button offers next, read from the
-   *  student's current progress. */
+  /** `complete_section` and `skip_section` (spec 019) only: the section the page-turn
+   *  button offers next, read from the student's current progress (null while a section
+   *  is active). */
   next_section_id?: string | null;
+  /** `skip_section` only: the section active now, null when none. */
+  active_section_id?: string | null;
 };
 
 /** The live parcours séance of one chapter (spec 018 D2): the stretch of work the lesson

@@ -24,9 +24,22 @@ export const KIND_LABEL: Record<SectionKind, () => string> = {
 export const STATE_LABEL: Record<SectionState, () => string> = {
   done: m.lesson_state_done,
   active: m.lesson_state_active,
+  skipped: m.lesson_state_skipped,
   available: m.lesson_state_available,
-  locked: m.lesson_state_locked,
+  open: m.lesson_state_open,
 };
+
+/** « 7 faites · 2 passées » (spec 019 D5): done and skipped sections, counted apart. Shown
+ *  where a done count is, when something was skipped. With `total`, the done count says
+ *  out of how many (« 7 faites sur 9 · 2 passées »), and nothing skipped leaves the second
+ *  part out (« 7 faites sur 9 »): the course page's row. */
+export function doneAndSkipped(done: number, skipped: number, total?: number): string {
+  const head =
+    total === undefined
+      ? m.chapter_count_done({ count: done })
+      : m.chapter_count_done_of({ count: done, total });
+  return skipped > 0 ? `${head} · ${m.chapter_count_skipped({ count: skipped })}` : head;
+}
 
 /** Transcript markers for a voice session. Interface text: they label the transcript and
  *  never enter the history the model reads. Message functions, called when the event is

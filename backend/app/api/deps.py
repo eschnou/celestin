@@ -326,6 +326,7 @@ def load_context(
         locale=user.locale,
         language=chapter.language,
         earlier_cards=earlier_cards,
+        skipped=list(progress.skipped),
     )
 
 

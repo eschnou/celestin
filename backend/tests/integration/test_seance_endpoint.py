@@ -394,7 +394,7 @@ async def test_the_notebook_and_the_chapter_view(make_client) -> None:
     }
     # The card counts travel with the séance, read with its progress; the chapter view no longer carries them.
     assert read["seances"] == {"suites": {"cards": 1}, "sa-definition": {"cards": 1}}
-    assert read["progress"] == {"done": [], "active": None}
+    assert read["progress"] == {"done": [], "active": None, "skipped": []}
     assert "seances" not in view
 
 
@@ -402,7 +402,7 @@ async def test_an_empty_notebook(make_client) -> None:
     client, _ = make_client(FakeLLM([]))
     async with client:
         assert (await client.get(NOTEBOOK)).json() == {"sections": []}
-        assert (await client.get(SEANCE)).json() == {"seance": None, "progress": {"done": [], "active": None}, "seances": {}}
+        assert (await client.get(SEANCE)).json() == {"seance": None, "progress": {"done": [], "active": None, "skipped": []}, "seances": {}}
 
 
 async def test_a_content_change_hides_the_old_seances(make_client) -> None:
@@ -481,6 +481,13 @@ async def test_a_reported_turn_is_validated(make_client) -> None:
     async with client:
         refused = {
             "a review on a board call": [{"kind": "tool", "name": "display_board", "arguments": {}, "review": True}],
+            "a recorded next section on a start": [
+                {"kind": "tool", "name": "start_section", "arguments": {"section_id": "suites"}, "next_section_id": None}
+            ],
+            "a recorded active section on a completion": [
+                {"kind": "tool", "name": "complete_section", "arguments": {"section_id": "suites"},
+                 "active_section_id": "suites"}
+            ],
             "no entries": [],
             "a card that is not a card": [{"kind": "tool", "name": "display_board", "arguments": {"card": {"kind": "x"}}}],
             "a board call without a card": [{"kind": "tool", "name": "display_board", "arguments": {}}],
@@ -501,6 +508,18 @@ async def test_a_reported_turn_is_validated(make_client) -> None:
                 {"kind": "tool", "name": "start_section", "arguments": {"section_id": 3}}
             ],
             "a tool the parcours does not offer": [{"kind": "tool", "name": "reveal_answer", "arguments": {}}],
+            "a skip that recorded an unknown next section": [
+                {"kind": "tool", "name": "skip_section", "arguments": {"section_id": "suites"},
+                 "next_section_id": "zz-nope", "active_section_id": None}
+            ],
+            "a skip that recorded an unknown active section": [
+                {"kind": "tool", "name": "skip_section", "arguments": {"section_id": "suites"},
+                 "next_section_id": None, "active_section_id": "zz-nope"}
+            ],
+            "a completion that recorded an unknown next section": [
+                {"kind": "tool", "name": "complete_section", "arguments": {"section_id": "suites"},
+                 "next_section_id": "zz-nope"}
+            ],
         }
         for label, entries in invalid.items():
             r = await _report(client, [{"kind": "learner", "text": "ok"}, *entries])
@@ -509,6 +528,30 @@ async def test_a_reported_turn_is_validated(make_client) -> None:
         assert _rows(client.app) == []  # nothing of a refused report is kept, not even its valid entries
         # A real card passes, the one the lesson's board was sent.
         assert (await _report(client, [{"kind": "tool", "name": "display_board", "arguments": {"card": CARD}}])).status_code == 204
+
+
+async def test_a_reported_skip_keeps_what_it_answered_and_replays_it(make_client) -> None:
+    """Spec 019: a spoken skip is reported with the ids its event carried; the next turn replays
+    the call from them, though the student has started the skipped section since."""
+    llm = FakeLLM([[TextDelta("On reprend."), Completed()]])
+    client, _ = make_client(llm)
+    async with client:
+        r = await _report(client, [
+            {"kind": "tool", "name": "start_section", "arguments": {"section_id": "suites"}, "review": False},
+            {"kind": "tool", "name": "skip_section", "arguments": {"section_id": "suites"},
+             "next_section_id": "sa-definition", "active_section_id": None},
+        ])
+        assert r.status_code == 204
+        seed_progress(client.app, client.user["id"], CHAPTER_ID, [], "suites")  # taken up again since
+        await client.post("/api/chat", json={**LESSON, "message": "finalement je la fais"})
+    assert _rows(client.app)[0].entries[1] == {
+        "kind": "tool", "name": "skip_section", "arguments": {"section_id": "suites"}, "ok": True, "error": None,
+        "next_section_id": "sa-definition", "active_section_id": None,
+    }
+    outputs = [i for i in llm.calls[0]["input"] if i.get("type") == "function_call_output"]
+    assert json.loads(outputs[1]["output"])["result"] == (
+        "Section passée. Prochaine section : « 2. Les suites arithmétiques » (cours), id : sa-definition."
+    )
 
 
 async def test_a_start_reported_without_its_review_gets_it_from_the_progress(make_client) -> None:

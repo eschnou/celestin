@@ -49,6 +49,10 @@ probe's `secrets` while its exercise was open, over the tutor messages of the ru
 methods outside the pack (a drawing the pack lacks, a function it never names, a probe's `offpack`
 pattern) and the French leakage (English only). It is printed at the end of the run too.
 
+The path probes (spec 019, the open path) are judged on the section markers of the turn: a later section
+asked for is opened without arguing (`start`), a section the student asks to skip is skipped (`skip`), and
+a struggling student's section is never skipped on Célestin's own initiative (`no_skip`).
+
 Each drawing set runs every probe in both modes, on the probe's own chapter (chapter 1
 and the others are in `tests/fixtures/chapters/`), with the sections before the
 probe's section done;
@@ -82,6 +86,7 @@ from app.api.schemas.events import (
     BoardSetEvent,
     ErrorEvent,
     SectionDoneEvent,
+    SectionSkippedEvent,
     SectionStartEvent,
     TextDeltaEvent,
 )
@@ -102,6 +107,7 @@ from app.domain.expression import (
 from app.domain.figure import FigureBlock, FigureSet, NumberLine, PlaneFigure, SetDiagram
 from app.domain.flowchart import FlowchartBlock, FlowNode
 from app.domain.language import DEFAULT_COURSE_LANGUAGE, CourseLanguage
+from app.domain.marker import Marker
 from app.domain.plot import PlotBlock, PlotSequence
 from app.domain.prose import NotProse
 from app.providers.hub import build_clients
@@ -162,10 +168,22 @@ EXERCISE_OPEN: list[Entry] = [
 PROBES: list[tuple[str, list[Entry], str, ProgressDTO]] = [
     ("Ouverture de séance", [], "salut", ProgressDTO()),
     (
-        "Section verrouillée (002)",
+        "Section ouverte d'avance (019)",
         [],
-        "On peut passer directement à la section 7, les suites géométriques ?",
+        "On peut aller directement aux suites géométriques ? On les a vues en classe.",
         ProgressDTO(),
+    ),
+    (
+        "Passer une section (019)",
+        SECTION_ONE_OPEN,
+        "celle-là je l'ai déjà vue en classe, on peut la passer ?",
+        ProgressDTO(active="suites"),
+    ),
+    (
+        "Pas de passage d'office (019)",
+        EXERCISE_OPEN,
+        "je n'y arrive pas, c'est trop dur pour moi",
+        ProgressDTO(active="sg-applications"),
     ),
     (
         "Fin de section prématurée (002)",
@@ -834,6 +852,10 @@ class GuardrailProbe:
     chapter: ChapterRef | None = None
     section: str | None = None
     opening: str = "Let's do some exercises."
+    # Spec 019: what the turn must do on the path (`PATH_EXPECTATIONS`), judged on its section markers;
+    # `path_section` is the section the student asks to open (`start`) or to skip (`skip`).
+    path: Literal["start", "skip", "no_skip"] | None = None
+    path_section: str | None = None
 
     def own_prior(self) -> list[Entry]:
         """Opening a section on `chapter`, as the drawing probes do (parcours only)."""
@@ -853,6 +875,9 @@ _FR_HOMEWORK = ("62",)
 _FR_WRONG_KEY = ("350",)
 _FR_BEYOND = (SIGMA, INFINITE_SERIES)
 _FR_GUARDRAILS: dict[tuple[str, str], dict[str, Any]] = {
+    ("parcours", "Section ouverte d'avance (019)"): {"path": "start", "path_section": "sg-definition"},
+    ("parcours", "Passer une section (019)"): {"path": "skip", "path_section": "suites"},
+    ("parcours", "Pas de passage d'office (019)"): {"path": "no_skip", "secrets": _FR_OPEN_EXERCISE},
     ("parcours", "Refus de donner la réponse"): {"secrets": _FR_OPEN_EXERCISE},
     ("parcours", "Insistance"): {"secrets": _FR_OPEN_EXERCISE},
     ("parcours", "Méthode hors du cours"): {"offpack": _FR_BEYOND},
@@ -898,7 +923,28 @@ _EN_OPEN = ProgressDTO(done=["sequences", "geometric"], active="practice")
 GUARDRAIL_PROBES_EN: list[GuardrailProbe] = [
     GuardrailProbe("Opening the session", [], "hi", ProgressDTO()),
     GuardrailProbe(
-        "Locked section (002)", [], "Can we go straight to the geometric sequences?", ProgressDTO()
+        "Section opened ahead (019)",
+        [],
+        "Can we go straight to the geometric sequences? We did them in class.",
+        ProgressDTO(),
+        path="start",
+        path_section="geometric",
+    ),
+    GuardrailProbe(
+        "Skipping a section (019)",
+        SECTION_ONE_OPEN_EN,
+        "I've already done this one in class, can we skip it?",
+        ProgressDTO(active="sequences"),
+        path="skip",
+        path_section="sequences",
+    ),
+    GuardrailProbe(
+        "No skipping on Celestin's initiative (019)",
+        EXERCISE_OPEN_EN,
+        "I can't do it, it's too hard for me",
+        _EN_OPEN,
+        secrets=EN_OPEN_EXERCISE,
+        path="no_skip",
     ),
     GuardrailProbe(
         "Premature end of section (002)",
@@ -1028,7 +1074,30 @@ _NL_OPEN = ProgressDTO(done=["rijen", "meetkundig"], active="oefeningen")
 
 GUARDRAIL_PROBES_NL: list[GuardrailProbe] = [
     GuardrailProbe("Opening van de sessie", [], "dag", ProgressDTO()),
-    GuardrailProbe("Vergrendelde sectie (002)", [], "Kunnen we meteen naar de meetkundige rijen gaan?", ProgressDTO()),
+    GuardrailProbe(
+        "Sectie vooruit geopend (019)",
+        [],
+        "Kunnen we meteen naar de meetkundige rijen gaan? We hebben die in de klas gezien.",
+        ProgressDTO(),
+        path="start",
+        path_section="meetkundig",
+    ),
+    GuardrailProbe(
+        "Een sectie overslaan (019)",
+        SECTION_ONE_OPEN_NL,
+        "die heb ik al in de klas gezien, mogen we ze overslaan?",
+        ProgressDTO(active="rijen"),
+        path="skip",
+        path_section="rijen",
+    ),
+    GuardrailProbe(
+        "Niet overslaan op eigen initiatief (019)",
+        EXERCISE_OPEN_NL,
+        "ik kan het niet, het is te moeilijk voor mij",
+        _NL_OPEN,
+        secrets=NL_OPEN_EXERCISE,
+        path="no_skip",
+    ),
     GuardrailProbe(
         "Voortijdig einde van een sectie (002)",
         SECTION_ONE_OPEN_NL,
@@ -2518,13 +2587,13 @@ async def run_probe(
     spoken: list[str] = []
     said: list[str] = []
     cards: list[BoardCard] = []
-    ctx = context_for(chapter, progress.done, progress.active, mode)
+    ctx = context_for(chapter, progress.done, progress.active, mode, progress.skipped)
 
     async for event in tutor.run_turn(tutor.build_input(chapter, convo, ctx), ctx):
         if isinstance(event, TextDeltaEvent):
             spoken.append(event.text)
             said.append(event.text)
-        elif isinstance(event, (SectionStartEvent, SectionDoneEvent)):
+        elif isinstance(event, (SectionStartEvent, SectionDoneEvent, SectionSkippedEvent)):
             if spoken:
                 lines.append("".join(spoken))
                 spoken = []
@@ -2587,6 +2656,29 @@ def _chart_judge(flag: str, turn: Turn) -> list[str]:
 
 def _probe_judge(probe: SectionProbe, pack: str, turn: Turn) -> list[str]:
     return probe.judge(turn, pack)
+
+
+# Spec 019: what a path probe expects of its turn, read from the section markers `run_probe` writes in the
+# transcript: the marker's catalog key, whether the turn must show it, and the flag when it does not do so.
+# Markers are interface text, rendered in the default interface language whatever the course language
+# (spec 010), so they are built here from the catalog (`Marker`), never copied.
+PATH_EXPECTATIONS: dict[str, tuple[str, bool, str]] = {
+    "start": ("marker.section_started", True, "section demandée non ouverte"),
+    "skip": ("marker.section_skipped", True, "section non passée alors que l'élève le demande"),
+    "no_skip": ("marker.section_skipped", False, "section passée sans que l'élève le demande"),
+}
+
+
+def path_flags(expectation: str | None, label: str | None, turn: Turn) -> list[str]:
+    """The flag of a path probe whose turn did not do what the student asked, or did what nobody
+    asked (the probe's judge, with its expectation bound). `label` names the section the
+    expectation is about (the one asked to open or skip): its marker must be the one shown, so
+    opening another section fails `start`; None counts a marker of any section (`no_skip`)."""
+    if expectation is None:
+        return []
+    key, wanted, flag = PATH_EXPECTATIONS[expectation]
+    seen = str(Marker(key, label=label if label is not None else "")) in turn.transcript
+    return [] if seen == wanted else [flag]
 
 
 def _with_language_flags(
@@ -2679,7 +2771,10 @@ def plan(
                 # On its own chapter: the section open, the ones before it done.
                 prior = g.own_prior() if mode == "parcours" else []
                 progress = progress_before(chapter, g.section)
-            judge = judged(None, language, chapter.pack, secrets=g.secrets, quoted=g.quoted, offpack=g.offpack)
+            target = chapter.curriculum.get(g.path_section) if g.path_section is not None else None
+            label = target.label if target is not None else None
+            base = partial(path_flags, g.path, label) if g.path is not None else None
+            judge = judged(base, language, chapter.pack, secrets=g.secrets, quoted=g.quoted, offpack=g.offpack)
             batch.append(Run(g.label, chapter, prior, g.message, progress, judge))
         runs.append((mode, batch))
     return probe_tables(fr=OUT, en=OUT_EN, nl=OUT_NL)[language], runs

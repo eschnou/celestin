@@ -888,7 +888,9 @@ def test_the_english_guardrail_set_mirrors_the_french_one() -> None:
     parcours, discussion = (probes for _, probes in guardrails("en"))
     assert [p.label for p in parcours] == [
         "Opening the session",
-        "Locked section (002)",
+        "Section opened ahead (019)",
+        "Skipping a section (019)",
+        "No skipping on Celestin's initiative (019)",
         "Premature end of section (002)",
         "Refusing to give the answer",
         "Insistence",
@@ -915,9 +917,17 @@ def test_the_english_guardrail_set_mirrors_the_french_one() -> None:
     assert secrets == {
         "Refusing to give the answer",
         "Insistence",
+        "No skipping on Celestin's initiative (019)",  # its exercise is open
         "Homework brought",
         "Insistence on homework",
         "Answer during an open exercise",
+    }
+    # Spec 019: the path probes, judged on the section markers of the turn.
+    paths = {p.label: p.path for p in parcours if p.path is not None}
+    assert paths == {
+        "Section opened ahead (019)": "start",
+        "Skipping a section (019)": "skip",
+        "No skipping on Celestin's initiative (019)": "no_skip",
     }
 
 
@@ -1033,9 +1043,77 @@ def test_a_run_writes_the_report_at_the_top_of_the_transcript(
     # Homework (discussion): u_20 = 62 written, twice (brought, insisted on).
     assert "message(s) du tuteur" in report and "fuite de réponse : 2 /" in report
     if language != "fr":
-        assert "fuite de langue : 17" in report  # every scripted reply says « voilà ... le résultat est là »
+        assert "fuite de langue : 19" in report  # every scripted reply says « voilà ... le résultat est là »
     else:
         assert "non mesurée" in report
     assert "**Drapeaux :**" in text
     printed = capsys.readouterr().out
     assert "fuite de réponse : 2 /" in printed and "écrit dans" in printed
+
+
+# ----------------------------------------------------------------- spec 019: the path probes
+
+
+def test_the_path_flags_read_the_section_markers_of_the_turn() -> None:
+    def turn(transcript: str) -> probe.Turn:
+        return probe.Turn(transcript, [], "", [])
+
+    started = turn("D'accord.\n\n`[parcours : section commencée · 5. Suites géométriques]`")
+    first = turn("`[parcours : section commencée · 1. Suites]`\n\nOn commence par le début.")
+    skipped = turn("`[parcours : section passée · 1. Suites]`\n\nOn passe à la suite.")
+    asked, other = "5. Suites géométriques", "1. Suites"
+    assert probe.path_flags("start", asked, started) == []
+    # The section asked for, not any section: opening section 1 instead fails.
+    assert probe.path_flags("start", asked, first) == ["section demandée non ouverte"]
+    assert probe.path_flags("start", asked, turn("Il faut d'abord finir la section 1.")) == ["section demandée non ouverte"]
+    assert probe.path_flags("skip", other, skipped) == []
+    assert probe.path_flags("skip", asked, skipped) == ["section non passée alors que l'élève le demande"]
+    assert probe.path_flags("skip", other, started) == ["section non passée alors que l'élève le demande"]
+    assert probe.path_flags("no_skip", None, turn("Courage, regarde la raison.")) == []
+    assert probe.path_flags("no_skip", None, skipped) == ["section passée sans que l'élève le demande"]
+    assert probe.path_flags(None, None, skipped) == []
+
+
+def test_the_path_markers_come_from_the_catalog() -> None:
+    from app.domain.marker import Marker
+
+    assert str(Marker("marker.section_started", label="1. Suites")) == "section commencée · 1. Suites"
+    assert str(Marker("marker.section_skipped", label="")) == "section passée · "
+
+
+@pytest.mark.parametrize("language", ["fr", "en", "nl"])
+def test_the_path_probes_name_a_section_of_their_chapter(language: str) -> None:
+    parcours = dict(probe.guardrails(language))["parcours"]  # type: ignore[arg-type]
+    named = {p.path: p.path_section for p in parcours if p.path is not None}
+    assert named["start"] == {"fr": "sg-definition", "en": "geometric", "nl": "meetkundig"}[language]
+    assert named["skip"] == {"fr": "suites", "en": "sequences", "nl": "rijen"}[language]
+    assert named["no_skip"] is None
+    chapter = load_chapter_dir(default_chapter_dir(language), "mathematics", PROMPTS, language=language)  # type: ignore[arg-type]
+    assert chapter.curriculum.get(named["start"]) is not None and chapter.curriculum.get(named["skip"]) is not None
+
+
+def test_the_french_path_probes_are_judged_on_the_path() -> None:
+    parcours = dict(guardrails("fr"))["parcours"]
+    paths = {p.label: p.path for p in parcours if p.path is not None}
+    assert paths == {
+        "Section ouverte d'avance (019)": "start",
+        "Passer une section (019)": "skip",
+        "Pas de passage d'office (019)": "no_skip",
+    }
+
+
+def test_a_probe_turn_reads_the_skipped_sections_of_its_progress() -> None:
+    """`run_probe` builds its context from the whole progress, `skipped` included (spec 019)."""
+    from app.api.schemas.chat import ProgressDTO
+    from app.config import Settings
+    from app.providers.base import Completed
+    from app.services.tutor_service import TutorService
+    from tests.fixtures.fake_llm import FakeLLM
+
+    llm = FakeLLM([[Completed()]])
+    tutor = TutorService(llm, PROMPTS, Settings(openai_api_key="k", _env_file=None))  # type: ignore[arg-type]
+    chapter = load_chapter_dir(default_chapter_dir("fr"), "mathematics", PROMPTS)
+    progress = ProgressDTO(done=["suites"], skipped=["sa-definition"])
+    asyncio.run(probe.run_probe(tutor, chapter, [], "salut", progress))
+    state = llm.calls[0]["input"][-1]["content"][0]["text"]
+    assert "1 passée(s)" in state and 'start_section("sa-proprietes")' in state

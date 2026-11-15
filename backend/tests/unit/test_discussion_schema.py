@@ -113,3 +113,58 @@ def test_a_start_recorded_without_review_shows_what_its_replay_says() -> None:
     flagged = bare.model_copy(update={"review": False})
     view = StoredView(curriculum(), Progress(done=frozenset({"intro"})))
     assert stored_entry(flagged, "fr", "parcours", view).model_dump()["review"] is False
+
+
+def test_a_stored_skip_shows_its_marker_and_where_the_page_turns_now() -> None:
+    """Spec 019: `{kind, name: skip_section, arguments: {section_id}, next_section_id, active_section_id,
+    marker}`, from the progress **now** (`path.page_turn`), whatever the call recorded; a discussion
+    shows the call only (it is never offered the tool)."""
+    from app.domain.progress import Progress
+    from app.services.tools.context import StoredView
+    from tests.fixtures.curricula import curriculum
+
+    skip = ToolEntry(
+        kind="tool", name="skip_section", arguments={"section_id": "intro"}, next_section_id=None, active_section_id="exos"
+    )
+    after = StoredView(curriculum(), Progress(skipped=frozenset({"intro"})))
+    assert stored_entry(skip, "fr", "parcours", after).model_dump() == {
+        "kind": "tool", "text": None, "name": "skip_section", "arguments": {"section_id": "intro"},
+        "marker": "section passée · 1. Introduction", "next_section_id": "exos", "active_section_id": None,
+    }
+    assert stored_entry(skip, "nl", "parcours", after).marker == "sectie overgeslagen · 1. Introduction"
+    # A section active now: the stored skip turns no page, as the live one would not.
+    working = StoredView(curriculum(), Progress(active="bilan", skipped=frozenset({"intro"})))
+    shown = stored_entry(skip, "en", "parcours", working).model_dump()
+    assert shown["next_section_id"] is None and shown["active_section_id"] == "bilan"
+    assert set(stored_entry(skip).model_dump()) == {"kind", "text", "name", "arguments", "marker"}
+    assert stored_entry(skip).marker is None
+
+
+def test_a_stored_completion_turns_no_page_while_a_section_is_active_now() -> None:
+    """Spec 019, one page-turn rule (`path.page_turn`): a completion read back while another
+    section is being worked proposes nothing (before, it named the active section)."""
+    from app.domain.progress import Progress
+    from app.services.tools.context import StoredView
+    from tests.fixtures.curricula import curriculum
+
+    done = ToolEntry(kind="tool", name="complete_section", arguments={"section_id": "intro"}, next_section_id="exos")
+    working = StoredView(curriculum(), Progress(done=frozenset({"intro"}), active="bilan"))
+    shown = stored_entry(done, "fr", "parcours", working).model_dump()
+    assert shown["next_section_id"] is None and "active_section_id" not in shown
+    between = StoredView(curriculum(), Progress(done=frozenset({"intro"}), skipped=frozenset({"exos"})))
+    assert stored_entry(done, "fr", "parcours", between).model_dump()["next_section_id"] == "bilan"
+
+
+def test_the_recorded_fields_belong_to_their_tools() -> None:
+    import pytest
+    from pydantic import ValidationError
+
+    ToolEntry(kind="tool", name="complete_section", arguments={"section_id": "a"}, next_section_id=None)
+    for name, field in (
+        ("start_section", "next_section_id"),
+        ("display_board", "next_section_id"),
+        ("complete_section", "active_section_id"),
+        ("propose_next_step", "active_section_id"),
+    ):
+        with pytest.raises(ValidationError):
+            ToolEntry.model_validate({"kind": "tool", "name": name, "arguments": {}, field: None})

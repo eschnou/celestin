@@ -35,7 +35,7 @@ const CHAPTER = {
   language: "fr",
   subject: "mathematics",
   sections: [{ id: "suites", index: 1, kind: "teach", title: "Suites", goal: "g" }],
-  progress: { done: [], active: "suites" },
+  progress: { done: [], active: "suites", skipped: [] },
 };
 
 const NOT_READY = { code: "chapter_not_ready", message: "Ce chapitre n'est pas encore prêt." };

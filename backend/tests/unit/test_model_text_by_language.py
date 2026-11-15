@@ -31,15 +31,16 @@ def refusal(name: str, args: dict, ctx: TurnContext) -> str:
     return raised.value.message
 
 
-# --- the locked path ------------------------------------------------------------
+# --- the open path (spec 019) ----------------------------------------------------
 
 
 def test_path_refusals_in_english() -> None:
-    assert path.can_start(CUR_EN, Progress(), "nope", "en") == (
+    assert path.can_start(CUR_EN, "nope", "en") == (
         "Section “nope” does not exist. Sections of the chapter: intro, exos, bilan."
     )
-    assert path.can_start(CUR_EN, Progress(), "exos", "en") == (
-        "Section “2. Exercises” is not open yet. You can start “1. Introduction” (id: intro)."
+    assert path.can_start(CUR_EN, "exos", "en") is None
+    assert path.can_skip(CUR_EN, Progress(done=frozenset({"exos"})), "exos", "en") == (
+        "Section “2. Exercises” is already done: it cannot be skipped."
     )
     assert path.can_complete(CUR_EN, Progress(), "intro", "en") == (
         "No section is in progress. Start one with start_section."
@@ -51,16 +52,18 @@ def test_path_refusals_in_english() -> None:
 
 
 def test_path_refusals_are_french_by_default() -> None:
-    assert path.can_start(CUR_EN, Progress(), "nope").startswith("La section « nope » n'existe pas.")
+    assert path.can_start(CUR_EN, "nope").startswith("La section « nope » n'existe pas.")
 
 
 def test_the_refusal_a_tool_gives_follows_the_turns_language() -> None:
     # The French fixture curriculum has French titles; only the wording follows the language.
-    assert "is not open yet" in refusal("start_section", {"section_id": "exos"}, ctx_for(language="en"))
-    english = refusal("start_section", {"section_id": "exos"}, ctx_for(name="valid_en.yaml", language="en"))
-    assert english.startswith("Section “2. Exercises” is not open yet.")
-    french = refusal("start_section", {"section_id": "exos"}, ctx_for())
-    assert french.startswith("La section « 2. Exercices » n'est pas encore ouverte.")
+    done = Progress(done=frozenset({"exos"}))
+    assert "is already done" in refusal("skip_section", {"section_id": "exos"}, ctx_for(done, language="en"))
+    english = refusal("skip_section", {"section_id": "exos"}, ctx_for(done, name="valid_en.yaml", language="en"))
+    assert english.startswith("Section “2. Exercises” is already done")
+    french = refusal("skip_section", {"section_id": "exos"}, ctx_for(done))
+    assert french.startswith("La section « 2. Exercices » est déjà faite")
+    assert refusal("start_section", {"section_id": "nope"}, ctx_for(language="en")).startswith("Section “nope”")
 
 
 # --- section tools ----------------------------------------------------------------

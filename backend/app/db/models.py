@@ -199,6 +199,8 @@ class ProgressRow(Base):
     )
     done: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     active: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # Spec 019: the sections the student chose to pass (« passées »), apart from `done`.
+    skipped: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 

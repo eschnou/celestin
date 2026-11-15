@@ -31,8 +31,8 @@ PROMPT_ACCESSORS = {
     "work": 1,
 }
 PROMPT_RECEIVERS = {"prompts", "_prompts", "library"}
-RENDER = {"overview": 3, "brief": 4, "completion": 3, "state_message": 5, "moment": 2, "reprise": 2}
-PATH = {"can_start": 4, "can_complete": 4}
+RENDER = {"overview": 3, "brief": 4, "completion": 3, "skipped": 3, "state_message": 5, "moment": 2, "reprise": 2}
+PATH = {"can_start": 3, "can_skip": 4, "can_complete": 4}
 REGISTRY = {"declarations": 2, "realtime_declarations": 2}
 TRANSCRIPTION = {"count_markers": 2, "validate_batch": 3, "handwritten_numbers": 2, "apply_uncertain": 3}
 HISTORY = {"estimate_tokens": 2, "trim": 3}
